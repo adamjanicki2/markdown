@@ -21,7 +21,7 @@
   "scripts": {
     "lint": "eslint src test --fix && prettier --write \"src/**/*.{ts,tsx,json,md}\" \"test/**/*.{ts,tsx}\"",
     "test": "jest --silent",
-    "build": "npm test && eslint src test --max-warnings=0 && tsc && esbuild build/**/*.js --minify --format=esm --tree-shaking=true --target=es2018 --outdir=build --allow-overwrite --log-level=silent",
+    "build": "npm test && eslint src test --max-warnings=0 && python3 ./build.py",
     "prepare": "npm run build"
   },
   "peerDependencies": {
