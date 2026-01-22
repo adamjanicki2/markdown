@@ -21,7 +21,7 @@
   "scripts": {
     "lint": "eslint src test --fix && prettier --write \"src/**/*.{ts,tsx,json,md}\" \"test/**/*.{ts,tsx}\"",
     "test": "jest --silent",
-    "build": "npm test && eslint src test --max-warnings=0 && tsc",
+    "build": "npm test && eslint src test --max-warnings=0 && tsc && esbuild build/**/*.js --minify --format=esm --tree-shaking=true --target=es2018 --outdir=build --allow-overwrite --log-level=silent",
     "prepare": "npm run build"
   },
   "peerDependencies": {
@@ -33,6 +33,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
     "@types/react": "^19.0.0",
+    "esbuild": "^0.27.2",
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
     "ts-jest": "^29.4.1",
