@@ -1,0 +1,57 @@
+:root {
+  --nav-background-color: white;
+  --nav-box-shadow:
+    0px 1px 0px rgba(0, 0, 0, 0.04), 0px 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.nav {
+  position: sticky;
+  width: 100%;
+  top: 0;
+  box-shadow: var(--nav-box-shadow);
+  z-index: 1000;
+  background-color: var(--nav-background-color);
+}
+
+.link-container {
+  list-style-type: none;
+  padding: 0;
+  margin: 15px 0;
+}
+
+.nav-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.navlink-li {
+  margin-left: 2rem;
+}
+
+.navlink {
+  color: var(--aui-color-default);
+}
+
+@media only screen and (max-width: 820px) {
+  .bar-container {
+    width: 100%;
+  }
+  .link-container,
+  .nav {
+    flex-direction: column;
+  }
+  .link-container {
+    width: 100%;
+    align-items: start;
+  }
+  .navlink-li {
+    margin: 0;
+    width: 100%;
+  }
+  .navlink {
+    width: 100%;
+    display: flex;
+    margin: 0.5rem 0;
+  }
+}

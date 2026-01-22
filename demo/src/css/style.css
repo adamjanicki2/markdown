@@ -1,0 +1,17 @@
+html {
+  scroll-padding-top: 5rem;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #f4f4fb;
+  overflow-x: hidden;
+}
+
+code {
+  color: #b71c1c;
+}
+
+.bordering {
+  border: 2px solid red;
+}

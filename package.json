@@ -1,0 +1,19 @@
+{
+  "name": "npm-skeleton",
+  "description": "Skeleton/template for an NPM package",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "lib",
+    "demo"
+  ],
+  "devDependencies": {
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-unused-imports": "^4.3.0",
+    "prettier": "^3.7.4",
+    "typescript-eslint": "^8.39.0"
+  }
+}

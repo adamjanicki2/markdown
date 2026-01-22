@@ -1,0 +1,33 @@
+{
+  "name": "npm-skeleton-demo",
+  "version": "1.0.0",
+  "homepage": "https://adamjanicki.xyz/npm-skeleton",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@adamjanicki/ui": "^1.9.3",
+    "@adamjanicki/npm-skeleton": "*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-syntax-highlighter": "^16.1.0"
+  },
+  "scripts": {
+    "start": "vite",
+    "build": "eslint src --max-warnings=0 && vite build && cp build/index.html build/404.html",
+    "lint": "eslint src --fix && prettier --write \"src/**/*.{ts,tsx,json,css,scss,md}\"",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.6.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@vitejs/plugin-react": "^5.0.0",
+    "gh-pages": "^6.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.1",
+    "vite-plugin-eslint": "^1.8.1",
+    "vite-plugin-svgr": "^4.3.0"
+  }
+}

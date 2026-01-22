@@ -1,0 +1,13 @@
+:root {
+  --snippet-background-color: #f1f8ff;
+}
+
+.no-bg * {
+  background-color: transparent !important;
+  background: none;
+}
+
+.snippet-container {
+  overflow: hidden;
+  background-color: var(--snippet-background-color);
+}
