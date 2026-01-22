@@ -1,7 +1,7 @@
 {
-  "name": "@adamjanicki/npm-skeleton",
+  "name": "@adamjanicki/markdown",
   "version": "1.0.0",
-  "description": "Skeleton/template for an NPM package",
+  "description": "A component for converting Markdown into React",
   "type": "module",
   "main": "./build/index.js",
   "module": "./build/index.js",
@@ -11,7 +11,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adamjanicki2/npm-skeleton.git"
+    "url": "git+https://github.com/adamjanicki2/markdown.git"
   },
   "files": [
     "build",
