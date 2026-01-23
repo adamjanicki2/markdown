@@ -140,12 +140,35 @@ function isBlockStart(line: string) {
  * @returns list of inline nodes
  */
 function parseBlock(block: string): InlineNode[] {
-  const nodes: InlineNode[] = [];
+  const tokens = tokenizeInline(block);
+  return resolveDelimiters(tokens);
+}
+
+type DelimiterToken = {
+  type: "delim";
+  marker: "*" | "~";
+  length: 1 | 2 | 3;
+};
+
+type InlineToken = InlineNode | DelimiterToken;
+
+function tokenizeInline(block: string): InlineToken[] {
+  const tokens: InlineToken[] = [];
   let text = "";
 
-  const addTextNode = () => {
+  const addTextToken = (value: string) => {
+    if (!value) return;
+    const last = tokens[tokens.length - 1];
+    if (last && last.type === "text") {
+      last.value += value;
+    } else {
+      tokens.push({ type: "text", value });
+    }
+  };
+
+  const flushText = () => {
     if (text) {
-      nodes.push({ type: "text", value: text });
+      addTextToken(text);
       text = "";
     }
   };
@@ -157,8 +180,8 @@ function parseBlock(block: string): InlineNode[] {
     if (char === "\n") {
       if (text.endsWith("  ")) {
         text = text.slice(0, -2);
-        addTextNode();
-        nodes.push({ type: "br" });
+        flushText();
+        tokens.push({ type: "br" });
       } else {
         text += " ";
       }
@@ -169,8 +192,8 @@ function parseBlock(block: string): InlineNode[] {
     if (char === "`") {
       const end = block.indexOf("`", i + 1);
       if (end !== -1) {
-        addTextNode();
-        nodes.push({ type: "code", value: block.slice(i + 1, end) });
+        flushText();
+        tokens.push({ type: "code", value: block.slice(i + 1, end) });
         i = end;
         continue;
       }
@@ -184,8 +207,8 @@ function parseBlock(block: string): InlineNode[] {
         if (urlEnd !== -1) {
           const alt = block.slice(i + 2, labelEnd);
           const url = block.slice(labelEnd + 2, urlEnd);
-          addTextNode();
-          nodes.push({ type: "img", url, alt });
+          flushText();
+          tokens.push({ type: "img", url, alt });
           i = urlEnd;
           continue;
         }
@@ -200,19 +223,143 @@ function parseBlock(block: string): InlineNode[] {
         if (urlEnd !== -1) {
           const label = block.slice(i + 1, labelEnd);
           const url = block.slice(labelEnd + 2, urlEnd);
-          addTextNode();
-          nodes.push({ type: "a", url, children: parseBlock(label) });
+          flushText();
+          tokens.push({ type: "a", url, children: parseBlock(label) });
           i = urlEnd;
           continue;
         }
       }
     }
 
+    if (char === "*" || char === "~") {
+      let runLength = 1;
+      while (i + runLength < block.length && block[i + runLength] === char) {
+        runLength += 1;
+      }
+
+      flushText();
+
+      if (char === "~") {
+        const pairs = Math.floor(runLength / 2);
+        for (let j = 0; j < pairs; j += 1) {
+          tokens.push({ type: "delim", marker: "~", length: 2 });
+        }
+        if (runLength % 2 === 1) {
+          addTextToken("~");
+        }
+      } else {
+        let remaining = runLength;
+        while (remaining >= 3) {
+          tokens.push({ type: "delim", marker: "*", length: 3 });
+          remaining -= 3;
+        }
+        if (remaining === 2) {
+          tokens.push({ type: "delim", marker: "*", length: 2 });
+        } else if (remaining === 1) {
+          tokens.push({ type: "delim", marker: "*", length: 1 });
+        }
+      }
+
+      i += runLength - 1;
+      continue;
+    }
+
     text += char;
   }
 
-  addTextNode();
-  return nodes;
+  flushText();
+  return tokens;
+}
+
+function resolveDelimiters(tokens: InlineToken[]): InlineNode[] {
+  const stack: Array<{
+    marker: "*" | "~";
+    length: 1 | 2 | 3;
+    nodes: InlineNode[];
+  }> = [];
+  let current: InlineNode[] = [];
+
+  const addTextNode = (value: string) => {
+    if (!value) return;
+    const last = current[current.length - 1];
+    if (last && last.type === "text") {
+      last.value += value;
+    } else {
+      current.push({ type: "text", value });
+    }
+  };
+
+  const openDelimiter = (marker: "*" | "~", length: 1 | 2 | 3) => {
+    stack.push({ marker, length, nodes: current });
+    current = [];
+  };
+
+  const closeDelimiter = (frame: { marker: "*" | "~"; length: 1 | 2 | 3 }) => {
+    const inner = current;
+    const parent = stack.pop();
+    if (!parent) return;
+    current = parent.nodes;
+
+    if (frame.marker === "~") {
+      current.push({ type: "del", children: inner });
+      return;
+    }
+
+    if (frame.length === 3) {
+      current.push({
+        type: "strong",
+        children: [{ type: "em", children: inner }],
+      });
+    } else if (frame.length === 2) {
+      current.push({ type: "strong", children: inner });
+    } else {
+      current.push({ type: "em", children: inner });
+    }
+  };
+
+  const handleDelimiter = (marker: "*" | "~", length: 1 | 2 | 3) => {
+    const top = stack[stack.length - 1];
+    if (top && top.marker === marker && top.length === length) {
+      closeDelimiter({ marker, length });
+    } else {
+      openDelimiter(marker, length);
+    }
+  };
+
+  for (const token of tokens) {
+    if (token.type !== "delim") {
+      current.push(token);
+      continue;
+    }
+
+    if (token.marker === "*" && token.length === 3) {
+      const top = stack[stack.length - 1];
+      if (top && top.marker === "*" && top.length === 1) {
+        handleDelimiter("*", 1);
+        handleDelimiter("*", 2);
+      } else if (top && top.marker === "*" && top.length === 2) {
+        handleDelimiter("*", 2);
+        handleDelimiter("*", 1);
+      } else {
+        handleDelimiter("*", 3);
+      }
+      continue;
+    }
+
+    handleDelimiter(token.marker, token.length);
+  }
+
+  while (stack.length > 0) {
+    const frame = stack.pop();
+    if (!frame) break;
+    const literal = frame.marker.repeat(frame.length);
+    const inner = current;
+    current = frame.nodes;
+    addTextNode(literal);
+    current.push(...inner);
+  }
+
+  return current;
 }
 
 // Types

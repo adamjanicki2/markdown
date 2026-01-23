@@ -3,13 +3,17 @@ import { constructAst } from "../src/ast";
 describe("ast", () => {
   it("parses a heading", () => {
     expect(
-      constructAst("# Title [Docs](https://example.com)\n\nHello `x`!")
+      constructAst(
+        "# Title **Bold** [Docs](https://example.com)\n\nHello *there* `x`!"
+      )
     ).toEqual([
       {
         type: "heading",
         level: 1,
         children: [
           { type: "text", value: "Title " },
+          { type: "strong", children: [{ type: "text", value: "Bold" }] },
+          { type: "text", value: " " },
           {
             type: "a",
             url: "https://example.com",
@@ -21,6 +25,8 @@ describe("ast", () => {
         type: "p",
         children: [
           { type: "text", value: "Hello " },
+          { type: "em", children: [{ type: "text", value: "there" }] },
+          { type: "text", value: " " },
           { type: "code", value: "x" },
           { type: "text", value: "!" },
         ],
@@ -203,6 +209,63 @@ describe("ast", () => {
             type: "img",
             url: "img.png",
             alt: "caption",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses emphasis, strong, and strikethrough", () => {
+    expect(
+      constructAst(
+        "This is *em* and **strong** and ~~del~~, and a combo: ~~***combo***~~"
+      )
+    ).toEqual([
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "This is " },
+          { type: "em", children: [{ type: "text", value: "em" }] },
+          { type: "text", value: " and " },
+          { type: "strong", children: [{ type: "text", value: "strong" }] },
+          { type: "text", value: " and " },
+          { type: "del", children: [{ type: "text", value: "del" }] },
+          { type: "text", value: ", and a combo: " },
+          {
+            type: "del",
+            children: [
+              {
+                type: "strong",
+                children: [
+                  { type: "em", children: [{ type: "text", value: "combo" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses complex delimiter nesting", () => {
+    expect(constructAst("**a *b*** *a **b***")).toEqual([
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              { type: "text", value: "a " },
+              { type: "em", children: [{ type: "text", value: "b" }] },
+            ],
+          },
+          { type: "text", value: " " },
+          {
+            type: "em",
+            children: [
+              { type: "text", value: "a " },
+              { type: "strong", children: [{ type: "text", value: "b" }] },
+            ],
           },
         ],
       },
