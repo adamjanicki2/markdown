@@ -238,6 +238,14 @@ function tokenizeInline(block: string): InlineToken[] {
     }
 
     if ((markers as readonly string[]).includes(char)) {
+      if (
+        char === "_" &&
+        isAlphanum(block[i - 1]) &&
+        isAlphanum(block[i + 1])
+      ) {
+        text += char;
+        continue;
+      }
       let runLength = 1;
       while (i + runLength < block.length && block[i + runLength] === char) {
         runLength += 1;
@@ -253,27 +261,18 @@ function tokenizeInline(block: string): InlineToken[] {
         if (runLength % 2 === 1) {
           addTextToken("~");
         }
-      } else if (char === "*") {
-        let remaining = runLength;
-        if (remaining === 2) {
-          tokens.push({ type: "delim", marker: "*", length: 2 });
-        } else if (remaining === 1) {
-          tokens.push({ type: "delim", marker: "*", length: 1 });
-        } else if (remaining > 2) {
-          tokens.push({ type: "delim", marker: "*", length: 2 });
-          tokens.push({ type: "delim", marker: "*", length: 1 });
-        }
       } else {
-        if (runLength >= 2) {
-          tokens.push({ type: "delim", marker: "_", length: 2 });
-          if (runLength > 2) {
-            tokens.push({ type: "delim", marker: "_", length: 1 });
-            if (runLength > 3) {
-              addTextToken("_".repeat(runLength - 3));
-            }
-          }
+        const marker = char as "*" | "_";
+        if (runLength === 1) {
+          tokens.push({ type: "delim", marker, length: 1 });
+        } else if (runLength === 2) {
+          tokens.push({ type: "delim", marker, length: 2 });
         } else {
-          tokens.push({ type: "delim", marker: "_", length: 1 });
+          tokens.push({ type: "delim", marker, length: 2 });
+          tokens.push({ type: "delim", marker, length: 1 });
+          if (runLength > 3) {
+            addTextToken(marker.repeat(runLength - 3));
+          }
         }
       }
 
@@ -286,6 +285,11 @@ function tokenizeInline(block: string): InlineToken[] {
 
   flushText();
   return tokens;
+}
+
+function isAlphanum(value?: string) {
+  if (!value) return false;
+  return /[A-Za-z0-9]/.test(value);
 }
 
 function resolveDelimiters(tokens: InlineToken[]): InlineNode[] {
