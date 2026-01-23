@@ -38,7 +38,7 @@ export default function Nav() {
         className="bar-container"
       >
         <UnstyledLink className="nav-title" to="/" onClick={closeMenu}>
-          <Box className="desktop">@adamjanicki/npm-skeleton</Box>
+          <Box className="desktop">@adamjanicki/markdown</Box>
           <Icon icon={architect} size="l" className="mobile" />
         </UnstyledLink>
         <Box className="mobile">

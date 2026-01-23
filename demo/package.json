@@ -1,12 +1,12 @@
 {
-  "name": "npm-skeleton-demo",
+  "name": "markdown-demo",
   "version": "1.0.0",
-  "homepage": "https://adamjanicki.xyz/npm-skeleton",
+  "homepage": "https://adamjanicki.xyz/markdown",
   "private": true,
   "type": "module",
   "dependencies": {
     "@adamjanicki/ui": "^1.9.3",
-    "@adamjanicki/npm-skeleton": "*",
+    "@adamjanicki/markdown": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-syntax-highlighter": "^16.1.0"

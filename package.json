@@ -1,6 +1,6 @@
 {
-  "name": "npm-skeleton",
-  "description": "Skeleton/template for an NPM package",
+  "name": "markdown",
+  "description": "A component for converting Markdown into React",
   "private": true,
   "type": "module",
   "workspaces": [

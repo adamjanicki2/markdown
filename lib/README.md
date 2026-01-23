@@ -1,3 +1,3 @@
-# @adamjanicki/npm-skeleton
+# markdown
 
-Skeleton/template for an NPM package
+A component for converting Markdown into React

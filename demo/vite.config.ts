@@ -6,11 +6,11 @@ import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
   plugins: [react(), svgr(), eslint({ lintOnStart: true })],
-  base: "/npm-skeleton/",
+  base: "/markdown/",
   resolve: {
     alias: {
       src: path.resolve(__dirname, "src"),
-      "npm-skeleton": path.resolve(__dirname, "../lib/src"),
+      "markdown": path.resolve(__dirname, "../lib/src"),
     },
   },
   build: {
@@ -26,7 +26,7 @@ export default defineConfig({
       ],
     },
     watch: {
-      ignored: ["!**/node_modules/npm-skeleton/**", "!../lib/src/**"],
+      ignored: ["!**/node_modules/markdown/**", "!../lib/src/**"],
     },
   },
 });
