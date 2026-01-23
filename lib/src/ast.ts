@@ -144,10 +144,14 @@ function parseBlock(block: string): InlineNode[] {
   return resolveDelimiters(tokens);
 }
 
+const markers = ["*", "~", "_"] as const;
+type Marker = (typeof markers)[number];
+type DelimiterLength = 1 | 2;
+
 type DelimiterToken = {
   type: "delim";
-  marker: "*" | "~";
-  length: 1 | 2 | 3;
+  marker: Marker;
+  length: DelimiterLength;
 };
 
 type InlineToken = InlineNode | DelimiterToken;
@@ -231,7 +235,7 @@ function tokenizeInline(block: string): InlineToken[] {
       }
     }
 
-    if (char === "*" || char === "~") {
+    if ((markers as readonly string[]).includes(char)) {
       let runLength = 1;
       while (i + runLength < block.length && block[i + runLength] === char) {
         runLength += 1;
@@ -247,16 +251,27 @@ function tokenizeInline(block: string): InlineToken[] {
         if (runLength % 2 === 1) {
           addTextToken("~");
         }
-      } else {
+      } else if (char === "*") {
         let remaining = runLength;
-        while (remaining >= 3) {
-          tokens.push({ type: "delim", marker: "*", length: 3 });
-          remaining -= 3;
-        }
         if (remaining === 2) {
           tokens.push({ type: "delim", marker: "*", length: 2 });
         } else if (remaining === 1) {
           tokens.push({ type: "delim", marker: "*", length: 1 });
+        } else if (remaining > 2) {
+          tokens.push({ type: "delim", marker: "*", length: 2 });
+          tokens.push({ type: "delim", marker: "*", length: 1 });
+        }
+      } else {
+        if (runLength >= 2) {
+          tokens.push({ type: "delim", marker: "_", length: 2 });
+          if (runLength > 2) {
+            tokens.push({ type: "delim", marker: "_", length: 1 });
+            if (runLength > 3) {
+              addTextToken("_".repeat(runLength - 3));
+            }
+          }
+        } else {
+          tokens.push({ type: "delim", marker: "_", length: 1 });
         }
       }
 
@@ -273,8 +288,8 @@ function tokenizeInline(block: string): InlineToken[] {
 
 function resolveDelimiters(tokens: InlineToken[]): InlineNode[] {
   const stack: Array<{
-    marker: "*" | "~";
-    length: 1 | 2 | 3;
+    marker: Marker;
+    length: DelimiterLength;
     nodes: InlineNode[];
   }> = [];
   let current: InlineNode[] = [];
@@ -289,12 +304,15 @@ function resolveDelimiters(tokens: InlineToken[]): InlineNode[] {
     }
   };
 
-  const openDelimiter = (marker: "*" | "~", length: 1 | 2 | 3) => {
+  const openDelimiter = (marker: Marker, length: DelimiterLength) => {
     stack.push({ marker, length, nodes: current });
     current = [];
   };
 
-  const closeDelimiter = (frame: { marker: "*" | "~"; length: 1 | 2 | 3 }) => {
+  const closeDelimiter = (frame: {
+    marker: Marker;
+    length: DelimiterLength;
+  }) => {
     const inner = current;
     const parent = stack.pop();
     if (!parent) return;
@@ -305,19 +323,14 @@ function resolveDelimiters(tokens: InlineToken[]): InlineNode[] {
       return;
     }
 
-    if (frame.length === 3) {
-      current.push({
-        type: "strong",
-        children: [{ type: "em", children: inner }],
-      });
-    } else if (frame.length === 2) {
+    if (frame.length === 2) {
       current.push({ type: "strong", children: inner });
     } else {
       current.push({ type: "em", children: inner });
     }
   };
 
-  const handleDelimiter = (marker: "*" | "~", length: 1 | 2 | 3) => {
+  const handleDelimiter = (marker: Marker, length: DelimiterLength) => {
     const top = stack[stack.length - 1];
     if (top && top.marker === marker && top.length === length) {
       closeDelimiter({ marker, length });
@@ -326,23 +339,35 @@ function resolveDelimiters(tokens: InlineToken[]): InlineNode[] {
     }
   };
 
-  for (const token of tokens) {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
     if (token.type !== "delim") {
       current.push(token);
       continue;
     }
 
-    if (token.marker === "*" && token.length === 3) {
+    const next = tokens[i + 1];
+    const isPair =
+      (token.marker === "*" || token.marker === "_") &&
+      token.length === 2 &&
+      next &&
+      next.type === "delim" &&
+      next.marker === token.marker &&
+      next.length === 1;
+
+    if (isPair) {
       const top = stack[stack.length - 1];
-      if (top && top.marker === "*" && top.length === 1) {
-        handleDelimiter("*", 1);
-        handleDelimiter("*", 2);
-      } else if (top && top.marker === "*" && top.length === 2) {
-        handleDelimiter("*", 2);
-        handleDelimiter("*", 1);
+      if (top && top.marker === token.marker && top.length === 1) {
+        handleDelimiter(token.marker, 1);
+        handleDelimiter(token.marker, 2);
+      } else if (top && top.marker === token.marker && top.length === 2) {
+        handleDelimiter(token.marker, 2);
+        handleDelimiter(token.marker, 1);
       } else {
-        handleDelimiter("*", 3);
+        handleDelimiter(token.marker, 2);
+        handleDelimiter(token.marker, 1);
       }
+      i += 1;
       continue;
     }
 

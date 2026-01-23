@@ -4,7 +4,7 @@ describe("ast", () => {
   it("parses a heading", () => {
     expect(
       constructAst(
-        "# Title **Bold** [Docs](https://example.com)\n\nHello *there* `x`!"
+        "# Title **Bold** [Docs](https://example.com)\n\nHello _there_ `x`!"
       )
     ).toEqual([
       {
@@ -174,7 +174,7 @@ describe("ast", () => {
   });
 
   it("parses inline code inside paragraphs", () => {
-    expect(constructAst("Use `x` and `y`.")).toEqual([
+    expect(constructAst("Use `x` and `y` in __bold__.")).toEqual([
       {
         type: "p",
         children: [
@@ -182,6 +182,8 @@ describe("ast", () => {
           { type: "code", value: "x" },
           { type: "text", value: " and " },
           { type: "code", value: "y" },
+          { type: "text", value: " in " },
+          { type: "strong", children: [{ type: "text", value: "bold" }] },
           { type: "text", value: "." },
         ],
       },
@@ -218,7 +220,7 @@ describe("ast", () => {
   it("parses emphasis, strong, and strikethrough", () => {
     expect(
       constructAst(
-        "This is *em* and **strong** and ~~del~~, and a combo: ~~***combo***~~"
+        "This is _em_ and **strong** and ~~del~~, and a combo: ~~***combo***~~"
       )
     ).toEqual([
       {
@@ -265,6 +267,132 @@ describe("ast", () => {
             children: [
               { type: "text", value: "a " },
               { type: "strong", children: [{ type: "text", value: "b" }] },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses deeply nested emphasis with strikethrough and mixed markers", () => {
+    expect(constructAst("~~**_a_** ok~~")).toEqual([
+      {
+        type: "p",
+        children: [
+          {
+            type: "del",
+            children: [
+              {
+                type: "strong",
+                children: [{ type: "em", children: [{ type: "text", value: "a" }] }],
+              },
+              { type: "text", value: " ok" },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses nested delimiters with multiple levels and spacing", () => {
+    expect(constructAst("**a _b ~~c~~ d_ e!**")).toEqual([
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              { type: "text", value: "a " },
+              {
+                type: "em",
+                children: [
+                  { type: "text", value: "b " },
+                  { type: "del", children: [{ type: "text", value: "c" }] },
+                  { type: "text", value: " d" },
+                ],
+              },
+              { type: "text", value: " e!" },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses mixed strong/em with nested strikethrough inside emphasis", () => {
+    expect(constructAst("*a? **b ~~c~~ d** e*")).toEqual([
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              { type: "text", value: "a? " },
+              {
+                type: "strong",
+                children: [
+                  { type: "text", value: "b " },
+                  { type: "del", children: [{ type: "text", value: "c" }] },
+                  { type: "text", value: " d" },
+                ],
+              },
+              { type: "text", value: " e" },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses alternating underscore and asterisk nesting", () => {
+    expect(constructAst("__a *b _c_ d* e!?__")).toEqual([
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              { type: "text", value: "a " },
+              {
+                type: "em",
+                children: [
+                  { type: "text", value: "b " },
+                  { type: "em", children: [{ type: "text", value: "c" }] },
+                  { type: "text", value: " d" },
+                ],
+              },
+              { type: "text", value: " e!?" },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses multiple nested runs with strikethrough wrapping complex emphasis", () => {
+    expect(constructAst("~~__a *b **c** d* e__...~~")).toEqual([
+      {
+        type: "p",
+        children: [
+          {
+            type: "del",
+            children: [
+              {
+                type: "strong",
+                children: [
+                  { type: "text", value: "a " },
+                  {
+                    type: "em",
+                    children: [
+                      { type: "text", value: "b " },
+                      { type: "strong", children: [{ type: "text", value: "c" }] },
+                      { type: "text", value: " d" },
+                    ],
+                  },
+                  { type: "text", value: " e" },
+                ],
+              },
+              { type: "text", value: "..." },
             ],
           },
         ],
