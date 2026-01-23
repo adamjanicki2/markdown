@@ -147,8 +147,7 @@ function parseBlock(block: string): InlineNode[] {
 const markers = ["*", "~", "_"] as const;
 type Marker = (typeof markers)[number];
 type DelimiterLength = 1 | 2;
-const markerSet = new Set<string>(markers);
-const urlRegex = /https?:\/\/[^\s<>()]+[^\s<>().,!?]/;
+const urlRegex = /https?:\/\/[^\s<>()]+[^\s<>().,!?]/g;
 
 type DelimiterToken = {
   type: "delim";
@@ -231,7 +230,7 @@ function tokenizeInline(block: string): InlineToken[] {
       }
     }
 
-    if (markerSet.has(char)) {
+    if ((markers as readonly string[]).includes(char)) {
       let runLength = 1;
       while (i + runLength < block.length && block[i + runLength] === char) {
         runLength += 1;
@@ -389,10 +388,9 @@ function appendTextNode(target: InlineToken[], value: string) {
 
 function appendTextWithLinks(target: InlineToken[], value: string) {
   if (!value) return;
-  const urlMatcher = new RegExp(urlRegex.source, "g");
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = urlMatcher.exec(value))) {
+  while ((match = urlRegex.exec(value))) {
     const start = match.index;
     if (start > lastIndex) {
       appendTextNode(target, value.slice(lastIndex, start));
