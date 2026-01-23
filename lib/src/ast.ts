@@ -13,13 +13,13 @@ export function constructAst(markdown: string): AstNode[] {
     const line = lines[i];
 
     if (!line.trim()) {
-      i++;
-      continue;
+      i += 1;
     }
+    // pre
+    else if (preRegex.test(line)) {
+      const preMatch = line.match(preRegex);
+      const lang = preMatch ? preMatch[1] : undefined;
 
-    const fenceMatch = line.match(/^\s*```(\S*)\s*$/);
-    if (fenceMatch) {
-      const lang = fenceMatch[1] || undefined;
       i += 1;
       const codeLines: string[] = [];
       while (i < lines.length && !isFenceLine(lines[i])) {
@@ -29,31 +29,25 @@ export function constructAst(markdown: string): AstNode[] {
       if (i < lines.length && isFenceLine(lines[i])) {
         i += 1;
       }
-      nodes.push({
-        type: "pre",
-        lang,
-        value: codeLines.join("\n"),
-      });
-      continue;
+      nodes.push({ type: "pre", lang, value: codeLines.join("\n") });
     }
-
-    if (/^\s*>/.test(line)) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && /^\s*>/.test(lines[i])) {
-        quoteLines.push(lines[i].replace(/^\s*>\s?/, ""));
+    // blockquote
+    else if (blockquoteRegex.test(line)) {
+      const blockquoteLines: string[] = [];
+      while (i < lines.length && blockquoteRegex.test(lines[i])) {
+        blockquoteLines.push(lines[i].replace(blockquoteRegex, ""));
         i += 1;
       }
       nodes.push({
         type: "blockquote",
-        children: constructAst(quoteLines.join("\n")),
+        children: constructAst(blockquoteLines.join("\n")),
       });
-      continue;
     }
-
-    if (/^\s*[-+*]\s+/.test(line)) {
+    // ul
+    else if (ulRegex.test(line)) {
       const items: ListItemNode[] = [];
-      while (i < lines.length && /^\s*[-+*]\s+/.test(lines[i])) {
-        const match = lines[i].match(/^\s*[-+*]\s+(.*)$/);
+      while (i < lines.length && ulRegex.test(lines[i])) {
+        const match = lines[i].match(ulItemRegex);
         const content = match ? match[1] : "";
         items.push({
           type: "li",
@@ -62,13 +56,12 @@ export function constructAst(markdown: string): AstNode[] {
         i += 1;
       }
       nodes.push({ type: "ul", items });
-      continue;
     }
-
-    if (/^\s*\d+\.\s+/.test(line)) {
+    // ol
+    else if (olRegex.test(line)) {
       const items: ListItemNode[] = [];
-      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-        const match = lines[i].match(/^\s*\d+\.\s+(.*)$/);
+      while (i < lines.length && olRegex.test(lines[i])) {
+        const match = lines[i].match(olItemRegex);
         const content = match ? match[1] : "";
         items.push({
           type: "li",
@@ -77,37 +70,32 @@ export function constructAst(markdown: string): AstNode[] {
         i += 1;
       }
       nodes.push({ type: "ol", items });
-      continue;
-    }
-
-    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
-    if (headingMatch) {
-      nodes.push({
-        type: "heading",
-        level: headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6,
-        children: parseBlock(headingMatch[2]),
-      });
+    } else if (headingRegex.test(line)) {
+      const headingMatch = line.match(headingLineRegex);
+      if (headingMatch) {
+        nodes.push({
+          type: "heading",
+          level: headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6,
+          children: parseBlock(headingMatch[2]),
+        });
+      }
       i += 1;
-      continue;
     }
-
-    if (isHrLine(line)) {
+    // hr
+    else if (isHrLine(line)) {
       nodes.push({ type: "hr" });
       i += 1;
-      continue;
     }
-
-    const paraLines: string[] = [line];
-    i += 1;
-    while (
-      i < lines.length &&
-      lines[i].trim() !== "" &&
-      !isBlockStart(lines[i])
-    ) {
-      paraLines.push(lines[i]);
+    // p
+    else {
+      const paraLines: string[] = [line];
       i += 1;
+      while (i < lines.length && lines[i].trim() && !isBlockStart(lines[i])) {
+        paraLines.push(lines[i]);
+        i += 1;
+      }
+      nodes.push({ type: "p", children: parseBlock(paraLines.join("\n")) });
     }
-    nodes.push({ type: "p", children: parseBlock(paraLines.join("\n")) });
   }
 
   return nodes;
@@ -116,14 +104,17 @@ export function constructAst(markdown: string): AstNode[] {
 const cleanNewlines = (str: string) => str.replace(/\r\n?/g, "\n");
 
 const hrRegex = /^(?:-{3,}|\*{3,}|_{3,})$/;
-const codeFenceRegex = /^\s*```/;
-const blockquoteRegex = /^\s*>/;
+const preRegex = /^\s*```(\S*)\s*$/;
+const blockquoteRegex = /^\s*>\s?/;
 const ulRegex = /^\s*[-+*]\s+/;
 const olRegex = /^\s*\d+\.\s+/;
 const headingRegex = /^#{1,6}\s+/;
+const ulItemRegex = /^\s*[-+*]\s+(.*)$/;
+const olItemRegex = /^\s*\d+\.\s+(.*)$/;
+const headingLineRegex = /^(#{1,6})\s+(.*)$/;
 
 function isFenceLine(line: string) {
-  return codeFenceRegex.test(line);
+  return preRegex.test(line);
 }
 
 function isHrLine(line: string) {
@@ -133,7 +124,7 @@ function isHrLine(line: string) {
 function isBlockStart(line: string) {
   const trimmedLine = line.trim();
   if (!trimmedLine) return false;
-  if (codeFenceRegex.test(line)) return true;
+  if (preRegex.test(line)) return true;
   if (blockquoteRegex.test(line)) return true;
   if (ulRegex.test(line)) return true;
   if (olRegex.test(line)) return true;
