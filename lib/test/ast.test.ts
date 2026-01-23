@@ -35,7 +35,11 @@ describe("ast", () => {
   });
 
   it("parses an unordered list", () => {
-    expect(constructAst("- a `x`\n- b [link](https://x.test)")).toEqual([
+    expect(
+      constructAst(
+        "- a `x`\n- b [link](https://x.test)\n- c https://adamjanicki.xyz"
+      )
+    ).toEqual([
       {
         type: "ul",
         items: [
@@ -62,6 +66,21 @@ describe("ast", () => {
                     type: "a",
                     url: "https://x.test",
                     children: [{ type: "text", value: "link" }],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "li",
+            children: [
+              {
+                type: "p",
+                children: [
+                  { type: "text", value: "c " },
+                  {
+                    type: "a",
+                    url: "https://adamjanicki.xyz",
                   },
                 ],
               },
@@ -284,7 +303,9 @@ describe("ast", () => {
             children: [
               {
                 type: "strong",
-                children: [{ type: "em", children: [{ type: "text", value: "a" }] }],
+                children: [
+                  { type: "em", children: [{ type: "text", value: "a" }] },
+                ],
               },
               { type: "text", value: " ok" },
             ],
@@ -385,7 +406,10 @@ describe("ast", () => {
                     type: "em",
                     children: [
                       { type: "text", value: "b " },
-                      { type: "strong", children: [{ type: "text", value: "c" }] },
+                      {
+                        type: "strong",
+                        children: [{ type: "text", value: "c" }],
+                      },
                       { type: "text", value: " d" },
                     ],
                   },
