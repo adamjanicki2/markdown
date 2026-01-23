@@ -161,6 +161,13 @@ function tokenizeInline(block: string): InlineToken[] {
   const tokens: InlineToken[] = [];
   let text = "";
 
+  const scanTo = (start: number, char: string) => {
+    for (let j = start; j < block.length; j += 1) {
+      if (block[j] === char) return j;
+    }
+    return null;
+  };
+
   const addTextToken = (value: string) => {
     appendTextWithLinks(tokens, value);
   };
@@ -189,8 +196,8 @@ function tokenizeInline(block: string): InlineToken[] {
 
     // code
     if (char === "`") {
-      const end = block.indexOf("`", i + 1);
-      if (end !== -1) {
+      const end = scanTo(i + 1, "`");
+      if (end !== null) {
         flushText();
         tokens.push({ type: "code", value: block.slice(i + 1, end) });
         i = end;
@@ -200,10 +207,10 @@ function tokenizeInline(block: string): InlineToken[] {
 
     // image
     if (char === "!" && block[i + 1] === "[") {
-      const labelEnd = block.indexOf("]", i + 2);
-      if (labelEnd !== -1 && block[labelEnd + 1] === "(") {
-        const urlEnd = block.indexOf(")", labelEnd + 2);
-        if (urlEnd !== -1) {
+      const labelEnd = scanTo(i + 2, "]");
+      if (labelEnd !== null && block[labelEnd + 1] === "(") {
+        const urlEnd = scanTo(labelEnd + 2, ")");
+        if (urlEnd !== null) {
           const alt = block.slice(i + 2, labelEnd);
           const url = block.slice(labelEnd + 2, urlEnd);
           flushText();
@@ -216,10 +223,10 @@ function tokenizeInline(block: string): InlineToken[] {
 
     // link
     if (char === "[") {
-      const labelEnd = block.indexOf("]", i + 1);
-      if (labelEnd !== -1 && block[labelEnd + 1] === "(") {
-        const urlEnd = block.indexOf(")", labelEnd + 2);
-        if (urlEnd !== -1) {
+      const labelEnd = scanTo(i + 1, "]");
+      if (labelEnd !== null && block[labelEnd + 1] === "(") {
+        const urlEnd = scanTo(labelEnd + 2, ")");
+        if (urlEnd !== null) {
           const label = block.slice(i + 1, labelEnd);
           const url = block.slice(labelEnd + 2, urlEnd);
           flushText();
