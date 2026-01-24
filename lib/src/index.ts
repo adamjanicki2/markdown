@@ -1,1 +1,1 @@
-export { default as Component } from "./Component";
+export const thing = "thing";

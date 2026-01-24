@@ -1,426 +1,367 @@
-import { constructAst } from "../src/ast";
+import { parseBlocks } from "../src/ast";
+import { renderHtml } from "./helpers";
 
 describe("ast", () => {
-  it("parses a heading", () => {
+  const runTest = (md: string) => renderHtml(parseBlocks(md));
+
+  it("01 paragraph", () => {
+    expect(runTest("Hello world")).toBe("<p>Hello world</p>");
+  });
+
+  it("02 paragraph joins lines with softbreak (renders as space)", () => {
+    expect(runTest("Hello\nworld")).toBe("<p>Hello world</p>");
+  });
+
+  it("03 paragraph supports inline formatting", () => {
+    expect(runTest("Hello **bold** _em_ `x`")).toBe(
+      "<p>Hello <strong>bold</strong> <em>em</em> <code>x</code></p>"
+    );
+  });
+
+  it("04 paragraph hardbreak renders as <br />", () => {
+    expect(runTest("Hello  \nworld")).toBe("<p>Hello<br />world</p>");
+  });
+
+  it("05 nested emphasis/strong", () => {
+    expect(runTest("**a _b_ c**")).toBe(
+      "<p><strong>a <em>b</em> c</strong></p>"
+    );
+  });
+
+  it("06 triple nesting combo: del > strong > em", () => {
+    expect(runTest("~~***combo***~~")).toBe(
+      "<p><del><strong><em>combo</em></strong></del></p>"
+    );
+  });
+
+  it("07 deeply nested mix", () => {
+    expect(runTest("*a **b ~~c~~ d** e*")).toBe(
+      "<p><em>a <strong>b <del>c</del> d</strong> e</em></p>"
+    );
+  });
+
+  it("08 unmatched delimiters left as text", () => {
+    expect(runTest("Unmatched *stars and ~~tildes")).toBe(
+      "<p>Unmatched *stars and ~~tildes</p>"
+    );
+  });
+
+  it("09 underscores inside words do not emphasize", () => {
+    expect(runTest("snake_case foo_bar baz_qux")).toBe(
+      "<p>snake_case foo_bar baz_qux</p>"
+    );
+  });
+
+  it("10 backslash escapes prevent emphasis", () => {
+    expect(runTest("\\*not italic\\*")).toBe("<p>*not italic*</p>");
+  });
+
+  it("11 code spans block delimiter parsing", () => {
+    expect(runTest("**a `*b*` c**")).toBe(
+      "<p><strong>a <code>*b*</code> c</strong></p>"
+    );
+  });
+
+  it("12 link with inline label", () => {
+    expect(runTest("See [docs `v1`](https://example.com)")).toBe(
+      '<p>See <a href="https://example.com">docs <code>v1</code></a></p>'
+    );
+  });
+
+  it("13 image renders with escaped attrs", () => {
+    expect(runTest('![a "b"](x.png)')).toBe(
+      '<p><img src="x.png" alt="a &quot;b&quot;" /></p>'
+    );
+  });
+
+  it("14 html in paragraph is escaped", () => {
+    expect(runTest("<div>x</div>")).toBe("<p>&lt;div&gt;x&lt;/div&gt;</p>");
+  });
+
+  it("15 mixed: link + em + code + del", () => {
+    expect(runTest("a [b](x) _c_ `d` ~~e~~")).toBe(
+      '<p>a <a href="x">b</a> <em>c</em> <code>d</code> <del>e</del></p>'
+    );
+  });
+
+  it("16 multiple softbreaks collapse via renderer spaces", () => {
+    expect(runTest("a\nb\nc")).toBe("<p>a b c</p>");
+  });
+
+  it("17 hardbreak inside emphasis", () => {
+    expect(runTest("*a  \nb*")).toBe("<p><em>a<br />b</em></p>");
+  });
+
+  it("18 softbreak inside emphasis", () => {
+    expect(runTest("*a\nb*")).toBe("<p><em>a b</em></p>");
+  });
+
+  it("19 heading", () => {
+    expect(runTest("# Title")).toBe("<h1>Title</h1>");
+  });
+
+  it("20 heading supports inline formatting", () => {
+    expect(runTest("# Title **Bold**")).toBe(
+      "<h1>Title <strong>Bold</strong></h1>"
+    );
+  });
+
+  it("21 heading strips trailing hashes", () => {
+    expect(runTest("## Hi ###")).toBe("<h2>Hi</h2>");
+  });
+
+  it("22 thematic break", () => {
+    expect(runTest("---")).toBe("<hr />");
+  });
+
+  it("23 thematic break with spaces", () => {
+    expect(runTest("- - -")).toBe("<hr />");
+  });
+
+  it("24 fenced code block with language", () => {
+    expect(runTest("```ts\nconst x = 1;\n```\n")).toBe(
+      `<pre><code class="language-ts">const x = 1;</code></pre>`
+    );
+  });
+
+  it("25 fenced code block escapes HTML", () => {
+    expect(runTest("```html\n<div>x</div>\n```")).toBe(
+      `<pre><code class="language-html">&lt;div&gt;x&lt;/div&gt;</code></pre>`
+    );
+  });
+
+  it("26 fenced code without language", () => {
+    expect(runTest("```\n<x>\n```")).toBe("<pre><code>&lt;x&gt;</code></pre>");
+  });
+
+  it("27 code fence end can be longer than start", () => {
+    expect(runTest("```js\nx\n````")).toBe(
+      `<pre><code class="language-js">x</code></pre>`
+    );
+  });
+
+  it("28 code fence can start after up to 3 spaces", () => {
+    expect(runTest("   ```\nhi\n   ```")).toBe("<pre><code>hi</code></pre>");
+  });
+
+  it("29 blockquote (simple)", () => {
+    expect(runTest("> Hello")).toBe("<blockquote><p>Hello</p></blockquote>");
+  });
+
+  it("30 blockquote supports lazy continuation lines", () => {
+    expect(runTest("> a\nb")).toBe("<blockquote><p>a b</p></blockquote>");
+  });
+
+  it("31 nested blockquotes (>>)", () => {
+    expect(runTest(">> a")).toBe(
+      "<blockquote><blockquote><p>a</p></blockquote></blockquote>"
+    );
+  });
+
+  it("32 nested blockquotes with spaced markers", () => {
+    expect(runTest("> > a")).toBe(
+      "<blockquote><blockquote><p>a</p></blockquote></blockquote>"
+    );
+  });
+
+  it("33 blockquote marker allowed after indentation", () => {
+    expect(runTest("  > a")).toBe("<blockquote><p>a</p></blockquote>");
+  });
+
+  it("34 blockquote contains heading + paragraph", () => {
+    expect(runTest("> # H\n> x")).toBe(
+      "<blockquote><h1>H</h1><p>x</p></blockquote>"
+    );
+  });
+
+  it("35 blockquote contains thematic break", () => {
+    expect(runTest("> ---")).toBe("<blockquote><hr /></blockquote>");
+  });
+
+  it("36 blockquote contains nested quote + list", () => {
+    expect(runTest("> > - a\n> > - b")).toBe(
+      "<blockquote><blockquote><ul><li><p>a</p></li><li><p>b</p></li></ul></blockquote></blockquote>"
+    );
+  });
+
+  it("37 unordered list (simple)", () => {
+    expect(runTest("- a\n- b")).toBe(
+      "<ul><li><p>a</p></li><li><p>b</p></li></ul>"
+    );
+  });
+
+  it("38 ordered list (simple)", () => {
+    expect(runTest("1. a\n2. b")).toBe(
+      "<ol><li><p>a</p></li><li><p>b</p></li></ol>"
+    );
+  });
+
+  it("39 ordered list with start != 1", () => {
+    expect(runTest("3. a\n4. b")).toBe(
+      `<ol start="3"><li><p>a</p></li><li><p>b</p></li></ol>`
+    );
+  });
+
+  it("40 list item lazy continuation", () => {
+    expect(runTest("- a\nb\n- c")).toBe(
+      "<ul><li><p>a b</p></li><li><p>c</p></li></ul>"
+    );
+  });
+
+  it("41 list item continuation stops before heading", () => {
+    expect(runTest("- a\n# h")).toBe("<ul><li><p>a</p></li></ul><h1>h</h1>");
+  });
+
+  it("42 blank line makes list loose (still same HTML)", () => {
+    expect(runTest("- a\n\n- b")).toBe(
+      "<ul><li><p>a</p></li><li><p>b</p></li></ul>"
+    );
+  });
+
+  it("43 nested unordered list", () => {
+    expect(runTest("- a\n  - b\n  - c\n- d")).toBe(
+      "<ul><li><p>a</p><ul><li><p>b</p></li><li><p>c</p></li></ul></li><li><p>d</p></li></ul>"
+    );
+  });
+
+  it("44 nested ordered inside unordered", () => {
+    expect(runTest("- a\n  1. b\n  2. c\n- d")).toBe(
+      "<ul><li><p>a</p><ol><li><p>b</p></li><li><p>c</p></li></ol></li><li><p>d</p></li></ul>"
+    );
+  });
+
+  it("45 nested list under list item using content indentation", () => {
+    expect(runTest("- a\n  - b\n    - c\n- d")).toBe(
+      "<ul><li><p>a</p><ul><li><p>b</p><ul><li><p>c</p></li></ul></li></ul></li><li><p>d</p></li></ul>"
+    );
+  });
+
+  it("46 ordered list with multi-digit marker supports nesting", () => {
+    expect(runTest("10. a\n    - b")).toBe(
+      '<ol start="10"><li><p>a</p><ul><li><p>b</p></li></ul></li></ol>'
+    );
+  });
+
+  it("47 list item contains multiple paragraphs", () => {
+    expect(runTest("- a\n\n  b")).toBe("<ul><li><p>a</p><p>b</p></li></ul>");
+  });
+
+  it("48 list item contains heading + paragraph continuation stops correctly", () => {
+    expect(runTest("- a\n  # h\n  b")).toBe(
+      "<ul><li><p>a</p><h1>h</h1><p>b</p></li></ul>"
+    );
+  });
+
+  it("49 list item can contain a blockquote that contains a list", () => {
+    expect(runTest("- a\n  > - b\n  > - c\n- d")).toBe(
+      "<ul>" +
+        "<li><p>a</p><blockquote><ul><li><p>b</p></li><li><p>c</p></li></ul></blockquote></li>" +
+        "<li><p>d</p></li>" +
+        "</ul>"
+    );
+  });
+
+  it("50 blockquote can contain a list", () => {
+    expect(runTest("> - a\n> - b")).toBe(
+      "<blockquote><ul><li><p>a</p></li><li><p>b</p></li></ul></blockquote>"
+    );
+  });
+
+  it("51 nested list inside blockquote with lazy continuation", () => {
+    expect(runTest("> - a\n> b\n> - c")).toBe(
+      "<blockquote><ul><li><p>a b</p></li><li><p>c</p></li></ul></blockquote>"
+    );
+  });
+
+  it("52 list contains nested blockquote then paragraph (lazy continuation stays in quote)", () => {
+    expect(runTest("- a\n  > x\ny")).toBe(
+      "<ul><li><p>a</p><blockquote><p>x y</p></blockquote></li></ul>"
+    );
+  });
+
+  it("53 ordered list siblings must align by indent (indented ordered marker nests)", () => {
+    expect(runTest("1. a\n  2. b")).toBe(
+      '<ol><li><p>a</p><ol start="2"><li><p>b</p></li></ol></li></ol>'
+    );
+  });
+
+  it("54 list item inline formatting", () => {
+    expect(runTest("- a **b** _c_")).toBe(
+      "<ul><li><p>a <strong>b</strong> <em>c</em></p></li></ul>"
+    );
+  });
+
+  it("55 nested list item inline formatting", () => {
+    expect(runTest("- a\n  - **b**\n  - _c_")).toBe(
+      "<ul><li><p>a</p><ul><li><p><strong>b</strong></p></li><li><p><em>c</em></p></li></ul></li></ul>"
+    );
+  });
+
+  it("56 fenced code inside list item", () => {
+    expect(runTest("- a\n  ```\n  x\n  ```\n- b")).toBe(
+      "<ul>" +
+        "<li><p>a</p><pre><code>x</code></pre></li>" +
+        "<li><p>b</p></li>" +
+        "</ul>"
+    );
+  });
+
+  it("57 fenced code inside blockquote", () => {
+    expect(runTest("> ```\n> x\n> ```")).toBe(
+      "<blockquote><pre><code>x</code></pre></blockquote>"
+    );
+  });
+
+  it("58 fenced code inside blockquote inside list item", () => {
+    expect(runTest("- a\n  > ```\n  > x\n  > ```\n- b")).toBe(
+      "<ul>" +
+        "<li><p>a</p><blockquote><pre><code>x</code></pre></blockquote></li>" +
+        "<li><p>b</p></li>" +
+        "</ul>"
+    );
+  });
+
+  it("59 list in blockquote in list in blockquote (deep structure)", () => {
     expect(
-      constructAst(
-        "# Title **Bold** [Docs](https://example.com)\n\nHello _there_ `x`!"
-      )
-    ).toEqual([
-      {
-        type: "heading",
-        level: 1,
-        children: [
-          { type: "text", value: "Title " },
-          { type: "strong", children: [{ type: "text", value: "Bold" }] },
-          { type: "text", value: " " },
-          {
-            type: "a",
-            url: "https://example.com",
-            children: [{ type: "text", value: "Docs" }],
-          },
-        ],
-      },
-      {
-        type: "p",
-        children: [
-          { type: "text", value: "Hello " },
-          { type: "em", children: [{ type: "text", value: "there" }] },
-          { type: "text", value: " " },
-          { type: "code", value: "x" },
-          { type: "text", value: "!" },
-        ],
-      },
-    ]);
+      runTest(["> - a", ">   > - b", ">   >   - c", "> - d"].join("\n"))
+    ).toBe(
+      "<blockquote><ul>" +
+        "<li><p>a</p><blockquote><ul><li><p>b</p><ul><li><p>c</p></li></ul></li></ul></blockquote></li>" +
+        "<li><p>d</p></li>" +
+        "</ul></blockquote>"
+    );
   });
 
-  it("parses an unordered list", () => {
-    expect(
-      constructAst(
-        "- a `x`\n- b [link](https://x.test)\n- c https://adamjanicki.xyz"
-      )
-    ).toEqual([
-      {
-        type: "ul",
-        items: [
-          {
-            type: "li",
-            children: [
-              {
-                type: "p",
-                children: [
-                  { type: "text", value: "a " },
-                  { type: "code", value: "x" },
-                ],
-              },
-            ],
-          },
-          {
-            type: "li",
-            children: [
-              {
-                type: "p",
-                children: [
-                  { type: "text", value: "b " },
-                  {
-                    type: "a",
-                    url: "https://x.test",
-                    children: [{ type: "text", value: "link" }],
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            type: "li",
-            children: [
-              {
-                type: "p",
-                children: [
-                  { type: "text", value: "c " },
-                  {
-                    type: "a",
-                    url: "https://adamjanicki.xyz",
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ]);
+  it("60 paragraph after complex structures", () => {
+    expect(runTest("- a\n  > x\n\nz")).toBe(
+      "<ul><li><p>a</p><blockquote><p>x</p></blockquote></li></ul><p>z</p>"
+    );
   });
 
-  it("parses an ordered list", () => {
-    expect(constructAst("1. a ![icon](x.png)\n2. b `y`")).toEqual([
-      {
-        type: "ol",
-        items: [
-          {
-            type: "li",
-            children: [
-              {
-                type: "p",
-                children: [
-                  { type: "text", value: "a " },
-                  { type: "img", url: "x.png", alt: "icon" },
-                ],
-              },
-            ],
-          },
-          {
-            type: "li",
-            children: [
-              {
-                type: "p",
-                children: [
-                  { type: "text", value: "b " },
-                  { type: "code", value: "y" },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ]);
+  it("61 basic table", () => {
+    expect(runTest("| a | b |\n| - | - |\n| c | d |")).toBe(
+      "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>c</td><td>d</td></tr></tbody></table>"
+    );
   });
 
-  it("parses a pre with language", () => {
-    expect(constructAst("```ts\nconst x = 1;\nconst y = 2;\n```")).toEqual([
-      { type: "pre", lang: "ts", value: "const x = 1;\nconst y = 2;" },
-    ]);
+  it("62 table supports inline in cells", () => {
+    expect(runTest("| a | b |\n| - | - |\n| **c** | d |")).toBe(
+      "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><strong>c</strong></td><td>d</td></tr></tbody></table>"
+    );
   });
 
-  it("parses a blockquote", () => {
-    expect(constructAst("> # Note\n> - a\n> - b")).toEqual([
-      {
-        type: "blockquote",
-        children: [
-          {
-            type: "heading",
-            level: 1,
-            children: [{ type: "text", value: "Note" }],
-          },
-          {
-            type: "ul",
-            items: [
-              {
-                type: "li",
-                children: [
-                  { type: "p", children: [{ type: "text", value: "a" }] },
-                ],
-              },
-              {
-                type: "li",
-                children: [
-                  { type: "p", children: [{ type: "text", value: "b" }] },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ]);
+  it("63 table supports multiple body rows + inline", () => {
+    expect(runTest("| a | b |\n| - | - |\n| c | _d_ |\n| `x` | ~~y~~ |")).toBe(
+      "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody>" +
+        "<tr><td>c</td><td><em>d</em></td></tr>" +
+        "<tr><td><code>x</code></td><td><del>y</del></td></tr>" +
+        "</tbody></table>"
+    );
   });
 
-  it("parses single newline into a space", () => {
-    expect(constructAst("hello\n`world`")).toEqual([
-      {
-        type: "p",
-        children: [
-          { type: "text", value: "hello " },
-          { type: "code", value: "world" },
-        ],
-      },
-    ]);
-  });
-
-  it("parses linebreak into br node", () => {
-    expect(constructAst("hello  \n[world](x)")).toEqual([
-      {
-        type: "p",
-        children: [
-          { type: "text", value: "hello" },
-          { type: "br" },
-          {
-            type: "a",
-            url: "x",
-            children: [{ type: "text", value: "world" }],
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses inline code inside paragraphs", () => {
-    expect(constructAst("Use `x` and `y` in __bold__.")).toEqual([
-      {
-        type: "p",
-        children: [
-          { type: "text", value: "Use " },
-          { type: "code", value: "x" },
-          { type: "text", value: " and " },
-          { type: "code", value: "y" },
-          { type: "text", value: " in " },
-          { type: "strong", children: [{ type: "text", value: "bold" }] },
-          { type: "text", value: "." },
-        ],
-      },
-    ]);
-  });
-
-  it("parses links and images", () => {
-    expect(
-      constructAst("See [docs `v1`](https://example.com) ![caption](img.png)")
-    ).toEqual([
-      {
-        type: "p",
-        children: [
-          { type: "text", value: "See " },
-          {
-            type: "a",
-            url: "https://example.com",
-            children: [
-              { type: "text", value: "docs " },
-              { type: "code", value: "v1" },
-            ],
-          },
-          { type: "text", value: " " },
-          {
-            type: "img",
-            url: "img.png",
-            alt: "caption",
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses emphasis, strong, and strikethrough", () => {
-    expect(
-      constructAst(
-        "This is _em_ and **strong** and ~~del~~, and a combo: ~~***combo***~~"
-      )
-    ).toEqual([
-      {
-        type: "p",
-        children: [
-          { type: "text", value: "This is " },
-          { type: "em", children: [{ type: "text", value: "em" }] },
-          { type: "text", value: " and " },
-          { type: "strong", children: [{ type: "text", value: "strong" }] },
-          { type: "text", value: " and " },
-          { type: "del", children: [{ type: "text", value: "del" }] },
-          { type: "text", value: ", and a combo: " },
-          {
-            type: "del",
-            children: [
-              {
-                type: "strong",
-                children: [
-                  { type: "em", children: [{ type: "text", value: "combo" }] },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses complex delimiter nesting", () => {
-    expect(constructAst("**a *b*** *a **b***")).toEqual([
-      {
-        type: "p",
-        children: [
-          {
-            type: "strong",
-            children: [
-              { type: "text", value: "a " },
-              { type: "em", children: [{ type: "text", value: "b" }] },
-            ],
-          },
-          { type: "text", value: " " },
-          {
-            type: "em",
-            children: [
-              { type: "text", value: "a " },
-              { type: "strong", children: [{ type: "text", value: "b" }] },
-            ],
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses deeply nested emphasis with strikethrough and mixed markers", () => {
-    expect(constructAst("~~**_a_** ok~~")).toEqual([
-      {
-        type: "p",
-        children: [
-          {
-            type: "del",
-            children: [
-              {
-                type: "strong",
-                children: [
-                  { type: "em", children: [{ type: "text", value: "a" }] },
-                ],
-              },
-              { type: "text", value: " ok" },
-            ],
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses nested delimiters with multiple levels and spacing", () => {
-    expect(constructAst("**a _b ~~c~~ d_ e!**")).toEqual([
-      {
-        type: "p",
-        children: [
-          {
-            type: "strong",
-            children: [
-              { type: "text", value: "a " },
-              {
-                type: "em",
-                children: [
-                  { type: "text", value: "b " },
-                  { type: "del", children: [{ type: "text", value: "c" }] },
-                  { type: "text", value: " d" },
-                ],
-              },
-              { type: "text", value: " e!" },
-            ],
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses mixed strong/em with nested strikethrough inside emphasis", () => {
-    expect(constructAst("*a? **b ~~c~~ d** e*")).toEqual([
-      {
-        type: "p",
-        children: [
-          {
-            type: "em",
-            children: [
-              { type: "text", value: "a? " },
-              {
-                type: "strong",
-                children: [
-                  { type: "text", value: "b " },
-                  { type: "del", children: [{ type: "text", value: "c" }] },
-                  { type: "text", value: " d" },
-                ],
-              },
-              { type: "text", value: " e" },
-            ],
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses alternating underscore and asterisk nesting", () => {
-    expect(constructAst("__a *b _c_ d* e!?__")).toEqual([
-      {
-        type: "p",
-        children: [
-          {
-            type: "strong",
-            children: [
-              { type: "text", value: "a " },
-              {
-                type: "em",
-                children: [
-                  { type: "text", value: "b " },
-                  { type: "em", children: [{ type: "text", value: "c" }] },
-                  { type: "text", value: " d" },
-                ],
-              },
-              { type: "text", value: " e!?" },
-            ],
-          },
-        ],
-      },
-    ]);
-  });
-
-  it("parses multiple nested runs with strikethrough wrapping complex emphasis", () => {
-    expect(constructAst("~~__a *b **c** d* e__...~~")).toEqual([
-      {
-        type: "p",
-        children: [
-          {
-            type: "del",
-            children: [
-              {
-                type: "strong",
-                children: [
-                  { type: "text", value: "a " },
-                  {
-                    type: "em",
-                    children: [
-                      { type: "text", value: "b " },
-                      {
-                        type: "strong",
-                        children: [{ type: "text", value: "c" }],
-                      },
-                      { type: "text", value: " d" },
-                    ],
-                  },
-                  { type: "text", value: " e" },
-                ],
-              },
-              { type: "text", value: "..." },
-            ],
-          },
-        ],
-      },
-    ]);
+  it("64 table without outer pipes", () => {
+    expect(runTest("a | b\n- | -\nc | d")).toBe(
+      "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>c</td><td>d</td></tr></tbody></table>"
+    );
   });
 });
