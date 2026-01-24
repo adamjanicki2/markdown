@@ -47,13 +47,13 @@ export function renderHtml(nodes: BlockNode[]): string {
   return nodes
     .map((node) => {
       switch (node.type) {
-        case "paragraph":
+        case "p":
           return `<p>${renderInline(node.children)}</p>`;
-        case "heading":
-          return `<h${node.depth}>${renderInline(node.children)}</h${node.depth}>`;
-        case "thematicBreak":
+        case "h":
+          return `<h${node.level}>${renderInline(node.children)}</h${node.level}>`;
+        case "hr":
           return `<hr />`;
-        case "codeBlock": {
+        case "pre": {
           const klass = node.lang
             ? ` class="language-${escapeHtml(node.lang)}"`
             : "";
