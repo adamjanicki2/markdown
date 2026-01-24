@@ -392,7 +392,7 @@ const delimClass = (ch: DelimiterChar) => DELIMITER_CLASS_MAP[ch];
 const isSpace = (ch?: string) => ch === " " || ch === "\t" || ch === "\n";
 const isAlphanum = (ch?: string) => !!ch && RE_ALPHANUM.test(ch);
 
-function mergeTextNodes(nodes: InlineAtom[] | InlineNode[], value: string) {
+function mergeTextNodes(nodes: IrNode[] | InlineNode[], value: string) {
   if (!value) return;
   const last = nodes[nodes.length - 1];
   if (last && last.type === "text") last.value += value;
@@ -585,14 +585,14 @@ function applyBackslashEscapes(tokens: InlineToken[]): InlineToken[] {
   return mergedTokens;
 }
 
-function resolveCodeSpans(tokens: InlineToken[]): InlineAtom[] {
-  const atomsOut: InlineAtom[] = [];
+function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
+  const nodesOut: IrNode[] = [];
 
   for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
     const token = tokens[tokenIndex];
 
     if (token.type !== "backtick_run") {
-      atomsOut.push(token);
+      nodesOut.push(token);
     } else {
       const openerLen = token.len;
 
@@ -608,7 +608,7 @@ function resolveCodeSpans(tokens: InlineToken[]): InlineAtom[] {
       }
 
       if (closingIndex >= tokens.length) {
-        mergeTextNodes(atomsOut, "`".repeat(openerLen));
+        mergeTextNodes(nodesOut, "`".repeat(openerLen));
       } else {
         let codeRaw = "";
         for (
@@ -619,95 +619,95 @@ function resolveCodeSpans(tokens: InlineToken[]): InlineAtom[] {
           codeRaw += tokenToLiteral(tokens[innerIndex]);
         }
 
-        atomsOut.push({ type: "code", value: codeRaw });
+        nodesOut.push({ type: "code", value: codeRaw });
         tokenIndex = closingIndex;
       }
     }
   }
 
-  const mergedAtoms: InlineAtom[] = [];
-  for (const atom of atomsOut) {
-    if (atom.type === "text") mergeTextNodes(mergedAtoms, atom.value);
-    else mergedAtoms.push(atom);
+  const mergedNodes: IrNode[] = [];
+  for (const node of nodesOut) {
+    if (node.type === "text") mergeTextNodes(mergedNodes, node.value);
+    else mergedNodes.push(node);
   }
-  return mergedAtoms;
+  return mergedNodes;
 }
 
-function inlineAtomToToken(atom: InlineAtom): InlineToken | null {
-  if (atom.type === "code" || atom.type === "a" || atom.type === "img")
+function irNodeToToken(node: IrNode): InlineToken | null {
+  if (node.type === "code" || node.type === "a" || node.type === "img")
     return null;
-  return atom as InlineToken;
+  return node as InlineToken;
 }
 
-function inlineAtomToLiteral(atom: InlineAtom): string {
-  if (atom.type === "text") return atom.value;
-  if (atom.type === "code") return "`" + atom.value + "`";
+function irNodeToLiteral(node: IrNode): string {
+  if (node.type === "text") return node.value;
+  if (node.type === "code") return "`" + node.value + "`";
 
-  if (atom.type === "softbreak") return " ";
-  if (atom.type === "hardbreak") return "\n";
+  if (node.type === "softbreak") return " ";
+  if (node.type === "hardbreak") return "\n";
 
-  if (atom.type === "a") return "";
-  if (atom.type === "img") return "";
+  if (node.type === "a") return "";
+  if (node.type === "img") return "";
 
-  if (atom.type === "em") return inlineAtomsToLiteral(atom.children);
-  if (atom.type === "strong") return inlineAtomsToLiteral(atom.children);
-  if (atom.type === "del") return inlineAtomsToLiteral(atom.children);
+  if (node.type === "em") return irNodesToLiteral(node.children);
+  if (node.type === "strong") return irNodesToLiteral(node.children);
+  if (node.type === "del") return irNodesToLiteral(node.children);
 
-  if (atom.type === "delimiter") return atom.ch.repeat(atom.len);
+  if (node.type === "delimiter") return node.ch.repeat(node.len);
 
-  return tokenToLiteral(atom);
+  return tokenToLiteral(node);
 }
 
-function inlineAtomsToLiteral(atoms: InlineAtom[] | InlineNode[]): string {
+function irNodesToLiteral(nodes: IrNode[] | InlineNode[]): string {
   let literalText = "";
-  for (const atom of atoms) {
-    literalText += inlineAtomToLiteral(atom);
+  for (const node of nodes) {
+    literalText += irNodeToLiteral(node);
   }
   return literalText;
 }
 
 type LinkParseResult = {
-  node: InlineAtom;
+  node: IrNode;
   nextIndex: number;
 };
 
 function parseLinkOrImage(
-  atoms: InlineAtom[],
+  nodes: IrNode[],
   startIndex: number
 ): LinkParseResult | null {
-  const token = inlineAtomToToken(atoms[startIndex]);
+  const token = irNodeToToken(nodes[startIndex]);
   if (!token) return null;
 
   const isBang = token.type === "bang";
   const leftBracketIndex = isBang ? startIndex + 1 : startIndex;
 
-  const leftBracketToken = inlineAtomToToken(atoms[leftBracketIndex]);
+  const leftBracketToken = irNodeToToken(nodes[leftBracketIndex]);
   if (!leftBracketToken || leftBracketToken.type !== "lbracket") return null;
 
   let rightBracketIndex = leftBracketIndex + 1;
-  while (rightBracketIndex < atoms.length) {
-    const candidateToken = inlineAtomToToken(atoms[rightBracketIndex]);
+  while (rightBracketIndex < nodes.length) {
+    const candidateToken = irNodeToToken(nodes[rightBracketIndex]);
     if (candidateToken && candidateToken.type === "rbracket") break;
     rightBracketIndex++;
   }
-  if (rightBracketIndex >= atoms.length) return null;
+  if (rightBracketIndex >= nodes.length) return null;
 
-  const leftParenToken = inlineAtomToToken(atoms[rightBracketIndex + 1]);
+  const leftParenToken = irNodeToToken(nodes[rightBracketIndex + 1]);
   if (!leftParenToken || leftParenToken.type !== "lparen") return null;
 
   let rightParenIndex = rightBracketIndex + 2;
-  while (rightParenIndex < atoms.length) {
-    const candidateToken = inlineAtomToToken(atoms[rightParenIndex]);
+  while (rightParenIndex < nodes.length) {
+    const candidateToken = irNodeToToken(nodes[rightParenIndex]);
     if (candidateToken && candidateToken.type === "rparen") break;
     rightParenIndex++;
   }
-  if (rightParenIndex >= atoms.length) return null;
+  if (rightParenIndex >= nodes.length) return null;
 
-  const labelAtoms = atoms.slice(leftBracketIndex + 1, rightBracketIndex);
-  const urlAtoms = atoms.slice(rightBracketIndex + 2, rightParenIndex);
+  const labelNodes = nodes.slice(leftBracketIndex + 1, rightBracketIndex);
+  const urlNodes = nodes.slice(rightBracketIndex + 2, rightParenIndex);
 
-  const url = inlineAtomsToLiteral(urlAtoms).trim();
-  const labelRaw = inlineAtomsToLiteral(labelAtoms);
+  const url = irNodesToLiteral(urlNodes).trim();
+  const labelRaw = irNodesToLiteral(labelNodes);
 
   if (!url) return null;
 
@@ -725,79 +725,81 @@ function parseLinkOrImage(
   };
 }
 
-function resolveLinksAndImages(atoms: InlineAtom[]): InlineAtom[] {
-  const atomsOut: InlineAtom[] = [];
+function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
+  const nodesOut: IrNode[] = [];
 
-  for (let atomIndex = 0; atomIndex < atoms.length; atomIndex++) {
-    const parsed = parseLinkOrImage(atoms, atomIndex);
+  for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+    const parsed = parseLinkOrImage(nodes, nodeIndex);
     if (parsed) {
-      atomsOut.push(parsed.node);
-      atomIndex = parsed.nextIndex;
+      nodesOut.push(parsed.node);
+      nodeIndex = parsed.nextIndex;
     } else {
-      atomsOut.push(atoms[atomIndex]);
+      nodesOut.push(nodes[nodeIndex]);
     }
   }
 
-  const mergedAtoms: InlineAtom[] = [];
-  for (const atom of atomsOut) {
-    if (atom.type === "text") mergeTextNodes(mergedAtoms, atom.value);
-    else mergedAtoms.push(atom);
+  const mergedNodes: IrNode[] = [];
+  for (const node of nodesOut) {
+    if (node.type === "text") mergeTextNodes(mergedNodes, node.value);
+    else mergedNodes.push(node);
   }
-  return mergedAtoms;
+  return mergedNodes;
 }
 
-function expandDelimRuns(atoms: InlineAtom[]): InlineAtom[] {
-  const atomsOut: InlineAtom[] = [];
-  for (const atom of atoms) {
-    if (atom.type !== "delimiter_run") {
-      atomsOut.push(atom);
+function expandDelimRuns(nodes: IrNode[]): IrNode[] {
+  const nodesOut: IrNode[] = [];
+  for (const node of nodes) {
+    if (node.type !== "delimiter_run") {
+      nodesOut.push(node);
     } else {
-      atomsOut.push({
+      nodesOut.push({
         type: "delimiter",
-        ch: delimClass(atom.ch),
-        len: atom.len,
-        canOpen: atom.canOpen,
-        canClose: atom.canClose,
+        ch: delimClass(node.ch),
+        len: node.len,
+        canOpen: node.canOpen,
+        canClose: node.canClose,
       });
     }
   }
-  return atomsOut;
+  return nodesOut;
 }
 
-function isDelimiter(atom: InlineAtom): atom is InlineDelimiter {
-  return atom.type === "delimiter";
+function isDelimiter(node: IrNode): node is InlineDelimiter {
+  return node.type === "delimiter";
 }
 
-function inlineAtomToLiteralForFinalize(atom: InlineAtom): string {
-  if (atom.type === "delimiter") return atom.ch.repeat(atom.len);
+function irNodeToLiteralForFinalize(node: IrNode): string {
+  if (node.type === "delimiter") return node.ch.repeat(node.len);
   if (
-    atom.type === "text" ||
-    atom.type === "newline" ||
-    atom.type === "lbracket" ||
-    atom.type === "rbracket" ||
-    atom.type === "lparen" ||
-    atom.type === "rparen" ||
-    atom.type === "bang" ||
-    atom.type === "delimiter_run" ||
-    atom.type === "backtick_run" ||
-    atom.type === "backslash"
+    node.type === "text" ||
+    node.type === "newline" ||
+    node.type === "lbracket" ||
+    node.type === "rbracket" ||
+    node.type === "lparen" ||
+    node.type === "rparen" ||
+    node.type === "bang" ||
+    node.type === "delimiter_run" ||
+    node.type === "backtick_run" ||
+    node.type === "backslash"
   ) {
-    return tokenToLiteral(atom);
+    return tokenToLiteral(node);
   }
   return "";
 }
 
+type RunLength = 1 | 2;
+
 type Frame = {
   delimiterChar: DelimiterChar;
-  delimiterLength: 1 | 2;
-  nodes: InlineAtom[];
+  delimiterLength: RunLength;
+  nodes: IrNode[];
 };
 
-function resolveDelimiters(atomsIn: InlineAtom[]): InlineAtom[] {
-  const atoms = expandDelimRuns(atomsIn);
+function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
+  const nodes = expandDelimRuns(nodesIn);
 
   const stack: Frame[] = [];
-  let currentNodes: InlineAtom[] = [];
+  let currentNodes: IrNode[] = [];
 
   const open = (
     delimiterChar: Frame["delimiterChar"],
@@ -830,26 +832,26 @@ function resolveDelimiters(atomsIn: InlineAtom[]): InlineAtom[] {
     }
   };
 
-  function finalizeInline(atomsList: InlineAtom[]): InlineNode[] {
+  function finalizeInline(nodesList: IrNode[]): InlineNode[] {
     const inlineNodes: InlineNode[] = [];
 
-    for (const atom of atomsList) {
+    for (const node of nodesList) {
       if (
-        atom.type === "code" ||
-        atom.type === "a" ||
-        atom.type === "img" ||
-        atom.type === "em" ||
-        atom.type === "strong" ||
-        atom.type === "del"
+        node.type === "code" ||
+        node.type === "a" ||
+        node.type === "img" ||
+        node.type === "em" ||
+        node.type === "strong" ||
+        node.type === "del"
       ) {
-        inlineNodes.push(atom);
-      } else if (atom.type === "text") {
-        mergeTextNodes(inlineNodes, atom.value);
-      } else if (atom.type === "newline") {
+        inlineNodes.push(node);
+      } else if (node.type === "text") {
+        mergeTextNodes(inlineNodes, node.value);
+      } else if (node.type === "newline") {
         const hard = trimTwoTrailingSpaces(inlineNodes);
         pushBreak(inlineNodes, hard);
       } else {
-        mergeTextNodes(inlineNodes, inlineAtomToLiteralForFinalize(atom));
+        mergeTextNodes(inlineNodes, irNodeToLiteralForFinalize(node));
       }
     }
 
@@ -891,7 +893,7 @@ function resolveDelimiters(atomsIn: InlineAtom[]): InlineAtom[] {
 
     let remaining = delimiter.len;
 
-    const pieces: Array<1 | 2> = [];
+    const pieces: RunLength[] = [];
     while (remaining >= 2) {
       pieces.push(2);
       remaining -= 2;
@@ -934,29 +936,29 @@ function resolveDelimiters(atomsIn: InlineAtom[]): InlineAtom[] {
     }
   }
 
-  for (const atom of atoms) {
+  for (const node of nodes) {
     if (
-      atom.type === "code" ||
-      atom.type === "a" ||
-      atom.type === "img" ||
-      atom.type === "em" ||
-      atom.type === "strong" ||
-      atom.type === "del"
+      node.type === "code" ||
+      node.type === "a" ||
+      node.type === "img" ||
+      node.type === "em" ||
+      node.type === "strong" ||
+      node.type === "del"
     ) {
-      currentNodes.push(atom);
-    } else if (atom.type === "text") {
-      currentNodes.push(atom);
-    } else if (isDelimiter(atom)) {
-      if (!atom.canOpen && !atom.canClose) {
+      currentNodes.push(node);
+    } else if (node.type === "text") {
+      currentNodes.push(node);
+    } else if (isDelimiter(node)) {
+      if (!node.canOpen && !node.canClose) {
         currentNodes.push({
           type: "text",
-          value: atom.ch.repeat(atom.len),
+          value: node.ch.repeat(node.len),
         });
       } else {
-        consumeDelimRun(atom);
+        consumeDelimRun(node);
       }
     } else {
-      currentNodes.push(atom);
+      currentNodes.push(node);
     }
   }
 
@@ -970,15 +972,15 @@ function resolveDelimiters(atomsIn: InlineAtom[]): InlineAtom[] {
     currentNodes.push(...inner);
   }
 
-  const mergedAtoms: InlineAtom[] = [];
-  for (const atom of currentNodes) {
-    const last = mergedAtoms[mergedAtoms.length - 1];
-    if (atom.type === "text" && last && last.type === "text")
-      last.value += atom.value;
-    else mergedAtoms.push(atom);
+  const mergedNodes: IrNode[] = [];
+  for (const node of currentNodes) {
+    const last = mergedNodes[mergedNodes.length - 1];
+    if (node.type === "text" && last && last.type === "text")
+      last.value += node.value;
+    else mergedNodes.push(node);
   }
 
-  return mergedAtoms;
+  return mergedNodes;
 }
 
 function pushBreak(inlineNodes: InlineNode[], hard: boolean) {
@@ -998,34 +1000,36 @@ function parseInline(raw: string): InlineNode[] {
   let tokens = tokenize(raw);
   tokens = applyBackslashEscapes(tokens);
 
-  let atoms: InlineAtom[] = resolveCodeSpans(tokens);
-  atoms = resolveLinksAndImages(atoms);
-  atoms = resolveDelimiters(atoms);
+  let nodes: IrNode[] = resolveCodeSpans(tokens);
+  nodes = resolveLinksAndImages(nodes);
+  nodes = resolveDelimiters(nodes);
 
   const inlineNodes: InlineNode[] = [];
-  for (const atom of atoms) {
-    if (atom.type === "newline") {
+  for (const node of nodes) {
+    if (node.type === "newline") {
       const hard = trimTwoTrailingSpaces(inlineNodes);
       pushBreak(inlineNodes, hard);
     } else if (
-      atom.type === "code" ||
-      atom.type === "a" ||
-      atom.type === "img" ||
-      atom.type === "em" ||
-      atom.type === "strong" ||
-      atom.type === "del"
+      node.type === "code" ||
+      node.type === "a" ||
+      node.type === "img" ||
+      node.type === "em" ||
+      node.type === "strong" ||
+      node.type === "del"
     ) {
-      inlineNodes.push(atom);
-    } else if (atom.type === "text") {
-      mergeTextNodes(inlineNodes, atom.value);
+      inlineNodes.push(node);
+    } else if (node.type === "text") {
+      mergeTextNodes(inlineNodes, node.value);
     } else {
-      mergeTextNodes(inlineNodes, inlineAtomToLiteralForFinalize(atom));
+      mergeTextNodes(inlineNodes, irNodeToLiteralForFinalize(node));
     }
   }
   return inlineNodes;
 }
 
 // Types
+
+// Main AST node type returned by the exported AST builder
 export type AstNode =
   | ParagraphNode
   | HeadingNode
@@ -1107,9 +1111,21 @@ type TableCellNode = {
   children: InlineNode[];
 };
 
+// Main inline node type for nodes that can be found within a single block
+// and can't reenter into the main AstNode type
+export type InlineNode =
+  | { type: "text"; value: string }
+  | { type: "code"; value: string }
+  | { type: "a"; url: string; children: InlineNode[] }
+  | { type: "img"; url: string; alt: string }
+  | { type: "em"; children: InlineNode[] }
+  | { type: "strong"; children: InlineNode[] }
+  | { type: "del"; children: InlineNode[] }
+  | { type: "softbreak" }
+  | { type: "hardbreak" };
+
 type DelimiterChar = keyof typeof DELIMITER_CLASS_MAP;
 
-// Internal inline parsing types (not part of the public AST surface).
 type InlineToken =
   | { type: "text"; value: string }
   | { type: "newline" }
@@ -1128,17 +1144,6 @@ type InlineToken =
   | { type: "rparen" }
   | { type: "bang" };
 
-export type InlineNode =
-  | { type: "text"; value: string }
-  | { type: "code"; value: string }
-  | { type: "a"; url: string; children: InlineNode[] }
-  | { type: "img"; url: string; alt: string }
-  | { type: "em"; children: InlineNode[] }
-  | { type: "strong"; children: InlineNode[] }
-  | { type: "del"; children: InlineNode[] }
-  | { type: "softbreak" }
-  | { type: "hardbreak" };
-
 type InlineDelimiter = {
   type: "delimiter";
   ch: DelimiterChar;
@@ -1147,4 +1152,5 @@ type InlineDelimiter = {
   canClose: boolean;
 };
 
-type InlineAtom = InlineToken | InlineNode | InlineDelimiter;
+// intermediate representation node
+type IrNode = InlineToken | InlineNode | InlineDelimiter;
