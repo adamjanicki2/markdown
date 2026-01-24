@@ -253,6 +253,7 @@ const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
 
 const DELIMITER_CLASS_MAP = { "*": "*", _: "*", "~": "~" } as const;
+const DELIMITER_CHARS = Object.keys(DELIMITER_CLASS_MAP);
 
 // Utils
 const normalizeNewlines = (str: string) => str.replace(RE_NEWLINES, "\n");
@@ -391,7 +392,7 @@ const delimClass = (ch: DelimiterChar) => DELIMITER_CLASS_MAP[ch];
 const isSpace = (ch?: string) => ch === " " || ch === "\t" || ch === "\n";
 const isAlphanum = (ch?: string) => !!ch && RE_ALPHANUM.test(ch);
 
-function mergeTextNodes(nodes: Atom[] | InlineNode[], value: string) {
+function mergeTextNodes(nodes: InlineAtom[] | InlineNode[], value: string) {
   if (!value) return;
   const last = nodes[nodes.length - 1];
   if (last && last.type === "text") last.value += value;
@@ -407,15 +408,15 @@ function computeCanOpenClose(
   return { canOpen: nextIsNonSpace, canClose: prevIsNonSpace };
 }
 
-type TokenByType = {
-  [T in Token["type"]]: Extract<Token, { type: T }>;
+type InlineTokenByType = {
+  [T in InlineToken["type"]]: Extract<InlineToken, { type: T }>;
 };
 
-type TokenLiteralHandlers = {
-  [T in Token["type"]]: (token: TokenByType[T]) => string;
+type InlineTokenLiteralHandlers = {
+  [T in InlineToken["type"]]: (token: InlineTokenByType[T]) => string;
 };
 
-const TOKEN_LITERAL_HANDLERS: TokenLiteralHandlers = {
+const INLINE_TOKEN_LITERAL_HANDLERS: InlineTokenLiteralHandlers = {
   text: (token) => token.value,
   newline: () => "\n",
   lbracket: () => "[",
@@ -428,14 +429,14 @@ const TOKEN_LITERAL_HANDLERS: TokenLiteralHandlers = {
   backslash: () => "\\",
 };
 
-function tokenToLiteral<T extends Token["type"]>(
-  token: TokenByType[T]
+function tokenToLiteral<T extends InlineToken["type"]>(
+  token: InlineTokenByType[T]
 ): string {
-  return TOKEN_LITERAL_HANDLERS[token.type](token);
+  return INLINE_TOKEN_LITERAL_HANDLERS[token.type](token);
 }
 
-function tokenize(raw: string): Token[] {
-  const tokens: Token[] = [];
+function tokenize(raw: string): InlineToken[] {
+  const tokens: InlineToken[] = [];
   let textBuffer = "";
 
   const flushText = () => {
@@ -446,7 +447,7 @@ function tokenize(raw: string): Token[] {
     textBuffer = "";
   };
 
-  const pushToken = (token: Token) => {
+  const pushToken = (token: InlineToken) => {
     flushText();
     tokens.push(token);
   };
@@ -479,7 +480,7 @@ function tokenize(raw: string): Token[] {
       isAlphanum(raw[index + 1])
     ) {
       textBuffer += char;
-    } else if (Object.keys(DELIMITER_CLASS_MAP).includes(char)) {
+    } else if (DELIMITER_CHARS.includes(char)) {
       let runIndex = index + 1;
       while (runIndex < raw.length && raw[runIndex] === char) runIndex++;
       const previousChar = index > 0 ? raw[index - 1] : undefined;
@@ -525,8 +526,8 @@ const ESCAPABLE = new Set([
   ">",
 ]);
 
-function applyBackslashEscapes(tokens: Token[]): Token[] {
-  const tokensOut: Token[] = [];
+function applyBackslashEscapes(tokens: InlineToken[]): InlineToken[] {
+  const tokensOut: InlineToken[] = [];
 
   const pushText = (value: string) => {
     if (!value) return;
@@ -571,7 +572,7 @@ function applyBackslashEscapes(tokens: Token[]): Token[] {
     }
   }
 
-  const mergedTokens: Token[] = [];
+  const mergedTokens: InlineToken[] = [];
   for (const token of tokensOut) {
     if (token.type === "text") {
       const last = mergedTokens[mergedTokens.length - 1];
@@ -584,8 +585,8 @@ function applyBackslashEscapes(tokens: Token[]): Token[] {
   return mergedTokens;
 }
 
-function resolveCodeSpans(tokens: Token[]): Atom[] {
-  const atomsOut: Atom[] = [];
+function resolveCodeSpans(tokens: InlineToken[]): InlineAtom[] {
+  const atomsOut: InlineAtom[] = [];
 
   for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
     const token = tokens[tokenIndex];
@@ -624,7 +625,7 @@ function resolveCodeSpans(tokens: Token[]): Atom[] {
     }
   }
 
-  const mergedAtoms: Atom[] = [];
+  const mergedAtoms: InlineAtom[] = [];
   for (const atom of atomsOut) {
     if (atom.type === "text") mergeTextNodes(mergedAtoms, atom.value);
     else mergedAtoms.push(atom);
@@ -632,13 +633,13 @@ function resolveCodeSpans(tokens: Token[]): Atom[] {
   return mergedAtoms;
 }
 
-function atomToToken(atom: Atom): Token | null {
+function inlineAtomToToken(atom: InlineAtom): InlineToken | null {
   if (atom.type === "code" || atom.type === "a" || atom.type === "img")
     return null;
-  return atom as Token;
+  return atom as InlineToken;
 }
 
-function atomToLiteral(atom: Atom): string {
+function inlineAtomToLiteral(atom: InlineAtom): string {
   if (atom.type === "text") return atom.value;
   if (atom.type === "code") return "`" + atom.value + "`";
 
@@ -648,55 +649,55 @@ function atomToLiteral(atom: Atom): string {
   if (atom.type === "a") return "";
   if (atom.type === "img") return "";
 
-  if (atom.type === "em") return atomsToLiteral(atom.children);
-  if (atom.type === "strong") return atomsToLiteral(atom.children);
-  if (atom.type === "del") return atomsToLiteral(atom.children);
+  if (atom.type === "em") return inlineAtomsToLiteral(atom.children);
+  if (atom.type === "strong") return inlineAtomsToLiteral(atom.children);
+  if (atom.type === "del") return inlineAtomsToLiteral(atom.children);
 
   if (atom.type === "delimiter") return atom.ch.repeat(atom.len);
 
   return tokenToLiteral(atom);
 }
 
-function atomsToLiteral(atoms: Atom[] | InlineNode[]): string {
+function inlineAtomsToLiteral(atoms: InlineAtom[] | InlineNode[]): string {
   let literalText = "";
   for (const atom of atoms) {
-    literalText += atomToLiteral(atom);
+    literalText += inlineAtomToLiteral(atom);
   }
   return literalText;
 }
 
 type LinkParseResult = {
-  node: Atom;
+  node: InlineAtom;
   nextIndex: number;
 };
 
 function parseLinkOrImage(
-  atoms: Atom[],
+  atoms: InlineAtom[],
   startIndex: number
 ): LinkParseResult | null {
-  const token = atomToToken(atoms[startIndex]);
+  const token = inlineAtomToToken(atoms[startIndex]);
   if (!token) return null;
 
   const isBang = token.type === "bang";
   const leftBracketIndex = isBang ? startIndex + 1 : startIndex;
 
-  const leftBracketToken = atomToToken(atoms[leftBracketIndex]);
+  const leftBracketToken = inlineAtomToToken(atoms[leftBracketIndex]);
   if (!leftBracketToken || leftBracketToken.type !== "lbracket") return null;
 
   let rightBracketIndex = leftBracketIndex + 1;
   while (rightBracketIndex < atoms.length) {
-    const candidateToken = atomToToken(atoms[rightBracketIndex]);
+    const candidateToken = inlineAtomToToken(atoms[rightBracketIndex]);
     if (candidateToken && candidateToken.type === "rbracket") break;
     rightBracketIndex++;
   }
   if (rightBracketIndex >= atoms.length) return null;
 
-  const leftParenToken = atomToToken(atoms[rightBracketIndex + 1]);
+  const leftParenToken = inlineAtomToToken(atoms[rightBracketIndex + 1]);
   if (!leftParenToken || leftParenToken.type !== "lparen") return null;
 
   let rightParenIndex = rightBracketIndex + 2;
   while (rightParenIndex < atoms.length) {
-    const candidateToken = atomToToken(atoms[rightParenIndex]);
+    const candidateToken = inlineAtomToToken(atoms[rightParenIndex]);
     if (candidateToken && candidateToken.type === "rparen") break;
     rightParenIndex++;
   }
@@ -705,8 +706,8 @@ function parseLinkOrImage(
   const labelAtoms = atoms.slice(leftBracketIndex + 1, rightBracketIndex);
   const urlAtoms = atoms.slice(rightBracketIndex + 2, rightParenIndex);
 
-  const url = atomsToLiteral(urlAtoms).trim();
-  const labelRaw = atomsToLiteral(labelAtoms);
+  const url = inlineAtomsToLiteral(urlAtoms).trim();
+  const labelRaw = inlineAtomsToLiteral(labelAtoms);
 
   if (!url) return null;
 
@@ -724,8 +725,8 @@ function parseLinkOrImage(
   };
 }
 
-function resolveLinksAndImages(atoms: Atom[]): Atom[] {
-  const atomsOut: Atom[] = [];
+function resolveLinksAndImages(atoms: InlineAtom[]): InlineAtom[] {
+  const atomsOut: InlineAtom[] = [];
 
   for (let atomIndex = 0; atomIndex < atoms.length; atomIndex++) {
     const parsed = parseLinkOrImage(atoms, atomIndex);
@@ -737,7 +738,7 @@ function resolveLinksAndImages(atoms: Atom[]): Atom[] {
     }
   }
 
-  const mergedAtoms: Atom[] = [];
+  const mergedAtoms: InlineAtom[] = [];
   for (const atom of atomsOut) {
     if (atom.type === "text") mergeTextNodes(mergedAtoms, atom.value);
     else mergedAtoms.push(atom);
@@ -745,8 +746,8 @@ function resolveLinksAndImages(atoms: Atom[]): Atom[] {
   return mergedAtoms;
 }
 
-function expandDelimRuns(atoms: Atom[]): Atom[] {
-  const atomsOut: Atom[] = [];
+function expandDelimRuns(atoms: InlineAtom[]): InlineAtom[] {
+  const atomsOut: InlineAtom[] = [];
   for (const atom of atoms) {
     if (atom.type !== "delimiter_run") {
       atomsOut.push(atom);
@@ -763,11 +764,11 @@ function expandDelimRuns(atoms: Atom[]): Atom[] {
   return atomsOut;
 }
 
-function isDelimiter(atom: Atom): atom is Delimiter {
+function isDelimiter(atom: InlineAtom): atom is InlineDelimiter {
   return atom.type === "delimiter";
 }
 
-function atomToLiteralForFinalize(atom: Atom): string {
+function inlineAtomToLiteralForFinalize(atom: InlineAtom): string {
   if (atom.type === "delimiter") return atom.ch.repeat(atom.len);
   if (
     atom.type === "text" ||
@@ -789,14 +790,14 @@ function atomToLiteralForFinalize(atom: Atom): string {
 type Frame = {
   delimiterChar: DelimiterChar;
   delimiterLength: 1 | 2;
-  nodes: Atom[];
+  nodes: InlineAtom[];
 };
 
-function resolveDelimiters(atomsIn: Atom[]): Atom[] {
+function resolveDelimiters(atomsIn: InlineAtom[]): InlineAtom[] {
   const atoms = expandDelimRuns(atomsIn);
 
   const stack: Frame[] = [];
-  let currentNodes: Atom[] = [];
+  let currentNodes: InlineAtom[] = [];
 
   const open = (
     delimiterChar: Frame["delimiterChar"],
@@ -829,7 +830,7 @@ function resolveDelimiters(atomsIn: Atom[]): Atom[] {
     }
   };
 
-  function finalizeInline(atomsList: Atom[]): InlineNode[] {
+  function finalizeInline(atomsList: InlineAtom[]): InlineNode[] {
     const inlineNodes: InlineNode[] = [];
 
     for (const atom of atomsList) {
@@ -848,14 +849,14 @@ function resolveDelimiters(atomsIn: Atom[]): Atom[] {
         const hard = trimTwoTrailingSpaces(inlineNodes);
         pushBreak(inlineNodes, hard);
       } else {
-        mergeTextNodes(inlineNodes, atomToLiteralForFinalize(atom));
+        mergeTextNodes(inlineNodes, inlineAtomToLiteralForFinalize(atom));
       }
     }
 
     return inlineNodes;
   }
 
-  function consumeDelimRun(delimiter: Delimiter) {
+  function consumeDelimRun(delimiter: InlineDelimiter) {
     if (delimiter.ch === "~") {
       const hasOdd = delimiter.len % 2 === 1;
       const pairs = Math.floor((delimiter.len - (hasOdd ? 1 : 0)) / 2);
@@ -969,7 +970,7 @@ function resolveDelimiters(atomsIn: Atom[]): Atom[] {
     currentNodes.push(...inner);
   }
 
-  const mergedAtoms: Atom[] = [];
+  const mergedAtoms: InlineAtom[] = [];
   for (const atom of currentNodes) {
     const last = mergedAtoms[mergedAtoms.length - 1];
     if (atom.type === "text" && last && last.type === "text")
@@ -997,7 +998,7 @@ function parseInline(raw: string): InlineNode[] {
   let tokens = tokenize(raw);
   tokens = applyBackslashEscapes(tokens);
 
-  let atoms: Atom[] = resolveCodeSpans(tokens);
+  let atoms: InlineAtom[] = resolveCodeSpans(tokens);
   atoms = resolveLinksAndImages(atoms);
   atoms = resolveDelimiters(atoms);
 
@@ -1018,7 +1019,7 @@ function parseInline(raw: string): InlineNode[] {
     } else if (atom.type === "text") {
       mergeTextNodes(inlineNodes, atom.value);
     } else {
-      mergeTextNodes(inlineNodes, atomToLiteralForFinalize(atom));
+      mergeTextNodes(inlineNodes, inlineAtomToLiteralForFinalize(atom));
     }
   }
   return inlineNodes;
@@ -1108,7 +1109,8 @@ type TableCellNode = {
 
 type DelimiterChar = keyof typeof DELIMITER_CLASS_MAP;
 
-type Token =
+// Internal inline parsing types (not part of the public AST surface).
+type InlineToken =
   | { type: "text"; value: string }
   | { type: "newline" }
   | { type: "backslash" }
@@ -1137,7 +1139,7 @@ export type InlineNode =
   | { type: "softbreak" }
   | { type: "hardbreak" };
 
-type Delimiter = {
+type InlineDelimiter = {
   type: "delimiter";
   ch: DelimiterChar;
   len: number;
@@ -1145,4 +1147,4 @@ type Delimiter = {
   canClose: boolean;
 };
 
-type Atom = Token | InlineNode | Delimiter;
+type InlineAtom = InlineToken | InlineNode | InlineDelimiter;
