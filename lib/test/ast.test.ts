@@ -1,8 +1,8 @@
-import { parseBlocks } from "../src/ast";
+import { buildAst } from "../src/ast";
 import { renderHtml } from "./helpers";
 
 describe("ast", () => {
-  const runTest = (md: string) => renderHtml(parseBlocks(md));
+  const runTest = (md: string) => renderHtml(buildAst(md));
 
   it("01 paragraph", () => {
     expect(runTest("Hello world")).toBe("<p>Hello world</p>");

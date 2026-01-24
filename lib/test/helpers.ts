@@ -1,4 +1,4 @@
-import type { BlockNode, InlineNode } from "../src/ast";
+import type { AstNode, InlineNode } from "../src/ast";
 
 function escapeHtml(text: string): string {
   return text
@@ -43,7 +43,7 @@ function renderInline(nodes: InlineNode[]): string {
     .join("");
 }
 
-export function renderHtml(nodes: BlockNode[]): string {
+export function renderHtml(nodes: AstNode[]): string {
   return nodes
     .map((node) => {
       switch (node.type) {
