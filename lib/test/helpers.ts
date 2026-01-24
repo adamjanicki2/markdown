@@ -31,8 +31,6 @@ function renderInline(nodes: InlineNode[]): string {
           const alt = escapeHtml(node.alt);
           return `<img src="${src}" alt="${alt}" />`;
         }
-        case "softbreak":
-          return " ";
         case "hardbreak":
           return `<br />`;
         default: {

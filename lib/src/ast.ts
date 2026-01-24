@@ -643,7 +643,6 @@ function irNodeToLiteral(node: IrNode): string {
   if (node.type === "text") return node.value;
   if (node.type === "code") return "`" + node.value + "`";
 
-  if (node.type === "softbreak") return " ";
   if (node.type === "hardbreak") return "\n";
 
   if (node.type === "a") return "";
@@ -984,7 +983,7 @@ function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
 }
 
 function pushBreak(inlineNodes: InlineNode[], hard: boolean) {
-  inlineNodes.push(hard ? { type: "hardbreak" } : { type: "softbreak" });
+  inlineNodes.push(hard ? { type: "hardbreak" } : { type: "text", value: " " });
 }
 
 function trimTwoTrailingSpaces(inlineNodes: InlineNode[]): boolean {
@@ -1121,7 +1120,6 @@ export type InlineNode =
   | { type: "em"; children: InlineNode[] }
   | { type: "strong"; children: InlineNode[] }
   | { type: "del"; children: InlineNode[] }
-  | { type: "softbreak" }
   | { type: "hardbreak" };
 
 type DelimiterChar = keyof typeof DELIMITER_CLASS_MAP;

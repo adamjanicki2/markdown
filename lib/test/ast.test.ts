@@ -8,7 +8,7 @@ describe("ast", () => {
     expect(runTest("Hello world")).toBe("<p>Hello world</p>");
   });
 
-  it("02 paragraph joins lines with softbreak (renders as space)", () => {
+  it("02 paragraph does not hardbreak on single newline", () => {
     expect(runTest("Hello\nworld")).toBe("<p>Hello world</p>");
   });
 
@@ -84,7 +84,7 @@ describe("ast", () => {
     );
   });
 
-  it("16 multiple softbreaks collapse via renderer spaces", () => {
+  it("16 multiple single lines", () => {
     expect(runTest("a\nb\nc")).toBe("<p>a b c</p>");
   });
 
@@ -92,7 +92,7 @@ describe("ast", () => {
     expect(runTest("*a  \nb*")).toBe("<p><em>a<br />b</em></p>");
   });
 
-  it("18 softbreak inside emphasis", () => {
+  it("18 single newline inside emphasis", () => {
     expect(runTest("*a\nb*")).toBe("<p><em>a b</em></p>");
   });
 
