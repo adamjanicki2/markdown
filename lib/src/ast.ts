@@ -93,10 +93,25 @@ export function buildAst(markdown: string): AstNode[] {
         lineIndex++;
       }
 
+      const headerRow: TableHeaderRowNode = {
+        type: "tr",
+        cells: headerRaw.map<TableHeaderCellNode>((cell) => ({
+          type: "th",
+          children: parseInline(cell),
+        })),
+      };
+      const bodyRows: TableBodyRowNode[] = rowsRaw.map((row) => ({
+        type: "tr",
+        cells: row.map<TableCellNode>((cell) => ({
+          type: "td",
+          children: parseInline(cell),
+        })),
+      }));
+
       nodes.push({
         type: "table",
-        header: headerRaw.map((cell) => parseInline(cell)),
-        rows: rowsRaw.map((row) => row.map((cell) => parseInline(cell))),
+        head: { type: "thead", row: headerRow },
+        body: { type: "tbody", rows: bodyRows },
       });
       continue;
     }
@@ -1105,8 +1120,38 @@ type ListItemNode = {
 
 type TableNode = {
   type: "table";
-  header: InlineNode[][];
-  rows: InlineNode[][][];
+  head: TableHeadNode;
+  body: TableBodyNode;
+};
+
+type TableHeadNode = {
+  type: "thead";
+  row: TableHeaderRowNode;
+};
+
+type TableBodyNode = {
+  type: "tbody";
+  rows: TableBodyRowNode[];
+};
+
+type TableHeaderRowNode = {
+  type: "tr";
+  cells: TableHeaderCellNode[];
+};
+
+type TableBodyRowNode = {
+  type: "tr";
+  cells: TableCellNode[];
+};
+
+type TableHeaderCellNode = {
+  type: "th";
+  children: InlineNode[];
+};
+
+type TableCellNode = {
+  type: "td";
+  children: InlineNode[];
 };
 
 type DelimiterChar = keyof typeof DELIMITER_CLASS_MAP;

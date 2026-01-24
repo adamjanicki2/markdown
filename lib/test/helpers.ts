@@ -73,17 +73,18 @@ export function renderHtml(nodes: AstNode[]): string {
           return `<${tag}${startAttr}>${items}</${tag}>`;
         }
         case "table": {
-          const ths = node.header
-            .map((cell) => `<th>${renderInline(cell)}</th>`)
+          const headCells = node.head.row.cells
+            .map((cell) => `<th>${renderInline(cell.children)}</th>`)
             .join("");
-          const head = `<thead><tr>${ths}</tr></thead>`;
+          const headRows = `<tr>${headCells}</tr>`;
+          const head = `<thead>${headRows}</thead>`;
 
-          const bodyRows = node.rows
+          const bodyRows = node.body.rows
             .map((row) => {
-              const tds = row
-                .map((cell) => `<td>${renderInline(cell)}</td>`)
+              const cells = row.cells
+                .map((cell) => `<td>${renderInline(cell.children)}</td>`)
                 .join("");
-              return `<tr>${tds}</tr>`;
+              return `<tr>${cells}</tr>`;
             })
             .join("");
           return `<table>${head}<tbody>${bodyRows}</tbody></table>`;
