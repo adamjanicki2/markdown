@@ -5,98 +5,95 @@
  */
 export function buildAst(markdown: string): AstNode[] {
   const lines = splitLines(markdown);
-  const out: AstNode[] = [];
+  const nodes: AstNode[] = [];
 
-  let i = 0;
-  let paraBuf: string[] = [];
+  let lineIndex = 0;
+  let paragraphLines: string[] = [];
 
   const flushParagraph = () => {
-    if (paraBuf.length === 0) return;
-    const raw = paraBuf.join("\n");
-    out.push({ type: "p", children: parseInline(raw) });
-    paraBuf = [];
+    if (paragraphLines.length === 0) return;
+    nodes.push({ type: "p", children: parseInline(paragraphLines.join("\n")) });
+    paragraphLines = [];
   };
 
-  const isOuterBlockStarter = (l: string): boolean => {
-    if (isBlank(l)) return true;
-    if (parseFenceStart(l)) return true;
-    if (isHorizontalRule(l)) return true;
-    if (parseHeading(l)) return true;
-    if (stripBlockquoteMarker(l) !== null) return true;
+  const isOuterBlockStarter = (line: string): boolean => {
+    if (isBlank(line)) return true;
+    if (parseFenceStart(line)) return true;
+    if (isHorizontalRule(line)) return true;
+    if (parseHeading(line)) return true;
+    if (stripBlockquoteMarker(line) !== null) return true;
     return false;
   };
 
-  const indentOf = (l: string) => l.match(/^ */)?.[0].length ?? 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
+  while (lineIndex < lines.length) {
+    const line = lines[lineIndex];
 
     if (isBlank(line)) {
       flushParagraph();
-      i++;
+      lineIndex++;
       continue;
     }
 
     const fence = parseFenceStart(line);
     if (fence) {
       flushParagraph();
-      const lang = fence.info ? fence.info.split(/\s+/)[0] : undefined;
+      const lang = fence.info ? fence.info.split(RE_SPLIT_LANG)[0] : undefined;
 
-      i++;
+      lineIndex++;
       const codeLines: string[] = [];
       while (
-        i < lines.length &&
-        !isFenceEnd(lines[i], fence.fenceChar, fence.fenceLen)
+        lineIndex < lines.length &&
+        !isFenceEnd(lines[lineIndex], fence.fenceChar, fence.fenceLen)
       ) {
-        codeLines.push(lines[i]);
-        i++;
+        codeLines.push(lines[lineIndex]);
+        lineIndex++;
       }
-      if (i < lines.length) i++;
+      if (lineIndex < lines.length) lineIndex++;
 
-      out.push({ type: "pre", lang, raw: codeLines.join("\n") });
+      nodes.push({ type: "pre", lang, raw: codeLines.join("\n") });
       continue;
     }
 
     if (isHorizontalRule(line)) {
       flushParagraph();
-      out.push({ type: "hr" });
-      i++;
+      nodes.push({ type: "hr" });
+      lineIndex++;
       continue;
     }
 
     const heading = parseHeading(line);
     if (heading) {
       flushParagraph();
-      out.push({
+      nodes.push({
         type: "h",
         level: heading.level,
         children: parseInline(heading.raw),
       });
-      i++;
+      lineIndex++;
       continue;
     }
 
     if (
       isTableCandidate(line) &&
-      i + 1 < lines.length &&
-      isTableDelimiterRow(lines[i + 1])
+      lineIndex + 1 < lines.length &&
+      isTableDelimiterRow(lines[lineIndex + 1])
     ) {
       flushParagraph();
 
       const headerRaw = splitTableRow(line);
-      i += 2;
+      lineIndex += 2;
 
       const rowsRaw: string[][] = [];
       while (
-        i < lines.length &&
-        !isBlank(lines[i]) &&
-        isTableCandidate(lines[i])
+        lineIndex < lines.length &&
+        !isBlank(lines[lineIndex]) &&
+        isTableCandidate(lines[lineIndex])
       ) {
-        rowsRaw.push(splitTableRow(lines[i]));
-        i++;
+        rowsRaw.push(splitTableRow(lines[lineIndex]));
+        lineIndex++;
       }
 
-      out.push({
+      nodes.push({
         type: "table",
         header: headerRaw.map((cell) => parseInline(cell)),
         rows: rowsRaw.map((row) => row.map((cell) => parseInline(cell))),
@@ -104,170 +101,195 @@ export function buildAst(markdown: string): AstNode[] {
       continue;
     }
 
-    const bq = stripBlockquoteMarker(line);
-    if (bq !== null) {
+    const blockquoteMarker = stripBlockquoteMarker(line);
+    if (blockquoteMarker !== null) {
       flushParagraph();
 
-      const qLines: string[] = [];
+      const blockquoteLines: string[] = [];
 
-      while (i < lines.length) {
-        const cur = lines[i];
-        const stripped = stripBlockquoteMarker(cur);
+      while (lineIndex < lines.length) {
+        const currentLine = lines[lineIndex];
+        const strippedLine = stripBlockquoteMarker(currentLine);
 
-        if (stripped !== null) {
-          qLines.push(stripped);
-          i++;
+        if (strippedLine !== null) {
+          blockquoteLines.push(strippedLine);
+          lineIndex++;
           continue;
         }
 
-        if (isBlank(cur)) break;
-        const curIndent = indentOf(cur);
-        if (curIndent === 0 && parseListMarker(cur)) break;
-        if (isOuterBlockStarter(cur)) break;
+        if (isBlank(currentLine)) break;
+        const currentIndent = getIndent(currentLine);
+        if (currentIndent === 0 && parseListMarker(currentLine)) break;
+        if (isOuterBlockStarter(currentLine)) break;
 
-        qLines.push(cur);
-        i++;
+        blockquoteLines.push(currentLine);
+        lineIndex++;
       }
 
-      out.push({
+      nodes.push({
         type: "blockquote",
-        children: buildAst(qLines.join("\n")),
+        children: buildAst(blockquoteLines.join("\n")),
       });
       continue;
     }
 
-    const firstMarker = parseListMarker(line);
-    if (firstMarker) {
+    const firstListMarker = parseListMarker(line);
+    if (firstListMarker) {
       flushParagraph();
 
-      const ordered = firstMarker.ordered;
-      const start = firstMarker.ordered ? firstMarker.start : undefined;
+      const ordered = firstListMarker.ordered;
+      const start = firstListMarker.ordered ? firstListMarker.start : undefined;
 
-      const listIndent = firstMarker.indent;
+      const listIndent = firstListMarker.indent;
       const items: ListItemNode[] = [];
       let tight = true;
 
-      while (i < lines.length) {
-        const m = parseListMarker(lines[i]);
-        if (!m) break;
-        if (m.ordered !== ordered) break;
-        if (m.indent !== listIndent) break;
+      while (lineIndex < lines.length) {
+        const listMarker = parseListMarker(lines[lineIndex]);
+        if (!listMarker) break;
+        if (listMarker.ordered !== ordered) break;
+        if (listMarker.indent !== listIndent) break;
 
-        const afterMarker = lines[i].slice(m.contentIndent);
-        i++;
+        const contentAfterMarker = lines[lineIndex].slice(
+          listMarker.contentIndent
+        );
+        lineIndex++;
 
-        const itemLines: string[] = [afterMarker];
-        let sawBlank = false;
+        const listItemLines: string[] = [contentAfterMarker];
+        let sawBlankLine = false;
 
-        while (i < lines.length) {
-          const l = lines[i];
+        while (lineIndex < lines.length) {
+          const currentLine = lines[lineIndex];
 
-          if (isBlank(l)) {
-            sawBlank = true;
-            itemLines.push("");
-            i++;
+          if (isBlank(currentLine)) {
+            sawBlankLine = true;
+            listItemLines.push("");
+            lineIndex++;
             continue;
           }
 
-          const ind = indentOf(l);
+          const lineIndent = getIndent(currentLine);
 
-          if (sawBlank && ind < m.contentIndent) break;
+          if (sawBlankLine && lineIndent < listMarker.contentIndent) break;
 
-          const nextMarker = parseListMarker(l);
+          const nextListMarker = parseListMarker(currentLine);
           if (
-            nextMarker &&
-            nextMarker.ordered === ordered &&
-            nextMarker.indent === listIndent
+            nextListMarker &&
+            nextListMarker.ordered === ordered &&
+            nextListMarker.indent === listIndent
           ) {
             break;
           }
 
-          if (ind <= listIndent && isOuterBlockStarter(l)) break;
+          if (lineIndent <= listIndent && isOuterBlockStarter(currentLine))
+            break;
 
-          if (ind >= m.contentIndent) {
-            itemLines.push(l.slice(m.contentIndent));
-            i++;
+          if (lineIndent >= listMarker.contentIndent) {
+            listItemLines.push(currentLine.slice(listMarker.contentIndent));
+            lineIndex++;
             continue;
           }
 
-          if (ind > listIndent) {
-            const strip = Math.min(ind, listIndent + 1);
-            itemLines.push(l.slice(strip));
-            i++;
+          if (lineIndent > listIndent) {
+            const stripIndent = Math.min(lineIndent, listIndent + 1);
+            listItemLines.push(currentLine.slice(stripIndent));
+            lineIndex++;
             continue;
           }
 
-          itemLines.push(l);
-          i++;
+          listItemLines.push(currentLine);
+          lineIndex++;
           continue;
         }
 
-        if (sawBlank) tight = false;
+        if (sawBlankLine) tight = false;
 
         items.push({
           type: "li",
-          children: buildAst(itemLines.join("\n")),
+          children: buildAst(listItemLines.join("\n")),
         });
 
-        while (i < lines.length && isBlank(lines[i])) {
+        while (lineIndex < lines.length && isBlank(lines[lineIndex])) {
           tight = false;
-          i++;
+          lineIndex++;
         }
       }
 
-      out.push({ type: "list", ordered, start, tight, items });
+      nodes.push({ type: "list", ordered, start, tight, items });
       continue;
     }
 
-    paraBuf.push(line);
-    i++;
+    paragraphLines.push(line);
+    lineIndex++;
   }
 
   flushParagraph();
-  return out;
+  return nodes;
 }
 
+// Constants
+const RE_NEWLINES = /\r\n?/g;
+const RE_LEADING_SPACES = /^ */;
+const RE_HEADING = /^(#{1,6})[ \t]+(.*)$/;
+const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
+const RE_FENCE_START = /^[ ]{0,3}(`{3,}|~{3,})(.*)$/;
+const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
+const RE_FENCE_TICKS_ONLY = /^`{3,}$/;
+const RE_FENCE_TILDES_ONLY = /^~{3,}$/;
+const RE_UL_MARKER = /^([-+*])[ \t]+/;
+const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
+const RE_WHITESPACE = /\s+/g;
+const RE_TABLE_ALIGN = /^:?-+:?$/;
+const RE_DASH = /-/;
+const RE_ALPHANUM = /[A-Za-z0-9]/;
+const RE_SPLIT_LANG = /\s+/;
+
+const DELIMITER_CLASS_MAP = { "*": "*", _: "*", "~": "~" } as const;
+
 // Utils
-const normalizeNewlines = (str: string) => str.replace(/\r\n?/g, "\n");
+const normalizeNewlines = (str: string) => str.replace(RE_NEWLINES, "\n");
 const splitLines = (str: string) => normalizeNewlines(str).split("\n");
 const isBlank = (str: string) => !str.trim();
+const getIndent = (line: string) =>
+  RE_LEADING_SPACES.exec(line)?.[0].length ?? 0;
 
 function isHorizontalRule(str: string) {
   str = str.trim();
   if (str.length < 3) return false;
   const char = str[0];
   if (char !== "-" && char !== "*" && char !== "_") return false;
-  for (const c of str) if (c !== char && c !== " ") return false;
-  return str.split("").filter((c) => c === char).length >= 3;
+  for (const character of str)
+    if (character !== char && character !== " ") return false;
+  return str.split("").filter((character) => character === char).length >= 3;
 }
 
 function parseHeading(line: string) {
-  const matches = /^(#{1,6})[ \t]+(.*)$/.exec(line);
+  const matches = RE_HEADING.exec(line);
   if (!matches) return null;
   const level = matches[1].length as Level;
   let raw = matches[2];
-  raw = raw.replace(/[ \t]+#+[ \t]*$/, "");
+  raw = raw.replace(RE_HEADING_TRAIL, "");
   return { level, raw };
 }
 
 function parseFenceStart(line: string) {
-  const m = /^[ ]{0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-  if (!m) return null;
+  const fenceMatch = RE_FENCE_START.exec(line);
+  if (!fenceMatch) return null;
 
-  const fence = m[1];
+  const fence = fenceMatch[1];
   return {
     fenceChar: fence[0] as "`" | "~",
     fenceLen: fence.length,
-    info: (m[2] || "").trim(),
+    info: (fenceMatch[2] || "").trim(),
   };
 }
 
 function isFenceEnd(str: string, fenceChar: "`" | "~", fenceLen: number) {
-  str = str.replace(/^[ ]{0,3}/, "").trimEnd();
+  str = str.replace(RE_FENCE_LEADING_SPACES, "").trimEnd();
 
   if (fenceChar === "`") {
-    if (!/^`{3,}$/.test(str)) return false;
-  } else if (!/^~{3,}$/.test(str)) return false;
+    if (!RE_FENCE_TICKS_ONLY.test(str)) return false;
+  } else if (!RE_FENCE_TILDES_ONLY.test(str)) return false;
 
   const runLen = str.length;
   return runLen >= fenceLen;
@@ -282,10 +304,10 @@ type ListMarker = {
 };
 
 function parseListMarker(line: string): ListMarker | null {
-  const indent = line.match(/^ */)?.[0].length ?? 0;
+  const indent = getIndent(line);
   const rest = line.slice(indent);
 
-  const uliMatches = /^([-+*])[ \t]+/.exec(rest);
+  const uliMatches = RE_UL_MARKER.exec(rest);
   if (uliMatches) {
     const markerWidth = uliMatches[0].length;
     return {
@@ -296,7 +318,7 @@ function parseListMarker(line: string): ListMarker | null {
     };
   }
 
-  const oliMatches = /^(\d{1,9})([.)])[ \t]+/.exec(rest);
+  const oliMatches = RE_OL_MARKER.exec(rest);
   if (oliMatches) {
     const markerWidth = oliMatches[0].length;
     return {
@@ -312,18 +334,18 @@ function parseListMarker(line: string): ListMarker | null {
 }
 
 function stripBlockquoteDepth(str: string) {
-  let i = 0;
-  while (i < str.length && i < 3 && str[i] === " ") i++;
+  let index = 0;
+  while (index < str.length && index < 3 && str[index] === " ") index++;
 
   let depth = 0;
-  while (i < str.length && str[i] === ">") {
+  while (index < str.length && str[index] === ">") {
     depth++;
-    i++;
-    if (str[i] === " ") i++;
+    index++;
+    if (str[index] === " ") index++;
   }
 
   if (depth === 0) return null;
-  return { depth, content: str.slice(i) };
+  return { depth, content: str.slice(index) };
 }
 
 function stripBlockquoteMarker(str: string) {
@@ -337,7 +359,7 @@ function splitTableRow(str: string): string[] {
   str = str.trim();
   if (str.startsWith("|")) str = str.slice(1);
   if (str.endsWith("|")) str = str.slice(0, -1);
-  return str.split("|").map((c) => c.trim());
+  return str.split("|").map((cellValue) => cellValue.trim());
 }
 
 function isTableDelimiterRow(line: string): boolean {
@@ -345,10 +367,10 @@ function isTableDelimiterRow(line: string): boolean {
   if (cells.length <= 1) return false;
 
   return cells.every((cell) => {
-    cell = cell.replace(/\s+/g, "");
+    cell = cell.replace(RE_WHITESPACE, "");
     if (cell.length === 0) return false;
-    if (!/^:?-+:?$/.test(cell)) return false;
-    return /-/.test(cell);
+    if (!RE_TABLE_ALIGN.test(cell)) return false;
+    return RE_DASH.test(cell);
   });
 }
 
@@ -357,15 +379,15 @@ function isTableCandidate(line: string): boolean {
   return splitTableRow(line).length > 1;
 }
 
-const delimClass = (ch: DelimiterChar) => (ch === "_" ? "*" : ch);
+const delimClass = (ch: DelimiterChar) => DELIMITER_CLASS_MAP[ch];
 const isSpace = (ch?: string) => ch === " " || ch === "\t" || ch === "\n";
-const isAlphanum = (ch?: string) => !!ch && /[A-Za-z0-9]/.test(ch);
+const isAlphanum = (ch?: string) => !!ch && RE_ALPHANUM.test(ch);
 
-function mergeText(acc: Atom[] | InlineNode[], value: string) {
+function mergeTextNodes(nodes: Atom[] | InlineNode[], value: string) {
   if (!value) return;
-  const last = acc[acc.length - 1];
+  const last = nodes[nodes.length - 1];
   if (last && last.type === "text") last.value += value;
-  else acc.push({ type: "text", value });
+  else nodes.push({ type: "text", value });
 }
 
 function computeCanOpenClose(
@@ -377,119 +399,121 @@ function computeCanOpenClose(
   return { canOpen: nextIsNonSpace, canClose: prevIsNonSpace };
 }
 
-function tokenToLiteral(token: Token): string {
-  switch (token.type) {
-    case "text":
-      return token.value;
-    case "newline":
-      return "\n";
-    case "lbracket":
-      return "[";
-    case "rbracket":
-      return "]";
-    case "lparen":
-      return "(";
-    case "rparen":
-      return ")";
-    case "bang":
-      return "!";
-    case "delimiter_run":
-      return token.ch.repeat(token.len);
-    case "backtick_run":
-      return "`".repeat(token.len);
-    case "backslash":
-      return "\\";
-    default: {
-      const _exhaustive: never = token;
-      return _exhaustive;
-    }
-  }
+type TokenByType = {
+  [T in Token["type"]]: Extract<Token, { type: T }>;
+};
+
+type TokenLiteralHandlers = {
+  [T in Token["type"]]: (token: TokenByType[T]) => string;
+};
+
+const TOKEN_LITERAL_HANDLERS: TokenLiteralHandlers = {
+  text: (token) => token.value,
+  newline: () => "\n",
+  lbracket: () => "[",
+  rbracket: () => "]",
+  lparen: () => "(",
+  rparen: () => ")",
+  bang: () => "!",
+  delimiter_run: (token) => token.ch.repeat(token.len),
+  backtick_run: (token) => "`".repeat(token.len),
+  backslash: () => "\\",
+};
+
+function tokenToLiteral<T extends Token["type"]>(
+  token: TokenByType[T]
+): string {
+  return TOKEN_LITERAL_HANDLERS[token.type](token);
 }
 
 function tokenize(raw: string): Token[] {
   const tokens: Token[] = [];
-  let textBuf = "";
+  let textBuffer = "";
 
   const flushText = () => {
-    if (!textBuf) return;
+    if (!textBuffer) return;
     const last = tokens[tokens.length - 1];
-    if (last && last.type === "text") last.value += textBuf;
-    else tokens.push({ type: "text", value: textBuf });
-    textBuf = "";
+    if (last && last.type === "text") last.value += textBuffer;
+    else tokens.push({ type: "text", value: textBuffer });
+    textBuffer = "";
   };
 
-  const push = (t: Token) => {
+  const pushToken = (token: Token) => {
     flushText();
-    tokens.push(t);
+    tokens.push(token);
   };
 
-  for (let i = 0; i < raw.length; i++) {
-    const ch = raw[i];
+  for (let index = 0; index < raw.length; index++) {
+    const char = raw[index];
 
-    if (ch === "\n") {
-      push({ type: "newline" });
-      continue;
-    }
-
-    if (ch === "\\") {
-      push({ type: "backslash" });
+    if (char === "\n") {
+      pushToken({ type: "newline" });
       continue;
     }
 
-    if (ch === "!") {
-      push({ type: "bang" });
-      continue;
-    }
-    if (ch === "[") {
-      push({ type: "lbracket" });
-      continue;
-    }
-    if (ch === "]") {
-      push({ type: "rbracket" });
-      continue;
-    }
-    if (ch === "(") {
-      push({ type: "lparen" });
-      continue;
-    }
-    if (ch === ")") {
-      push({ type: "rparen" });
+    if (char === "\\") {
+      pushToken({ type: "backslash" });
       continue;
     }
 
-    if (ch === "`") {
-      let j = i + 1;
-      while (j < raw.length && raw[j] === "`") j++;
-      push({ type: "backtick_run", len: j - i });
-      i = j - 1;
+    if (char === "!") {
+      pushToken({ type: "bang" });
+      continue;
+    }
+    if (char === "[") {
+      pushToken({ type: "lbracket" });
+      continue;
+    }
+    if (char === "]") {
+      pushToken({ type: "rbracket" });
+      continue;
+    }
+    if (char === "(") {
+      pushToken({ type: "lparen" });
+      continue;
+    }
+    if (char === ")") {
+      pushToken({ type: "rparen" });
       continue;
     }
 
-    if (ch === "_" && isAlphanum(raw[i - 1]) && isAlphanum(raw[i + 1])) {
-      textBuf += ch;
+    if (char === "`") {
+      let runIndex = index + 1;
+      while (runIndex < raw.length && raw[runIndex] === "`") runIndex++;
+      pushToken({ type: "backtick_run", len: runIndex - index });
+      index = runIndex - 1;
       continue;
     }
 
-    if (delimiterChars.includes(ch as DelimiterChar)) {
-      let j = i + 1;
-      while (j < raw.length && raw[j] === ch) j++;
-      const prev = i > 0 ? raw[i - 1] : undefined;
-      const next = j < raw.length ? raw[j] : undefined;
-      const { canOpen, canClose } = computeCanOpenClose(prev, next);
+    if (
+      char === "_" &&
+      isAlphanum(raw[index - 1]) &&
+      isAlphanum(raw[index + 1])
+    ) {
+      textBuffer += char;
+      continue;
+    }
 
-      push({
+    if (Object.keys(DELIMITER_CLASS_MAP).includes(char)) {
+      let runIndex = index + 1;
+      while (runIndex < raw.length && raw[runIndex] === char) runIndex++;
+      const previousChar = index > 0 ? raw[index - 1] : undefined;
+      const nextChar = runIndex < raw.length ? raw[runIndex] : undefined;
+      const { canOpen, canClose } = computeCanOpenClose(previousChar, nextChar);
+
+      pushToken({
         type: "delimiter_run",
-        ch: ch as DelimiterChar,
-        len: j - i,
+        ch: char as DelimiterChar,
+        len: runIndex - index,
         canOpen,
         canClose,
       });
 
-      i = j - 1;
+      index = runIndex - 1;
       continue;
     }
 
-    textBuf += ch;
+    textBuffer += char;
   }
 
   flushText();
@@ -518,258 +542,265 @@ const ESCAPABLE = new Set([
 ]);
 
 function applyBackslashEscapes(tokens: Token[]): Token[] {
-  const out: Token[] = [];
+  const tokensOut: Token[] = [];
 
   const pushText = (value: string) => {
     if (!value) return;
-    const last = out[out.length - 1];
+    const last = tokensOut[tokensOut.length - 1];
     if (last && last.type === "text") last.value += value;
-    else out.push({ type: "text", value });
+    else tokensOut.push({ type: "text", value });
   };
 
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (t.type !== "backslash") {
-      out.push(t);
+  for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
+    const token = tokens[tokenIndex];
+    if (token.type !== "backslash") {
+      tokensOut.push(token);
       continue;
     }
 
-    const next = tokens[i + 1];
-    if (!next) {
+    const nextToken = tokens[tokenIndex + 1];
+    if (!nextToken) {
       pushText("\\");
       continue;
     }
 
-    const lit = tokenToLiteral(next);
-    const ch = lit[0];
+    const literal = tokenToLiteral(nextToken);
+    const escapedChar = literal[0];
 
-    if (ESCAPABLE.has(ch)) {
-      pushText(ch);
+    if (ESCAPABLE.has(escapedChar)) {
+      pushText(escapedChar);
 
-      if (next.type === "delimiter_run" && next.len > 1) {
-        out.push({ ...next, len: next.len - 1, canOpen: true, canClose: true });
-      } else if (next.type === "backtick_run" && next.len > 1) {
-        out.push({ ...next, len: next.len - 1 });
-      } else if (next.type === "text" && next.value.length > 1) {
-        pushText(next.value.slice(1));
+      if (nextToken.type === "delimiter_run" && nextToken.len > 1) {
+        tokensOut.push({
+          ...nextToken,
+          len: nextToken.len - 1,
+          canOpen: true,
+          canClose: true,
+        });
+      } else if (nextToken.type === "backtick_run" && nextToken.len > 1) {
+        tokensOut.push({ ...nextToken, len: nextToken.len - 1 });
+      } else if (nextToken.type === "text" && nextToken.value.length > 1) {
+        pushText(nextToken.value.slice(1));
       }
 
-      i++;
+      tokenIndex++;
       continue;
     }
 
     pushText("\\");
   }
 
-  const merged: Token[] = [];
-  for (const t of out) {
-    if (t.type === "text") {
-      const last = merged[merged.length - 1];
-      if (last && last.type === "text") last.value += t.value;
-      else merged.push(t);
+  const mergedTokens: Token[] = [];
+  for (const token of tokensOut) {
+    if (token.type === "text") {
+      const last = mergedTokens[mergedTokens.length - 1];
+      if (last && last.type === "text") last.value += token.value;
+      else mergedTokens.push(token);
     } else {
-      merged.push(t);
+      mergedTokens.push(token);
     }
   }
-  return merged;
+  return mergedTokens;
 }
 
 function resolveCodeSpans(tokens: Token[]): Atom[] {
-  const out: Atom[] = [];
+  const atomsOut: Atom[] = [];
 
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
+  for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
+    const token = tokens[tokenIndex];
 
-    if (t.type !== "backtick_run") {
-      out.push(t);
+    if (token.type !== "backtick_run") {
+      atomsOut.push(token);
       continue;
     }
 
-    const openerLen = t.len;
+    const openerLen = token.len;
 
-    let j = i + 1;
-    while (j < tokens.length) {
-      const tt = tokens[j];
-      if (tt.type === "backtick_run" && tt.len === openerLen) break;
-      j++;
+    let closingIndex = tokenIndex + 1;
+    while (closingIndex < tokens.length) {
+      const candidateToken = tokens[closingIndex];
+      if (
+        candidateToken.type === "backtick_run" &&
+        candidateToken.len === openerLen
+      )
+        break;
+      closingIndex++;
     }
 
-    if (j >= tokens.length) {
-      mergeText(out, "`".repeat(openerLen));
+    if (closingIndex >= tokens.length) {
+      mergeTextNodes(atomsOut, "`".repeat(openerLen));
       continue;
     }
 
-    let raw = "";
-    for (let k = i + 1; k < j; k++) {
-      raw += tokenToLiteral(tokens[k]);
+    let codeRaw = "";
+    for (
+      let innerIndex = tokenIndex + 1;
+      innerIndex < closingIndex;
+      innerIndex++
+    ) {
+      codeRaw += tokenToLiteral(tokens[innerIndex]);
     }
 
-    out.push({ type: "code", value: raw });
-    i = j;
+    atomsOut.push({ type: "code", value: codeRaw });
+    tokenIndex = closingIndex;
   }
 
-  const merged: Atom[] = [];
-  for (const a of out) {
-    if (a.type === "text") mergeText(merged, a.value);
-    else merged.push(a);
+  const mergedAtoms: Atom[] = [];
+  for (const atom of atomsOut) {
+    if (atom.type === "text") mergeTextNodes(mergedAtoms, atom.value);
+    else mergedAtoms.push(atom);
   }
-  return merged;
+  return mergedAtoms;
 }
 
-function atomToToken(a: Atom): Token | null {
-  if (a.type === "code" || a.type === "a" || a.type === "img") return null;
-  return a as Token;
+function atomToToken(atom: Atom): Token | null {
+  if (atom.type === "code" || atom.type === "a" || atom.type === "img")
+    return null;
+  return atom as Token;
 }
 
-function atomToLiteral(a: Atom): string {
-  if (a.type === "text") return a.value;
-  if (a.type === "code") return "`" + a.value + "`";
+function atomToLiteral(atom: Atom): string {
+  if (atom.type === "text") return atom.value;
+  if (atom.type === "code") return "`" + atom.value + "`";
 
-  if (a.type === "softbreak") return " ";
-  if (a.type === "hardbreak") return "\n";
+  if (atom.type === "softbreak") return " ";
+  if (atom.type === "hardbreak") return "\n";
 
-  if (a.type === "a") return "";
-  if (a.type === "img") return "";
+  if (atom.type === "a") return "";
+  if (atom.type === "img") return "";
 
-  if (a.type === "em") return atomsToLiteral(a.children);
-  if (a.type === "strong") return atomsToLiteral(a.children);
-  if (a.type === "del") return atomsToLiteral(a.children);
+  if (atom.type === "em") return atomsToLiteral(atom.children);
+  if (atom.type === "strong") return atomsToLiteral(atom.children);
+  if (atom.type === "del") return atomsToLiteral(atom.children);
 
-  if (a.type === "delimiter") return a.ch.repeat(a.len);
+  if (atom.type === "delimiter") return atom.ch.repeat(atom.len);
 
-  return tokenToLiteral(a);
+  return tokenToLiteral(atom);
 }
 
 function atomsToLiteral(atoms: Atom[] | InlineNode[]): string {
-  let s = "";
-  for (const a of atoms as any[]) {
-    s += atomToLiteral(a as any);
+  let literalText = "";
+  for (const atom of atoms) {
+    literalText += atomToLiteral(atom);
   }
-  return s;
+  return literalText;
 }
 
 function resolveLinksAndImages(atoms: Atom[]): Atom[] {
-  const out: Atom[] = [];
+  const atomsOut: Atom[] = [];
 
-  for (let i = 0; i < atoms.length; i++) {
-    const t = atomToToken(atoms[i]);
-    if (!t) {
-      out.push(atoms[i]);
+  for (let atomIndex = 0; atomIndex < atoms.length; atomIndex++) {
+    const token = atomToToken(atoms[atomIndex]);
+    if (!token) {
+      atomsOut.push(atoms[atomIndex]);
       continue;
     }
 
-    const isBang = t.type === "bang";
-    const lbIndex = isBang ? i + 1 : i;
+    const isBang = token.type === "bang";
+    const leftBracketIndex = isBang ? atomIndex + 1 : atomIndex;
 
-    const lb = atomToToken(atoms[lbIndex]);
-    if (!lb || lb.type !== "lbracket") {
-      out.push(atoms[i]);
+    const leftBracketToken = atomToToken(atoms[leftBracketIndex]);
+    if (!leftBracketToken || leftBracketToken.type !== "lbracket") {
+      atomsOut.push(atoms[atomIndex]);
       continue;
     }
 
-    let rbIndex = lbIndex + 1;
-    while (rbIndex < atoms.length) {
-      const tt = atomToToken(atoms[rbIndex]);
-      if (tt && tt.type === "rbracket") break;
-      rbIndex++;
+    let rightBracketIndex = leftBracketIndex + 1;
+    while (rightBracketIndex < atoms.length) {
+      const candidateToken = atomToToken(atoms[rightBracketIndex]);
+      if (candidateToken && candidateToken.type === "rbracket") break;
+      rightBracketIndex++;
     }
-    if (rbIndex >= atoms.length) {
-      out.push(atoms[i]);
+    if (rightBracketIndex >= atoms.length) {
+      atomsOut.push(atoms[atomIndex]);
       continue;
     }
 
-    const lp = atomToToken(atoms[rbIndex + 1]);
-    if (!lp || lp.type !== "lparen") {
-      out.push(atoms[i]);
+    const leftParenToken = atomToToken(atoms[rightBracketIndex + 1]);
+    if (!leftParenToken || leftParenToken.type !== "lparen") {
+      atomsOut.push(atoms[atomIndex]);
       continue;
     }
 
-    let rpIndex = rbIndex + 2;
-    while (rpIndex < atoms.length) {
-      const tt = atomToToken(atoms[rpIndex]);
-      if (tt && tt.type === "rparen") break;
-      rpIndex++;
+    let rightParenIndex = rightBracketIndex + 2;
+    while (rightParenIndex < atoms.length) {
+      const candidateToken = atomToToken(atoms[rightParenIndex]);
+      if (candidateToken && candidateToken.type === "rparen") break;
+      rightParenIndex++;
     }
-    if (rpIndex >= atoms.length) {
-      out.push(atoms[i]);
+    if (rightParenIndex >= atoms.length) {
+      atomsOut.push(atoms[atomIndex]);
       continue;
     }
 
-    const labelAtoms = atoms.slice(lbIndex + 1, rbIndex);
-    const urlAtoms = atoms.slice(rbIndex + 2, rpIndex);
+    const labelAtoms = atoms.slice(leftBracketIndex + 1, rightBracketIndex);
+    const urlAtoms = atoms.slice(rightBracketIndex + 2, rightParenIndex);
 
     const url = atomsToLiteral(urlAtoms).trim();
     const labelRaw = atomsToLiteral(labelAtoms);
 
     if (!url) {
-      out.push(atoms[i]);
+      atomsOut.push(atoms[atomIndex]);
       continue;
     }
 
     if (isBang) {
-      out.push({ type: "img", url, alt: labelRaw });
-      i = rpIndex;
+      atomsOut.push({ type: "img", url, alt: labelRaw });
+      atomIndex = rightParenIndex;
       continue;
     }
 
     const children = parseInline(labelRaw);
-    out.push({ type: "a", url, children });
-    i = rpIndex;
+    atomsOut.push({ type: "a", url, children });
+    atomIndex = rightParenIndex;
     continue;
   }
 
-  const merged: Atom[] = [];
-  for (const a of out) {
-    if (a.type === "text") mergeText(merged, a.value);
-    else merged.push(a);
+  const mergedAtoms: Atom[] = [];
+  for (const atom of atomsOut) {
+    if (atom.type === "text") mergeTextNodes(mergedAtoms, atom.value);
+    else mergedAtoms.push(atom);
   }
-  return merged;
+  return mergedAtoms;
 }
 
 function expandDelimRuns(atoms: Atom[]): Atom[] {
-  const out: Atom[] = [];
-  for (const a of atoms) {
-    if (a.type !== "delimiter_run") {
-      out.push(a);
+  const atomsOut: Atom[] = [];
+  for (const atom of atoms) {
+    if (atom.type !== "delimiter_run") {
+      atomsOut.push(atom);
       continue;
     }
-    out.push({
+    atomsOut.push({
       type: "delimiter",
-      ch: delimClass(a.ch),
-      len: a.len,
-      canOpen: a.canOpen,
-      canClose: a.canClose,
+      ch: delimClass(atom.ch),
+      len: atom.len,
+      canOpen: atom.canOpen,
+      canClose: atom.canClose,
     });
   }
-  return out;
+  return atomsOut;
 }
 
-function isDelimiter(a: Atom): a is Delimiter {
-  return (a as any).type === "delimiter";
+function isDelimiter(atom: Atom): atom is Delimiter {
+  return atom.type === "delimiter";
 }
 
-function mergeTextInline(out: InlineNode[], value: string) {
-  if (!value) return;
-  const last = out[out.length - 1];
-  if (last && last.type === "text") last.value += value;
-  else out.push({ type: "text", value });
-}
-
-function atomToLiteralForFinalize(a: Atom): string {
-  if (a.type === "delimiter") return a.ch.repeat(a.len);
+function atomToLiteralForFinalize(atom: Atom): string {
+  if (atom.type === "delimiter") return atom.ch.repeat(atom.len);
   if (
-    a.type === "text" ||
-    a.type === "newline" ||
-    a.type === "lbracket" ||
-    a.type === "rbracket" ||
-    a.type === "lparen" ||
-    a.type === "rparen" ||
-    a.type === "bang" ||
-    a.type === "delimiter_run" ||
-    a.type === "backtick_run" ||
-    a.type === "backslash"
+    atom.type === "text" ||
+    atom.type === "newline" ||
+    atom.type === "lbracket" ||
+    atom.type === "rbracket" ||
+    atom.type === "lparen" ||
+    atom.type === "rparen" ||
+    atom.type === "bang" ||
+    atom.type === "delimiter_run" ||
+    atom.type === "backtick_run" ||
+    atom.type === "backslash"
   ) {
-    return tokenToLiteral(a);
+    return tokenToLiteral(atom);
   }
   return "";
 }
@@ -778,108 +809,112 @@ function resolveDelimiters(atomsIn: Atom[]): Atom[] {
   const atoms = expandDelimRuns(atomsIn);
 
   type Frame = {
-    ch: DelimiterChar;
-    len: 1 | 2;
+    delimiterChar: DelimiterChar;
+    delimiterLength: 1 | 2;
     nodes: Atom[];
   };
 
   const stack: Frame[] = [];
-  let cur: Atom[] = [];
+  let currentNodes: Atom[] = [];
 
-  const open = (ch: Frame["ch"], len: Frame["len"]) => {
-    stack.push({ ch, len, nodes: cur });
-    cur = [];
+  const open = (
+    delimiterChar: Frame["delimiterChar"],
+    delimiterLength: Frame["delimiterLength"]
+  ) => {
+    stack.push({
+      delimiterChar,
+      delimiterLength,
+      nodes: currentNodes,
+    });
+    currentNodes = [];
   };
 
-  const close = (ch: Frame["ch"], len: Frame["len"]) => {
-    const inner = cur;
+  const close = (
+    delimiterChar: Frame["delimiterChar"],
+    delimiterLength: Frame["delimiterLength"]
+  ) => {
+    const inner = currentNodes;
     const frame = stack.pop();
     if (!frame) return;
 
-    cur = frame.nodes;
+    currentNodes = frame.nodes;
 
-    if (ch === "~") {
-      cur.push({ type: "del", children: finalizeInline(inner) });
-    } else if (len === 2) {
-      cur.push({ type: "strong", children: finalizeInline(inner) });
+    if (delimiterChar === "~") {
+      currentNodes.push({ type: "del", children: finalizeInline(inner) });
+    } else if (delimiterLength === 2) {
+      currentNodes.push({ type: "strong", children: finalizeInline(inner) });
     } else {
-      cur.push({ type: "em", children: finalizeInline(inner) });
+      currentNodes.push({ type: "em", children: finalizeInline(inner) });
     }
   };
 
-  function pushBreak(out: InlineNode[], hard: boolean) {
-    out.push(hard ? { type: "hardbreak" } : { type: "softbreak" });
-  }
+  function finalizeInline(atomsList: Atom[]): InlineNode[] {
+    const inlineNodes: InlineNode[] = [];
 
-  function trimTwoTrailingSpaces(out: InlineNode[]): boolean {
-    const last = out[out.length - 1];
-    if (!last || last.type !== "text") return false;
-    if (!last.value.endsWith("  ")) return false;
-    last.value = last.value.slice(0, -2);
-    if (last.value.length === 0) out.pop();
-    return true;
-  }
-
-  function finalizeInline(list: Atom[]): InlineNode[] {
-    const out: InlineNode[] = [];
-
-    for (const a of list) {
+    for (const atom of atomsList) {
       if (
-        a.type === "code" ||
-        a.type === "a" ||
-        a.type === "img" ||
-        a.type === "em" ||
-        a.type === "strong" ||
-        a.type === "del"
+        atom.type === "code" ||
+        atom.type === "a" ||
+        atom.type === "img" ||
+        atom.type === "em" ||
+        atom.type === "strong" ||
+        atom.type === "del"
       ) {
-        out.push(a);
+        inlineNodes.push(atom);
         continue;
       }
 
-      if (a.type === "text") {
-        mergeTextInline(out, a.value);
+      if (atom.type === "text") {
+        mergeTextNodes(inlineNodes, atom.value);
         continue;
       }
 
-      if (a.type === "newline") {
-        const hard = trimTwoTrailingSpaces(out);
-        pushBreak(out, hard);
+      if (atom.type === "newline") {
+        const hard = trimTwoTrailingSpaces(inlineNodes);
+        pushBreak(inlineNodes, hard);
         continue;
       }
 
-      mergeTextInline(out, atomToLiteralForFinalize(a));
+      mergeTextNodes(inlineNodes, atomToLiteralForFinalize(atom));
     }
 
-    return out;
+    return inlineNodes;
   }
 
-  function consumeDelimRun(d: Delimiter) {
-    if (d.ch === "~") {
-      const hasOdd = d.len % 2 === 1;
-      const pairs = Math.floor((d.len - (hasOdd ? 1 : 0)) / 2);
+  function consumeDelimRun(delimiter: Delimiter) {
+    if (delimiter.ch === "~") {
+      const hasOdd = delimiter.len % 2 === 1;
+      const pairs = Math.floor((delimiter.len - (hasOdd ? 1 : 0)) / 2);
 
       const putOddBefore =
         hasOdd &&
-        (d.canOpen && !d.canClose
+        (delimiter.canOpen && !delimiter.canClose
           ? true
-          : d.canClose && !d.canOpen
+          : delimiter.canClose && !delimiter.canOpen
             ? false
             : true);
 
-      if (putOddBefore) cur.push({ type: "text", value: "~" });
+      if (putOddBefore) currentNodes.push({ type: "text", value: "~" });
 
-      for (let k = 0; k < pairs; k++) {
+      for (let pairIndex = 0; pairIndex < pairs; pairIndex++) {
         const top = stack[stack.length - 1];
-        if (d.canClose && top && top.ch === "~" && top.len === 2) close("~", 2);
-        else if (d.canOpen) open("~", 2);
-        else cur.push({ type: "text", value: "~~" });
+        if (
+          delimiter.canClose &&
+          top &&
+          top.delimiterChar === "~" &&
+          top.delimiterLength === 2
+        )
+          close("~", 2);
+        else if (delimiter.canOpen) open("~", 2);
+        else currentNodes.push({ type: "text", value: "~~" });
       }
 
-      if (hasOdd && !putOddBefore) cur.push({ type: "text", value: "~" });
+      if (hasOdd && !putOddBefore)
+        currentNodes.push({ type: "text", value: "~" });
       return;
     }
 
-    let remaining = d.len;
+    let remaining = delimiter.len;
 
     const pieces: Array<1 | 2> = [];
     while (remaining >= 2) {
@@ -894,83 +929,100 @@ function resolveDelimiters(atomsIn: Atom[]): Atom[] {
       pieces[pieces.length - 1] === 1
     ) {
       const top = stack[stack.length - 1];
-      if (d.canClose && top && top.ch === d.ch && top.len === 1) {
+      if (
+        delimiter.canClose &&
+        top &&
+        top.delimiterChar === delimiter.ch &&
+        top.delimiterLength === 1
+      ) {
         pieces.splice(pieces.length - 2, 2, 1, 2);
       }
     }
 
-    for (const len of pieces) {
+    for (const delimiterLength of pieces) {
       const top = stack[stack.length - 1];
 
-      const canClose = d.canClose && top && top.ch === d.ch && top.len === len;
-      const canOpen = d.canOpen;
+      const canClose =
+        delimiter.canClose &&
+        top &&
+        top.delimiterChar === delimiter.ch &&
+        top.delimiterLength === delimiterLength;
+      const canOpen = delimiter.canOpen;
 
-      if (canClose) close(d.ch, len);
-      else if (canOpen) open(d.ch, len);
-      else cur.push({ type: "text", value: d.ch.repeat(len) });
+      if (canClose) close(delimiter.ch, delimiterLength);
+      else if (canOpen) open(delimiter.ch, delimiterLength);
+      else
+        currentNodes.push({
+          type: "text",
+          value: delimiter.ch.repeat(delimiterLength),
+        });
     }
   }
 
-  for (const a of atoms) {
+  for (const atom of atoms) {
     if (
-      a.type === "code" ||
-      a.type === "a" ||
-      a.type === "img" ||
-      a.type === "em" ||
-      a.type === "strong" ||
-      a.type === "del"
+      atom.type === "code" ||
+      atom.type === "a" ||
+      atom.type === "img" ||
+      atom.type === "em" ||
+      atom.type === "strong" ||
+      atom.type === "del"
     ) {
-      cur.push(a);
+      currentNodes.push(atom);
       continue;
     }
 
-    if (a.type === "text") {
-      cur.push(a);
+    if (atom.type === "text") {
+      currentNodes.push(atom);
       continue;
     }
 
-    if (isDelimiter(a)) {
-      if (!a.canOpen && !a.canClose) {
-        cur.push({ type: "text", value: a.ch.repeat(a.len) });
+    if (isDelimiter(atom)) {
+      if (!atom.canOpen && !atom.canClose) {
+        currentNodes.push({
+          type: "text",
+          value: atom.ch.repeat(atom.len),
+        });
         continue;
       }
-      consumeDelimRun(a);
+      consumeDelimRun(atom);
       continue;
     }
 
-    cur.push(a);
+    currentNodes.push(atom);
   }
 
   while (stack.length) {
-    const frame = stack.pop()!;
-    const opener = frame.ch.repeat(frame.len);
-    const inner = cur;
-    cur = frame.nodes;
-    cur.push({ type: "text", value: opener });
-    cur.push(...inner);
+    const frame = stack.pop();
+    if (!frame) break;
+    const opener = frame.delimiterChar.repeat(frame.delimiterLength);
+    const inner = currentNodes;
+    currentNodes = frame.nodes;
+    currentNodes.push({ type: "text", value: opener });
+    currentNodes.push(...inner);
   }
 
-  const merged: Atom[] = [];
-  for (const a of cur) {
-    const last = merged[merged.length - 1];
-    if (a.type === "text" && last && last.type === "text")
-      last.value += a.value;
-    else merged.push(a);
+  const mergedAtoms: Atom[] = [];
+  for (const atom of currentNodes) {
+    const last = mergedAtoms[mergedAtoms.length - 1];
+    if (atom.type === "text" && last && last.type === "text")
+      last.value += atom.value;
+    else mergedAtoms.push(atom);
   }
 
-  return merged;
+  return mergedAtoms;
 }
 
-function pushBreak(out: InlineNode[], hard: boolean) {
-  out.push(hard ? { type: "hardbreak" } : { type: "softbreak" });
+function pushBreak(inlineNodes: InlineNode[], hard: boolean) {
+  inlineNodes.push(hard ? { type: "hardbreak" } : { type: "softbreak" });
 }
 
-function trimTwoTrailingSpaces(out: InlineNode[]): boolean {
-  const last = out[out.length - 1];
+function trimTwoTrailingSpaces(inlineNodes: InlineNode[]): boolean {
+  const last = inlineNodes[inlineNodes.length - 1];
   if (!last || last.type !== "text") return false;
   if (!last.value.endsWith("  ")) return false;
   last.value = last.value.slice(0, -2);
-  if (last.value.length === 0) out.pop();
+  if (last.value.length === 0) inlineNodes.pop();
   return true;
 }
 
@@ -982,27 +1034,27 @@ function parseInline(raw: string): InlineNode[] {
   atoms = resolveLinksAndImages(atoms);
   atoms = resolveDelimiters(atoms);
 
-  const out: InlineNode[] = [];
-  for (const a of atoms) {
-    if (a.type === "newline") {
-      const hard = trimTwoTrailingSpaces(out);
-      pushBreak(out, hard);
+  const inlineNodes: InlineNode[] = [];
+  for (const atom of atoms) {
+    if (atom.type === "newline") {
+      const hard = trimTwoTrailingSpaces(inlineNodes);
+      pushBreak(inlineNodes, hard);
     } else if (
-      a.type === "code" ||
-      a.type === "a" ||
-      a.type === "img" ||
-      a.type === "em" ||
-      a.type === "strong" ||
-      a.type === "del"
+      atom.type === "code" ||
+      atom.type === "a" ||
+      atom.type === "img" ||
+      atom.type === "em" ||
+      atom.type === "strong" ||
+      atom.type === "del"
     ) {
-      out.push(a);
-    } else if (a.type === "text") {
-      mergeTextInline(out, a.value);
+      inlineNodes.push(atom);
+    } else if (atom.type === "text") {
+      mergeTextNodes(inlineNodes, atom.value);
     } else {
-      mergeTextInline(out, atomToLiteralForFinalize(a));
+      mergeTextNodes(inlineNodes, atomToLiteralForFinalize(atom));
     }
   }
-  return out;
+  return inlineNodes;
 }
 
 // Types
@@ -1057,8 +1109,7 @@ type TableNode = {
   rows: InlineNode[][][];
 };
 
-const delimiterChars = ["*", "_", "~"] as const;
-type DelimiterChar = (typeof delimiterChars)[number];
+type DelimiterChar = keyof typeof DELIMITER_CLASS_MAP;
 
 type Token =
   | { type: "text"; value: string }
