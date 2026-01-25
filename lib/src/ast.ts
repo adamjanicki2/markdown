@@ -51,176 +51,185 @@ export function buildAst(markdown: string): AstNode[] {
         if (lineIndex < lines.length) lineIndex++;
 
         nodes.push({ type: "pre", lang, raw: codeLines.join("\n") });
-      } else if (isHorizontalRule(line)) {
-        flushParagraph();
-        nodes.push({ type: "hr" });
-        lineIndex++;
       } else {
-        const heading = parseHeading(line);
-        if (heading) {
-          flushParagraph();
-          nodes.push({
-            type: "h",
-            level: heading.level,
-            children: parseInline(heading.raw),
-          });
-          lineIndex++;
-        } else if (
-          isTableCandidate(line) &&
-          lineIndex + 1 < lines.length &&
-          isTableDelimiterRow(lines[lineIndex + 1])
-        ) {
+        const firstListMarker = parseListMarker(line);
+        const allowList =
+          firstListMarker && !shouldDisallowListStart(line, firstListMarker);
+
+        if (allowList && firstListMarker) {
           flushParagraph();
 
-          const headerRaw = splitTableRow(line);
-          lineIndex += 2;
+          const ordered = firstListMarker.ordered;
+          const start = firstListMarker.ordered
+            ? firstListMarker.start
+            : undefined;
 
-          const rowsRaw: string[][] = [];
-          while (
-            lineIndex < lines.length &&
-            !isBlank(lines[lineIndex]) &&
-            isTableCandidate(lines[lineIndex])
-          ) {
-            rowsRaw.push(splitTableRow(lines[lineIndex]));
+          const listIndent = firstListMarker.indent;
+          const items: ListItemNode[] = [];
+          let tight = true;
+
+          while (lineIndex < lines.length) {
+            const listMarker = parseListMarker(lines[lineIndex]);
+            if (!listMarker) break;
+            if (listMarker.ordered !== ordered) break;
+            if (listMarker.indent !== listIndent) break;
+            if (shouldDisallowListStart(lines[lineIndex], listMarker)) break;
+
+            const contentAfterMarker = lines[lineIndex].slice(
+              listMarker.contentIndent
+            );
             lineIndex++;
-          }
 
-          const headerRow: TableHeaderRowNode = {
-            type: "tr",
-            cells: headerRaw.map<TableHeaderCellNode>((cell) => ({
-              type: "th",
-              children: parseInline(cell),
-            })),
-          };
-          const bodyRows: TableBodyRowNode[] = rowsRaw.map((row) => ({
-            type: "tr",
-            cells: row.map<TableCellNode>((cell) => ({
-              type: "td",
-              children: parseInline(cell),
-            })),
-          }));
-
-          nodes.push({
-            type: "table",
-            head: { type: "thead", row: headerRow },
-            body: { type: "tbody", rows: bodyRows },
-          });
-        } else {
-          const blockquoteMarker = stripBlockquoteMarker(line);
-          if (blockquoteMarker !== null) {
-            flushParagraph();
-
-            const blockquoteLines: string[] = [];
+            const listItemLines: string[] = [contentAfterMarker];
+            let sawBlankLine = false;
 
             while (lineIndex < lines.length) {
               const currentLine = lines[lineIndex];
-              const strippedLine = stripBlockquoteMarker(currentLine);
 
-              if (strippedLine !== null) {
-                blockquoteLines.push(strippedLine);
+              if (isBlank(currentLine)) {
+                sawBlankLine = true;
+                listItemLines.push("");
                 lineIndex++;
-              } else if (isBlank(currentLine)) {
-                break;
               } else {
-                const currentIndent = getIndent(currentLine);
-                if (currentIndent === 0 && parseListMarker(currentLine)) break;
-                if (isOuterBlockStarter(currentLine)) break;
+                const lineIndent = getIndent(currentLine);
 
-                blockquoteLines.push(currentLine);
-                lineIndex++;
+                if (sawBlankLine && lineIndent < listMarker.contentIndent) break;
+
+                const nextListMarker = parseListMarker(currentLine);
+                if (
+                  nextListMarker &&
+                  nextListMarker.ordered === ordered &&
+                  nextListMarker.indent === listIndent &&
+                  !shouldDisallowListStart(currentLine, nextListMarker)
+                ) {
+                  break;
+                }
+
+                if (
+                  lineIndent <= listIndent &&
+                  isOuterBlockStarter(currentLine)
+                )
+                  break;
+
+                if (lineIndent >= listMarker.contentIndent) {
+                  let sliceIndent = listMarker.contentIndent;
+                  if (lineIndent > listMarker.contentIndent) {
+                    const remainder = currentLine.slice(
+                      listMarker.contentIndent
+                    );
+                    if (!parseListMarker(remainder)) sliceIndent = lineIndent;
+                  }
+                  listItemLines.push(currentLine.slice(sliceIndent));
+                  lineIndex++;
+                } else if (lineIndent > listIndent) {
+                  const stripIndent = Math.min(lineIndent, listIndent + 1);
+                  listItemLines.push(currentLine.slice(stripIndent));
+                  lineIndex++;
+                } else {
+                  listItemLines.push(currentLine);
+                  lineIndex++;
+                }
               }
             }
 
+            if (sawBlankLine) tight = false;
+
+            items.push({
+              type: "li",
+              children: buildAst(listItemLines.join("\n")),
+            });
+
+            while (lineIndex < lines.length && isBlank(lines[lineIndex])) {
+              tight = false;
+              lineIndex++;
+            }
+          }
+
+          nodes.push({ type: "list", ordered, start, tight, items });
+        } else if (isHorizontalRule(line)) {
+          flushParagraph();
+          nodes.push({ type: "hr" });
+          lineIndex++;
+        } else {
+          const heading = parseHeading(line);
+          if (heading) {
+            flushParagraph();
             nodes.push({
-              type: "blockquote",
-              children: buildAst(blockquoteLines.join("\n")),
+              type: "h",
+              level: heading.level,
+              children: parseInline(heading.raw),
+            });
+            lineIndex++;
+          } else if (
+            isTableCandidate(line) &&
+            lineIndex + 1 < lines.length &&
+            isTableDelimiterRow(lines[lineIndex + 1])
+          ) {
+            flushParagraph();
+
+            const headerRaw = splitTableRow(line);
+            lineIndex += 2;
+
+            const rowsRaw: string[][] = [];
+            while (
+              lineIndex < lines.length &&
+              !isBlank(lines[lineIndex]) &&
+              isTableCandidate(lines[lineIndex])
+            ) {
+              rowsRaw.push(splitTableRow(lines[lineIndex]));
+              lineIndex++;
+            }
+
+            const headerRow: TableHeaderRowNode = {
+              type: "tr",
+              cells: headerRaw.map<TableHeaderCellNode>((cell) => ({
+                type: "th",
+                children: parseInline(cell),
+              })),
+            };
+            const bodyRows: TableBodyRowNode[] = rowsRaw.map((row) => ({
+              type: "tr",
+              cells: row.map<TableCellNode>((cell) => ({
+                type: "td",
+                children: parseInline(cell),
+              })),
+            }));
+
+            nodes.push({
+              type: "table",
+              head: { type: "thead", row: headerRow },
+              body: { type: "tbody", rows: bodyRows },
             });
           } else {
-            const firstListMarker = parseListMarker(line);
-            if (firstListMarker) {
+            const blockquoteMarker = stripBlockquoteMarker(line);
+            if (blockquoteMarker !== null) {
               flushParagraph();
 
-              const ordered = firstListMarker.ordered;
-              const start = firstListMarker.ordered
-                ? firstListMarker.start
-                : undefined;
-
-              const listIndent = firstListMarker.indent;
-              const items: ListItemNode[] = [];
-              let tight = true;
+              const blockquoteLines: string[] = [];
 
               while (lineIndex < lines.length) {
-                const listMarker = parseListMarker(lines[lineIndex]);
-                if (!listMarker) break;
-                if (listMarker.ordered !== ordered) break;
-                if (listMarker.indent !== listIndent) break;
+                const currentLine = lines[lineIndex];
+                const strippedLine = stripBlockquoteMarker(currentLine);
 
-                const contentAfterMarker = lines[lineIndex].slice(
-                  listMarker.contentIndent
-                );
-                lineIndex++;
+                if (strippedLine !== null) {
+                  blockquoteLines.push(strippedLine);
+                  lineIndex++;
+                } else if (isBlank(currentLine)) {
+                  break;
+                } else {
+                  const currentIndent = getIndent(currentLine);
+                  if (currentIndent === 0 && parseListMarker(currentLine)) break;
+                  if (isOuterBlockStarter(currentLine)) break;
 
-                const listItemLines: string[] = [contentAfterMarker];
-                let sawBlankLine = false;
-
-                while (lineIndex < lines.length) {
-                  const currentLine = lines[lineIndex];
-
-                  if (isBlank(currentLine)) {
-                    sawBlankLine = true;
-                    listItemLines.push("");
-                    lineIndex++;
-                  } else {
-                    const lineIndent = getIndent(currentLine);
-
-                    if (sawBlankLine && lineIndent < listMarker.contentIndent)
-                      break;
-
-                    const nextListMarker = parseListMarker(currentLine);
-                    if (
-                      nextListMarker &&
-                      nextListMarker.ordered === ordered &&
-                      nextListMarker.indent === listIndent
-                    ) {
-                      break;
-                    }
-
-                    if (
-                      lineIndent <= listIndent &&
-                      isOuterBlockStarter(currentLine)
-                    )
-                      break;
-
-                    if (lineIndent >= listMarker.contentIndent) {
-                      listItemLines.push(
-                        currentLine.slice(listMarker.contentIndent)
-                      );
-                      lineIndex++;
-                    } else if (lineIndent > listIndent) {
-                      const stripIndent = Math.min(lineIndent, listIndent + 1);
-                      listItemLines.push(currentLine.slice(stripIndent));
-                      lineIndex++;
-                    } else {
-                      listItemLines.push(currentLine);
-                      lineIndex++;
-                    }
-                  }
-                }
-
-                if (sawBlankLine) tight = false;
-
-                items.push({
-                  type: "li",
-                  children: buildAst(listItemLines.join("\n")),
-                });
-
-                while (lineIndex < lines.length && isBlank(lines[lineIndex])) {
-                  tight = false;
+                  blockquoteLines.push(currentLine);
                   lineIndex++;
                 }
               }
 
-              nodes.push({ type: "list", ordered, start, tight, items });
+              nodes.push({
+                type: "blockquote",
+                children: buildAst(blockquoteLines.join("\n")),
+              });
             } else {
               paragraphLines.push(line);
               lineIndex++;
@@ -340,6 +349,18 @@ function parseListMarker(line: string): ListMarker | null {
   }
 
   return null;
+}
+
+function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
+  const rest = line.slice(marker.contentIndent);
+  if (!rest.trim()) return false;
+
+  const trimmed = rest.replace(/[ \t]+/g, "");
+  if (!/^[*+-]+$/.test(trimmed)) return false;
+
+  const distinct = new Set(trimmed.split(""));
+  if (distinct.size > 1) return true;
+  return /[ \t]/.test(rest);
 }
 
 function stripBlockquoteDepth(str: string) {
