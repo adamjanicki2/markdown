@@ -93,7 +93,8 @@ export function buildAst(markdown: string): AstNode[] {
               } else {
                 const lineIndent = getIndent(currentLine);
 
-                if (sawBlankLine && lineIndent < listMarker.contentIndent) break;
+                if (sawBlankLine && lineIndent < listMarker.contentIndent)
+                  break;
 
                 const nextListMarker = parseListMarker(currentLine);
                 if (
@@ -218,7 +219,8 @@ export function buildAst(markdown: string): AstNode[] {
                   break;
                 } else {
                   const currentIndent = getIndent(currentLine);
-                  if (currentIndent === 0 && parseListMarker(currentLine)) break;
+                  if (currentIndent === 0 && parseListMarker(currentLine))
+                    break;
                   if (isOuterBlockStarter(currentLine)) break;
 
                   blockquoteLines.push(currentLine);
@@ -750,11 +752,14 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
 
   for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
     const parsed = parseLinkOrImage(nodes, nodeIndex);
+    const node = nodes[nodeIndex];
     if (parsed) {
       nodesOut.push(parsed.node);
       nodeIndex = parsed.nextIndex;
+    } else if (node.type === "text") {
+      nodesOut.push(...parseAutolinksFromText(node.value));
     } else {
-      nodesOut.push(nodes[nodeIndex]);
+      nodesOut.push(node);
     }
   }
 
@@ -764,6 +769,55 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
     else mergedNodes.push(node);
   }
   return mergedNodes;
+}
+
+function parseAutolinksFromText(text: string): IrNode[] {
+  if (!text.includes("http://") && !text.includes("https://"))
+    return [{ type: "text", value: text }];
+
+  const nodes: IrNode[] = [];
+  const urlRegex = /https?:\/\/[^\s<>()]+/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = urlRegex.exec(text))) {
+    if (match.index > lastIndex) {
+      nodes.push({ type: "text", value: text.slice(lastIndex, match.index) });
+    }
+
+    const rawUrl = match[0];
+    const { url, trailing } = trimUrl(rawUrl);
+    nodes.push({ type: "a", url });
+    if (trailing) nodes.push({ type: "text", value: trailing });
+    lastIndex = match.index + rawUrl.length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push({ type: "text", value: text.slice(lastIndex) });
+  }
+
+  return nodes;
+}
+
+function trimUrl(rawUrl: string): { url: string; trailing: string } {
+  let url = rawUrl;
+  let trailing = "";
+
+  while (url.length) {
+    const lastChar = url[url.length - 1];
+    if (!/[),.!?;:]/.test(lastChar)) break;
+    if (lastChar === ")" && countChar(url, "(") >= countChar(url, ")")) break;
+    url = url.slice(0, -1);
+    trailing = lastChar + trailing;
+  }
+
+  return { url, trailing };
+}
+
+function countChar(text: string, ch: string): number {
+  let count = 0;
+  for (const char of text) if (char === ch) count++;
+  return count;
 }
 
 function expandDelimRuns(nodes: IrNode[]): IrNode[] {
@@ -1136,7 +1190,7 @@ type TableCellNode = {
 export type InlineNode =
   | { type: "text"; value: string }
   | { type: "code"; value: string }
-  | { type: "a"; url: string; children: InlineNode[] }
+  | { type: "a"; url: string; children?: InlineNode[] }
   | { type: "img"; url: string; alt: string }
   | { type: "em"; children: InlineNode[] }
   | { type: "strong"; children: InlineNode[] }

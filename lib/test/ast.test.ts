@@ -4,49 +4,49 @@ import { renderHtml } from "./helpers";
 describe("ast", () => {
   const runTest = (md: string) => renderHtml(buildAst(md));
 
-  it("01 paragraph", () => {
+  it("1 paragraph", () => {
     expect(runTest("Hello world")).toBe("<p>Hello world</p>");
   });
 
-  it("02 paragraph does not hardbreak on single newline", () => {
+  it("2 paragraph does not hardbreak on single newline", () => {
     expect(runTest("Hello\nworld")).toBe("<p>Hello world</p>");
   });
 
-  it("03 paragraph supports inline formatting", () => {
+  it("3 paragraph supports inline formatting", () => {
     expect(runTest("Hello **bold** _em_ `x`")).toBe(
       "<p>Hello <strong>bold</strong> <em>em</em> <code>x</code></p>"
     );
   });
 
-  it("04 paragraph hardbreak renders as <br />", () => {
+  it("4 paragraph hardbreak renders as <br />", () => {
     expect(runTest("Hello  \nworld")).toBe("<p>Hello<br />world</p>");
   });
 
-  it("05 nested emphasis/strong", () => {
+  it("5 nested emphasis/strong", () => {
     expect(runTest("**a _b_ c**")).toBe(
       "<p><strong>a <em>b</em> c</strong></p>"
     );
   });
 
-  it("06 triple nesting combo: del > strong > em", () => {
+  it("6 triple nesting combo: del > strong > em", () => {
     expect(runTest("~~***combo***~~")).toBe(
       "<p><del><strong><em>combo</em></strong></del></p>"
     );
   });
 
-  it("07 deeply nested mix", () => {
+  it("7 deeply nested mix", () => {
     expect(runTest("*a **b ~~c~~ d** e*")).toBe(
       "<p><em>a <strong>b <del>c</del> d</strong> e</em></p>"
     );
   });
 
-  it("08 unmatched delimiters left as text", () => {
+  it("8 unmatched delimiters left as text", () => {
     expect(runTest("Unmatched *stars and ~~tildes")).toBe(
       "<p>Unmatched *stars and ~~tildes</p>"
     );
   });
 
-  it("09 underscores inside words do not emphasize", () => {
+  it("9 underscores inside words do not emphasize", () => {
     expect(runTest("snake_case foo_bar baz_qux")).toBe(
       "<p>snake_case foo_bar baz_qux</p>"
     );
@@ -421,139 +421,261 @@ describe("ast", () => {
     expect(runTest("`[x](y)`")).toBe("<p><code>[x](y)</code></p>");
   });
 
-  it("77 table inside blockquote", () => {
+  it("77 autolink plain url", () => {
+    expect(runTest("Here's a link https://example.com")).toBe(
+      '<p>Here\'s a link <a href="https://example.com">https://example.com</a></p>'
+    );
+  });
+
+  it("78 autolink trims trailing punctuation", () => {
+    expect(runTest("Visit https://example.com.")).toBe(
+      '<p>Visit <a href="https://example.com">https://example.com</a>.</p>'
+    );
+  });
+
+  it("79 table inside blockquote", () => {
     expect(runTest("> | a | b |\n> | - | - |\n> | c | d |")).toBe(
       "<blockquote><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>c</td><td>d</td></tr></tbody></table></blockquote>"
     );
   });
 
-  it("78 table inside list item", () => {
+  it("80 table inside list item", () => {
     expect(runTest("- | a | b |\n  | - | - |\n  | c | d |")).toBe(
       "<ul><li><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>c</td><td>d</td></tr></tbody></table></li></ul>"
     );
   });
 
-  it("79 horizontal rule inside list item", () => {
+  it("81 horizontal rule inside list item", () => {
     expect(runTest("- ---\n- a")).toBe(
       "<ul><li><hr /></li><li><p>a</p></li></ul>"
     );
   });
 
-  it("80 blockquote with list, blank line, then paragraph", () => {
+  it("82 blockquote with list, blank line, then paragraph", () => {
     expect(runTest("> - a\n>   - b\n> \n> c")).toBe(
       "<blockquote><ul><li><p>a</p><ul><li><p>b</p></li></ul></li></ul><p>c</p></blockquote>"
     );
   });
 
-  it("81 ordered list with blockquote and nested list", () => {
+  it("83 ordered list with blockquote and nested list", () => {
     expect(runTest("2. a\n   > b\n   > - c\n3. d")).toBe(
       '<ol start="2"><li><p>a</p><blockquote><p>b</p><ul><li><p>c</p></li></ul></blockquote></li><li><p>d</p></li></ol>'
     );
   });
 
-  it("82 loose list item with fenced code block", () => {
+  it("84 loose list item with fenced code block", () => {
     expect(runTest("- a\n\n  ```\n  code\n  ```\n\n- b")).toBe(
       "<ul><li><p>a</p><pre><code>code</code></pre></li><li><p>b</p></li></ul>"
     );
   });
 
-  it("83 blockquote with fenced code and language", () => {
+  it("85 blockquote with fenced code and language", () => {
     expect(runTest("> ```ts\n> const x = 1;\n> ```")).toBe(
       "<blockquote><pre><code class=\"language-ts\">const x = 1;</code></pre></blockquote>"
     );
   });
 
-  it("84 heading with tab after marker", () => {
+  it("86 heading with tab after marker", () => {
     expect(runTest("#\tTitle")).toBe("<h1>Title</h1>");
   });
 
-  it("85 code fence info only uses first token", () => {
+  it("87 code fence info only uses first token", () => {
     expect(runTest("```js extra\nx\n```")).toBe(
       "<pre><code class=\"language-js\">x</code></pre>"
     );
   });
 
-  it("86 unordered list with plus markers", () => {
+  it("88 unordered list with plus markers", () => {
     expect(runTest("+ a\n+ b")).toBe(
       "<ul><li><p>a</p></li><li><p>b</p></li></ul>"
     );
   });
 
-  it("87 unordered list keeps grouping with mixed markers", () => {
+  it("89 unordered list keeps grouping with mixed markers", () => {
     expect(runTest("- a\n+ b")).toBe(
       "<ul><li><p>a</p></li><li><p>b</p></li></ul>"
     );
   });
 
-  it("88 ordered list with paren markers", () => {
+  it("90 ordered list with paren markers", () => {
     expect(runTest("1) a\n2) b")).toBe(
       "<ol><li><p>a</p></li><li><p>b</p></li></ol>"
     );
   });
 
-  it("89 ordered list allows long numeric marker", () => {
+  it("91 ordered list allows long numeric marker", () => {
     expect(runTest("123456789. a\n123456790. b")).toBe(
       '<ol start="123456789"><li><p>a</p></li><li><p>b</p></li></ol>'
     );
   });
 
-  it("90 list item continuation with extra indentation", () => {
+  it("92 list item continuation with extra indentation", () => {
     expect(runTest("- a\n   b")).toBe("<ul><li><p>a b</p></li></ul>");
   });
 
-  it("91 nested list with deeper indentation", () => {
+  it("93 nested list with deeper indentation", () => {
     expect(runTest("- a\n    - b")).toBe(
       "<ul><li><p>a</p><ul><li><p>b</p></li></ul></li></ul>"
     );
   });
 
-  it("92 blockquote ends before heading", () => {
+  it("94 blockquote ends before heading", () => {
     expect(runTest("> a\n# b")).toBe("<blockquote><p>a</p></blockquote><h1>b</h1>");
   });
 
-  it("93 table alignment row with colons parses", () => {
+  it("95 table alignment row with colons parses", () => {
     expect(runTest("| a | b |\n| :-- | --: |\n| c | d |")).toBe(
       "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>c</td><td>d</td></tr></tbody></table>"
     );
   });
 
-  it("94 table with spaced cells and no outer pipes", () => {
+  it("96 table with spaced cells and no outer pipes", () => {
     expect(runTest(" a | b \n --- | --- \n c | d ")).toBe(
       "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>c</td><td>d</td></tr></tbody></table>"
     );
   });
 
-  it("95 hardbreak inside link label", () => {
+  it("97 hardbreak inside link label", () => {
     expect(runTest("[a  \nb](x)")).toBe(
       '<p><a href="x">a<br />b</a></p>'
     );
   });
 
-  it("96 emphasis across line break inside link label", () => {
+  it("98 emphasis across line break inside link label", () => {
     expect(runTest("[*a\nb*](x)")).toBe(
       '<p><a href="x"><em>a b</em></a></p>'
     );
   });
 
-  it("97 image alt does not parse inline", () => {
+  it("99 image alt does not parse inline", () => {
     expect(runTest("![**a**](x)")).toBe(
       '<p><img src="x" alt="**a**" /></p>'
     );
   });
 
-  it("98 unterminated code fence consumes rest of document", () => {
+  it("100 unterminated code fence consumes rest of document", () => {
     expect(runTest("```\ncode")).toBe("<pre><code>code</code></pre>");
   });
 
-  it("99 deep nesting: blockquote > list > blockquote > list > code", () => {
+  it("101 deep nesting: blockquote > list > blockquote > list > code", () => {
     expect(runTest("> - a\n>   > b\n>   > - `c`\n> - d")).toBe(
       "<blockquote><ul><li><p>a</p><blockquote><p>b</p><ul><li><p><code>c</code></p></li></ul></blockquote></li><li><p>d</p></li></ul></blockquote>"
     );
   });
 
-  it("100 very deep inline nesting with code", () => {
+  it("102 very deep inline nesting with code", () => {
     expect(runTest("~~**_`x`_**~~")).toBe(
       "<p><del><strong><em><code>x</code></em></strong></del></p>"
+    );
+  });
+
+  it("103 autolink standalone url", () => {
+    expect(runTest("https://example.com")).toBe(
+      '<p><a href="https://example.com">https://example.com</a></p>'
+    );
+  });
+
+  it("104 autolink with query and fragment", () => {
+    expect(runTest("Go https://example.com/a?b=c#d now")).toBe(
+      '<p>Go <a href="https://example.com/a?b=c#d">https://example.com/a?b=c#d</a> now</p>'
+    );
+  });
+
+  it("105 autolink multiple with punctuation", () => {
+    expect(runTest("Links: https://a.com, https://b.com;")).toBe(
+      '<p>Links: <a href="https://a.com">https://a.com</a>, <a href="https://b.com">https://b.com</a>;</p>'
+    );
+  });
+
+  it("106 autolink wrapped in parentheses", () => {
+    expect(runTest("See (https://example.com/path)")).toBe(
+      '<p>See (<a href="https://example.com/path">https://example.com/path</a>)</p>'
+    );
+  });
+
+  it("107 autolink with port", () => {
+    expect(runTest("Use https://example.com:8080/a")).toBe(
+      '<p>Use <a href="https://example.com:8080/a">https://example.com:8080/a</a></p>'
+    );
+  });
+
+  it("108 autolink inside emphasis", () => {
+    expect(runTest("*https://example.com*")).toBe(
+      '<p><em><a href="https://example.com">https://example.com</a></em></p>'
+    );
+  });
+
+  it("109 autolink inside blockquote", () => {
+    expect(runTest("> see https://example.com")).toBe(
+      '<blockquote><p>see <a href="https://example.com">https://example.com</a></p></blockquote>'
+    );
+  });
+
+  it("110 autolink inside list item", () => {
+    expect(runTest("- see https://example.com")).toBe(
+      '<ul><li><p>see <a href="https://example.com">https://example.com</a></p></li></ul>'
+    );
+  });
+
+  it("111 autolink inside table cell", () => {
+    expect(runTest("| a | b |\n| - | - |\n| https://example.com | c |")).toBe(
+      '<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><a href="https://example.com">https://example.com</a></td><td>c</td></tr></tbody></table>'
+    );
+  });
+
+  it("112 autolink in blockquote lazy continuation", () => {
+    expect(runTest("> https://example.com\ncontinued")).toBe(
+      '<blockquote><p><a href="https://example.com">https://example.com</a> continued</p></blockquote>'
+    );
+  });
+
+  it("113 autolink not in code span", () => {
+    expect(runTest("`https://example.com`")).toBe(
+      "<p><code>https://example.com</code></p>"
+    );
+  });
+
+  it("114 autolink trims trailing exclamation", () => {
+    expect(runTest("Wow https://example.com!")).toBe(
+      '<p>Wow <a href="https://example.com">https://example.com</a>!</p>'
+    );
+  });
+
+  it("115 autolink trims trailing colon", () => {
+    expect(runTest("Go https://example.com:")).toBe(
+      '<p>Go <a href="https://example.com">https://example.com</a>:</p>'
+    );
+  });
+
+  it("116 list item blank line then autolink paragraph", () => {
+    expect(runTest("- a\n\n  https://example.com")).toBe(
+      '<ul><li><p>a</p><p><a href="https://example.com">https://example.com</a></p></li></ul>'
+    );
+  });
+
+  it("117 list item table with autolink cell", () => {
+    expect(
+      runTest("- | a | b |\n  | - | - |\n  | https://example.com | c |")
+    ).toBe(
+      '<ul><li><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><a href="https://example.com">https://example.com</a></td><td>c</td></tr></tbody></table></li></ul>'
+    );
+  });
+
+  it("118 code fence with url literal", () => {
+    expect(runTest("```\nhttps://example.com\n```")).toBe(
+      "<pre><code>https://example.com</code></pre>"
+    );
+  });
+
+  it("119 autolink inside heading", () => {
+    expect(runTest("# https://example.com")).toBe(
+      '<h1><a href="https://example.com">https://example.com</a></h1>'
+    );
+  });
+
+  it("120 autolinks across newline", () => {
+    expect(runTest("https://example.com\nand https://example.org")).toBe(
+      '<p><a href="https://example.com">https://example.com</a> and <a href="https://example.org">https://example.org</a></p>'
     );
   });
 });

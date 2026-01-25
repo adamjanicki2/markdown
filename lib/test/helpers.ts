@@ -24,7 +24,9 @@ function renderInline(nodes: InlineNode[]): string {
           return `<del>${renderInline(node.children)}</del>`;
         case "a": {
           const href = escapeHtml(node.url);
-          return `<a href="${href}">${renderInline(node.children)}</a>`;
+          const children =
+            node.children ?? [{ type: "text", value: node.url }];
+          return `<a href="${href}">${renderInline(children)}</a>`;
         }
         case "img": {
           const src = escapeHtml(node.url);
