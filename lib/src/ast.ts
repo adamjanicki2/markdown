@@ -108,7 +108,7 @@ const RE_SPLIT_LANG = /\s+/;
 const RE_LIST_REST_SPACES = /[ \t]+/g;
 const RE_LIST_MARKER_ONLY = /^[*+-]+$/;
 const RE_SPACE_TAB = /[ \t]/;
-const RE_AUTOLINK_URL = /https?:\/\/[^\s<>()]+/g;
+const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s<>()]+/g;
 const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const DELIMITER_CLASS_MAP = { "*": "*", _: "*", "~": "~" } as const;
@@ -711,9 +711,22 @@ function parseLinkOrImage(
   if (!leftBracketToken || leftBracketToken.type !== "lbracket") return null;
 
   let rightBracketIndex = leftBracketIndex + 1;
+  let bracketDepth = 0;
   while (rightBracketIndex < nodes.length) {
     const candidateToken = irNodeToToken(nodes[rightBracketIndex]);
-    if (candidateToken && candidateToken.type === "rbracket") break;
+    if (!candidateToken) {
+      rightBracketIndex++;
+      continue;
+    }
+    if (candidateToken.type === "lbracket") {
+      bracketDepth++;
+      rightBracketIndex++;
+      continue;
+    }
+    if (candidateToken.type === "rbracket") {
+      if (bracketDepth === 0) break;
+      bracketDepth--;
+    }
     rightBracketIndex++;
   }
   if (rightBracketIndex >= nodes.length) return null;
@@ -786,11 +799,14 @@ function parseAutolinksFromText(text: string): IrNode[] {
     if (match.index > lastIndex)
       nodes.push({ type: "text", value: text.slice(lastIndex, match.index) });
 
-    const rawUrl = match[0];
+    const textPrefix = match[1] || "";
+    if (textPrefix) nodes.push({ type: "text", value: textPrefix });
+
+    const rawUrl = match[0].slice(textPrefix.length);
     const { url, trailing } = trimUrl(rawUrl);
     nodes.push({ type: "a", url });
     if (trailing) nodes.push({ type: "text", value: trailing });
-    lastIndex = match.index + rawUrl.length;
+    lastIndex = match.index + match[0].length;
   }
 
   if (lastIndex < text.length)
