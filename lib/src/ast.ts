@@ -112,7 +112,8 @@ const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
 const RE_LIST_REST_SPACES = /[ \t]+/g;
 const RE_LIST_MARKER_ONLY = /^[*+-]+$/;
-const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s<>()]+/g;
+const RE_AUTOLINK_URL =
+  /(^|[^A-Za-z])https?:\/\/[A-Za-z0-9\-._~:/?#\[\]@!$&'*+,;=%]+/g;
 const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const DELIMITER_CLASS_MAP = { "*": "*", _: "*", "~": "~" } as const;
@@ -281,7 +282,8 @@ type TableAlign = "left" | "right" | "center";
 
 function parseTableAlignments(
   line: string,
-  minDashes: number
+  minDashes: number,
+  allowColons: boolean
 ): Array<TableAlign | undefined> | null {
   const cells = splitTableRow(line);
   if (cells.length <= 1) return null;
@@ -292,6 +294,7 @@ function parseTableAlignments(
   for (const cell of cells) {
     const trimmed = cell.replace(RE_WHITESPACE, "");
     if (trimmed.length === 0) return null;
+    if (!allowColons && trimmed.includes(":")) return null;
     const dashCount = countChar(trimmed.replace(RE_COLON, ""), "-");
     if (dashCount < minDashes) return null;
 
@@ -322,7 +325,6 @@ function buildTableNode(
 ): TableNode {
   const headerRow: TableHeaderRowNode = {
     type: "tr",
-
     cells: header.map<TableHeaderCellNode>((cellValue, cellIndex) => ({
       type: "th",
       align: alignments[cellIndex],
@@ -331,10 +333,8 @@ function buildTableNode(
   };
   const bodyRows: TableBodyRowNode[] = rows.map((row) => ({
     type: "tr",
-
     cells: row.map<TableCellNode>((cellValue, cellIndex) => ({
       type: "td",
-
       align: alignments[cellIndex],
       children: parseInline(cellValue),
     })),
@@ -342,7 +342,6 @@ function buildTableNode(
 
   return {
     type: "table",
-
     head: { type: "thead", row: headerRow },
     body: { type: "tbody", rows: bodyRows },
   };
@@ -357,7 +356,11 @@ function parseTableNode(
   if (lineIndex + 1 >= lines.length) return null;
   const headerHasOuterPipes = hasOuterPipes(line);
   const minDashes = headerHasOuterPipes ? 1 : 3;
-  const alignments = parseTableAlignments(lines[lineIndex + 1], minDashes);
+  const alignments = parseTableAlignments(
+    lines[lineIndex + 1],
+    minDashes,
+    headerHasOuterPipes
+  );
   if (!alignments) return null;
 
   const header = splitTableRow(line);
@@ -552,6 +555,7 @@ const INLINE_TOKEN_LITERALS: InlineTokenLiteralLambdas = {
   "delimiter-run": (token) => token.ch.repeat(token.len),
   "backtick-run": (token) => "`".repeat(token.len),
   backslash: () => "\\",
+  "escaped-backslash": () => "\\",
 };
 
 function tokenToLiteral<TokenType extends InlineToken["type"]>(
@@ -660,7 +664,9 @@ function applyBackslashEscapes(tokens: InlineToken[]): InlineToken[] {
         const escapedChar = literal[0];
 
         if (ESCAPABLE.has(escapedChar)) {
-          pushText(escapedChar);
+          if (nextToken.type === "backslash")
+            transformed.push({ type: "escaped-backslash" });
+          else pushText(escapedChar);
 
           if (nextToken.type === "delimiter-run" && nextToken.len > 1)
             transformed.push({
@@ -742,6 +748,7 @@ function irNodeToToken(node: IrNode): InlineToken | null {
     node.type === "text" ||
     node.type === "newline" ||
     node.type === "backslash" ||
+    node.type === "escaped-backslash" ||
     node.type === "backtick-run" ||
     node.type === "delimiter-run" ||
     node.type === "lbracket" ||
@@ -924,7 +931,8 @@ function irNodeToLiteralForFinalize(node: IrNode): string {
     node.type === "bang" ||
     node.type === "delimiter-run" ||
     node.type === "backtick-run" ||
-    node.type === "backslash"
+    node.type === "backslash" ||
+    node.type === "escaped-backslash"
   ) {
     return tokenToLiteral(node);
   }
@@ -1023,21 +1031,11 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     }
     if (remaining === 1) pieces.push(1);
 
-    const canOpenOnly = delimiter.canOpen && !delimiter.canClose;
-    const canCloseOnly = delimiter.canClose && !delimiter.canOpen;
     if (pieces.length === 2 && pieces[0] === 2 && pieces[1] === 1) {
-      if (canOpenOnly) pieces.splice(0, 2, 1, 2);
-      else if (!canCloseOnly) {
-        const top = stack[stack.length - 1];
-        if (
-          delimiter.canClose &&
-          top &&
-          top.delimiterChar === delimiter.ch &&
-          top.delimiterLength === 1
-        ) {
-          pieces.splice(0, 2, 1, 2);
-        }
-      }
+      const top = stack[stack.length - 1];
+      const hasMatchingClose =
+        delimiter.canClose && top && top.delimiterChar === delimiter.ch;
+      if (delimiter.canOpen && !hasMatchingClose) pieces.splice(0, 2, 1, 2);
     }
 
     for (const delimiterLength of pieces) {
@@ -1130,6 +1128,7 @@ function trimTrailingBackslash(inlineNodes: InlineAstNode[]): boolean {
 
 function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
   const inlineNodes: InlineAstNode[] = [];
+  let lastEscapedBackslash = false;
 
   for (const node of nodesList) {
     if (
@@ -1141,12 +1140,23 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
       node.type === "del"
     ) {
       inlineNodes.push(node);
+      lastEscapedBackslash = false;
     } else if (node.type === "text") {
       appendText(inlineNodes, node.value);
+      lastEscapedBackslash = false;
+    } else if (node.type === "escaped-backslash") {
+      appendText(inlineNodes, "\\");
+      lastEscapedBackslash = true;
     } else if (node.type === "newline") {
-      handleInlineNewline(inlineNodes);
+      if (lastEscapedBackslash) {
+        inlineNodes.push({ type: "linebreak", hard: false });
+        lastEscapedBackslash = false;
+      } else {
+        handleInlineNewline(inlineNodes);
+      }
     } else {
       appendText(inlineNodes, irNodeToLiteralForFinalize(node));
+      lastEscapedBackslash = false;
     }
   }
 
@@ -1301,6 +1311,7 @@ type InlineToken =
   | { type: "text"; value: string }
   | { type: "newline" }
   | { type: "backslash" }
+  | { type: "escaped-backslash" }
   | { type: "backtick-run"; len: number }
   | {
       type: "delimiter-run";

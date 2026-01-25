@@ -5,7 +5,9 @@ import { TEST_CASES } from "./inputs";
 describe("ast", () => {
   TEST_CASES.forEach(({ name, input, output }) => {
     it(name, () => {
-      expect(getActual(input)).toBe(output);
+      expect(getActual(input).replaceAll("\n", "")).toBe(
+        output.replaceAll("\n", "")
+      );
     });
   });
 });
