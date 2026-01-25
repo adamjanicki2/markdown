@@ -678,4 +678,166 @@ describe("ast", () => {
       '<p><a href="https://example.com">https://example.com</a> and <a href="https://example.org">https://example.org</a></p>'
     );
   });
+
+  it("121 hardbreak with trailing backslash", () => {
+    expect(runTest("a\\\nb")).toBe("<p>a<br />b</p>");
+  });
+
+  it("122 trailing backslash before blank line is literal", () => {
+    expect(runTest("a\\\n\nb")).toBe("<p>a\\</p><p>b</p>");
+  });
+
+  it("123 hardbreak backslash inside emphasis", () => {
+    expect(runTest("*a\\\nb*")).toBe("<p><em>a<br />b</em></p>");
+  });
+
+  it("124 hardbreak backslash inside strong", () => {
+    expect(runTest("**a\\\nb**")).toBe("<p><strong>a<br />b</strong></p>");
+  });
+
+  it("125 hardbreak backslash inside del", () => {
+    expect(runTest("~~a\\\nb~~")).toBe("<p><del>a<br />b</del></p>");
+  });
+
+  it("126 hardbreak backslash inside link label", () => {
+    expect(runTest("[a\\\nb](x)")).toBe(
+      '<p><a href="x">a<br />b</a></p>'
+    );
+  });
+
+  it("127 hardbreak backslash inside blockquote", () => {
+    expect(runTest("> a\\\n> b")).toBe(
+      "<blockquote><p>a<br />b</p></blockquote>"
+    );
+  });
+
+  it("128 hardbreak backslash inside list item", () => {
+    expect(runTest("- a\\\n  b")).toBe("<ul><li><p>a<br />b</p></li></ul>");
+  });
+
+  it("129 hardbreak backslash inside heading", () => {
+    expect(runTest("# a\\\nb")).toBe("<h1>a\\</h1><p>b</p>");
+  });
+
+  it("130 trailing backslash without newline is literal", () => {
+    expect(runTest("a\\")).toBe("<p>a\\</p>");
+  });
+
+  it("131 backslash before newline in code fence stays literal", () => {
+    expect(runTest("```\na\\\nb\n```")).toBe(
+      "<pre><code>a\\\nb</code></pre>"
+    );
+  });
+
+  it("132 autolink with close paren should stop before paren", () => {
+    expect(runTest("See https://example.com/a(b)c")).toBe(
+      '<p>See <a href="https://example.com/a">https://example.com/a</a>(b)c</p>'
+    );
+  });
+
+  it("133 autolink trims trailing ) when unbalanced", () => {
+    expect(runTest("See https://example.com/a)b")).toBe(
+      '<p>See <a href="https://example.com/a">https://example.com/a</a>)b</p>'
+    );
+  });
+
+  it("134 autolink followed by bracket", () => {
+    expect(runTest("x https://example.com] y")).toBe(
+      '<p>x <a href="https://example.com">https://example.com</a>] y</p>'
+    );
+  });
+
+  it("135 autolink after punctuation with no space", () => {
+    expect(runTest("x:https://example.com")).toBe(
+      '<p>x:<a href="https://example.com">https://example.com</a></p>'
+    );
+  });
+
+  it("136 autolink with fragment only", () => {
+    expect(runTest("https://example.com/#hash")).toBe(
+      '<p><a href="https://example.com/#hash">https://example.com/#hash</a></p>'
+    );
+  });
+
+  it("137 autolink followed by ellipsis", () => {
+    expect(runTest("See https://example.com...")).toBe(
+      '<p>See <a href="https://example.com">https://example.com</a>...</p>'
+    );
+  });
+
+  it("138 autolink in nested list item paragraph", () => {
+    expect(runTest("- a\n  - see https://example.com")).toBe(
+      "<ul><li><p>a</p><ul><li><p>see <a href=\"https://example.com\">https://example.com</a></p></li></ul></li></ul>"
+    );
+  });
+
+  it("139 table row with autolink and emphasis", () => {
+    expect(
+      runTest("| a | b |\n| - | - |\n| *https://e.com* | c |")
+    ).toBe(
+      "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><em><a href=\"https://e.com\">https://e.com</a></em></td><td>c</td></tr></tbody></table>"
+    );
+  });
+
+  it("140 blockquote lazy continuation with autolink + hardbreak", () => {
+    expect(runTest("> a\\\nhttps://example.com")).toBe(
+      '<blockquote><p>a<br /><a href="https://example.com">https://example.com</a></p></blockquote>'
+    );
+  });
+
+  it("141 backslash escape before autolink should not break", () => {
+    expect(runTest("a\\\\\nhttps://example.com")).toBe(
+      '<p>a<br /><a href="https://example.com">https://example.com</a></p>'
+    );
+  });
+
+  it("142 autolink with trailing slash and punctuation", () => {
+    expect(runTest("https://example.com/," )).toBe(
+      '<p><a href="https://example.com/">https://example.com/</a>,</p>'
+    );
+  });
+
+  it("143 hardbreak backslash then emphasis continues", () => {
+    expect(runTest("a\\\n*bc*")).toBe("<p>a<br /><em>bc</em></p>");
+  });
+
+  it("144 hardbreak backslash with two spaces after", () => {
+    expect(runTest("a\\  \nb")).toBe("<p>a\\<br />b</p>");
+  });
+
+  it("145 autolink near emphasis markers", () => {
+    expect(runTest("_https://example.com_")).toBe(
+      '<p><em><a href="https://example.com">https://example.com</a></em></p>'
+    );
+  });
+
+  it("146 autolink across paragraph boundary should not join", () => {
+    expect(runTest("https://a.com\n\nhttps://b.com")).toBe(
+      '<p><a href="https://a.com">https://a.com</a></p><p><a href="https://b.com">https://b.com</a></p>'
+    );
+  });
+
+  it("147 heading followed by paragraph autolink", () => {
+    expect(runTest("# Title\nhttps://example.com")).toBe(
+      '<h1>Title</h1><p><a href="https://example.com">https://example.com</a></p>'
+    );
+  });
+
+  it("148 blockquote with table and autolink cell", () => {
+    expect(runTest("> | a | b |\n> | - | - |\n> | https://a.com | c |")).toBe(
+      "<blockquote><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><a href=\"https://a.com\">https://a.com</a></td><td>c</td></tr></tbody></table></blockquote>"
+    );
+  });
+
+  it("149 list item with autolink and hardbreak backslash", () => {
+    expect(runTest("- https://a.com \\\n  b")).toBe(
+      "<ul><li><p><a href=\"https://a.com\">https://a.com</a> <br />b</p></li></ul>"
+    );
+  });
+
+  it("150 hardbreak backslash before blockquote", () => {
+    expect(runTest("a\\\n> b")).toBe(
+      "<p>a\\</p><blockquote><p>b</p></blockquote>"
+    );
+  });
 });

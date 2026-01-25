@@ -702,6 +702,7 @@ function parseLinkOrImage(
 
   const isBang = token.type === "bang";
   const leftBracketIndex = isBang ? startIndex + 1 : startIndex;
+  if (leftBracketIndex >= nodes.length) return null;
 
   const leftBracketToken = irNodeToToken(nodes[leftBracketIndex]);
   if (!leftBracketToken || leftBracketToken.type !== "lbracket") return null;
@@ -923,7 +924,8 @@ function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
         mergeTextNodes(inlineNodes, node.value);
       } else if (node.type === "newline") {
         const hard = trimTwoTrailingSpaces(inlineNodes);
-        pushBreak(inlineNodes, hard);
+        if (hard || trimTrailingBackslash(inlineNodes)) pushBreak(inlineNodes, true);
+        else pushBreak(inlineNodes, false);
       } else {
         mergeTextNodes(inlineNodes, irNodeToLiteralForFinalize(node));
       }
@@ -1070,6 +1072,15 @@ function trimTwoTrailingSpaces(inlineNodes: InlineNode[]): boolean {
   return true;
 }
 
+function trimTrailingBackslash(inlineNodes: InlineNode[]): boolean {
+  const last = inlineNodes[inlineNodes.length - 1];
+  if (!last || last.type !== "text") return false;
+  if (!last.value.endsWith("\\")) return false;
+  last.value = last.value.slice(0, -1);
+  if (last.value.length === 0) inlineNodes.pop();
+  return true;
+}
+
 function parseInline(raw: string): InlineNode[] {
   let tokens = tokenize(raw);
   tokens = applyBackslashEscapes(tokens);
@@ -1082,7 +1093,8 @@ function parseInline(raw: string): InlineNode[] {
   for (const node of nodes) {
     if (node.type === "newline") {
       const hard = trimTwoTrailingSpaces(inlineNodes);
-      pushBreak(inlineNodes, hard);
+      if (hard || trimTrailingBackslash(inlineNodes)) pushBreak(inlineNodes, true);
+      else pushBreak(inlineNodes, false);
     } else if (
       node.type === "code" ||
       node.type === "a" ||
