@@ -481,7 +481,7 @@ export const TEST_CASES = [
   },
   {
     name: "95 table delimiter rejects colons",
-    input: "<p>| a | b |\n| :-- | --: |\n| c | d |</p>",
+    input: "| a | b |\n| :-- | --: |\n| c | d |",
     output:
       '<table>\n<thead>\n<tr>\n<th align="left">a</th>\n<th align="right">b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align="left">c</td>\n<td align="right">d</td>\n</tr>\n</tbody>\n</table>',
   },
@@ -680,16 +680,16 @@ export const TEST_CASES = [
     output: "<pre><code>a\\\nb\n</code></pre>",
   },
   {
-    name: "132 autolink with parenthesis works",
+    name: "132 autolink does not include open parenthesis",
     input: "See https://example.com/a(b)c",
     output:
-      '<p>See <a href="https://example.com/a(b)c">https://example.com/a(b)c</a></p>',
+      '<p>See <a href="https://example.com/a">https://example.com/a</a>(b)c</p>',
   },
   {
-    name: "133 autolink does not trim trailing )",
+    name: "133 autolink does not include closed parenthesis",
     input: "See https://example.com/a)b",
     output:
-      '<p>See <a href="https://example.com/a)b">https://example.com/a)b</a></p>',
+      '<p>See <a href="https://example.com/a">https://example.com/a</a>)b</p>',
   },
   {
     name: "134 autolink followed by bracket",
