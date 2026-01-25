@@ -37,7 +37,7 @@ export function buildAst(markdown: string): AstNode[] {
         const pre: string[] = [];
         while (
           lineIndex < lines.length &&
-          !isFenceEnd(lines[lineIndex], fence.fenceChar, fence.fenceLen)
+          !isFenceEnd(lines[lineIndex], fence.fenceLen)
         ) {
           pre.push(lines[lineIndex]);
           lineIndex++;
@@ -101,15 +101,13 @@ const RE_NEWLINES = /\r\n?/g;
 const RE_LEADING_SPACES = /^ */;
 const RE_HEADING = /^(#{1,6})[ \t]+(.*)$/;
 const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
-const RE_FENCE_START = /^[ ]{0,3}(`{3,}|~{3,})(.*)$/;
+const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
 const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
-const RE_FENCE_TICKS_ONLY = /^`{3,}$/;
-const RE_FENCE_TILDES_ONLY = /^~{3,}$/;
+const RE_FENCE_TICKS = /^`{3,}$/;
 const RE_UL_MARKER = /^([-+*])[ \t]+/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
-const RE_TABLE_ALIGN = /^:?-+:?$/;
-const RE_DASH = /-/;
+const RE_TABLE_DELIM = /^-+$/;
 const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
 const RE_LIST_REST_SPACES = /[ \t]+/g;
@@ -127,9 +125,9 @@ const splitLines = (str: string) => normalizeNewlines(str).split("\n");
 const isBlank = (str: string) => !str.trim();
 const getIndent = (line: string) =>
   RE_LEADING_SPACES.exec(line)?.[0].length ?? 0;
-const delimClass = (ch: DelimiterChar) => DELIMITER_CLASS_MAP[ch];
-const isSpace = (ch?: string) => ch === " " || ch === "\t" || ch === "\n";
-const isAlphanum = (ch?: string) => !!ch && RE_ALPHANUM.test(ch);
+const isSpace = (char?: string) =>
+  char === " " || char === "\t" || char === "\n";
+const isAlphanum = (char?: string) => !!char && RE_ALPHANUM.test(char);
 const isTopLevelNodeStarter = (line: string) =>
   Boolean(
     isBlank(line) ||
@@ -164,18 +162,15 @@ function parseFenceStart(line: string) {
 
   const fence = fenceMatch[1];
   return {
-    fenceChar: fence[0] as "`" | "~",
     fenceLen: fence.length,
     info: (fenceMatch[2] || "").trim(),
   };
 }
 
-function isFenceEnd(str: string, fenceChar: "`" | "~", fenceLen: number) {
+function isFenceEnd(str: string, fenceLen: number) {
   str = str.replace(RE_FENCE_LEADING_SPACES, "").trimEnd();
 
-  if (fenceChar === "`") {
-    if (!RE_FENCE_TICKS_ONLY.test(str)) return false;
-  } else if (!RE_FENCE_TILDES_ONLY.test(str)) return false;
+  if (!RE_FENCE_TICKS.test(str)) return false;
 
   return str.length >= fenceLen;
 }
@@ -266,8 +261,7 @@ function isTableDelimiterRow(line: string): boolean {
   return cells.every((cell) => {
     cell = cell.replace(RE_WHITESPACE, "");
     if (cell.length === 0) return false;
-    if (!RE_TABLE_ALIGN.test(cell)) return false;
-    return RE_DASH.test(cell);
+    return RE_TABLE_DELIM.test(cell);
   });
 }
 
@@ -276,8 +270,8 @@ function isTableCandidate(line: string): boolean {
   return splitTableRow(line).length > 1;
 }
 
-type NodeParseResult<T extends AstNode> = {
-  node: T;
+type NodeParseResult<NodeType extends AstNode> = {
+  node: NodeType;
   nextIndex: number;
 };
 
@@ -364,39 +358,39 @@ function parseListNode(
         sawBlankLine = true;
         listItem.push("");
         lineIndex++;
+        continue;
+      }
+
+      const lineIndent = getIndent(currentLine);
+
+      if (sawBlankLine && lineIndent < listMarker.contentIndent) break;
+
+      const nextListMarker = parseListMarker(currentLine);
+      if (
+        nextListMarker &&
+        nextListMarker.ordered === ordered &&
+        nextListMarker.indent === indent &&
+        !shouldDisallowListStart(currentLine, nextListMarker)
+      )
+        break;
+
+      if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
+
+      if (lineIndent >= listMarker.contentIndent) {
+        let sliceIndent = listMarker.contentIndent;
+        if (lineIndent > listMarker.contentIndent) {
+          const remainder = currentLine.slice(listMarker.contentIndent);
+          if (!parseListMarker(remainder)) sliceIndent = lineIndent;
+        }
+        listItem.push(currentLine.slice(sliceIndent));
+        lineIndex++;
+      } else if (lineIndent > indent) {
+        const stripIndent = Math.min(lineIndent, indent + 1);
+        listItem.push(currentLine.slice(stripIndent));
+        lineIndex++;
       } else {
-        const lineIndent = getIndent(currentLine);
-
-        if (sawBlankLine && lineIndent < listMarker.contentIndent) break;
-
-        const nextListMarker = parseListMarker(currentLine);
-        if (
-          nextListMarker &&
-          nextListMarker.ordered === ordered &&
-          nextListMarker.indent === indent &&
-          !shouldDisallowListStart(currentLine, nextListMarker)
-        ) {
-          break;
-        }
-
-        if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
-
-        if (lineIndent >= listMarker.contentIndent) {
-          let sliceIndent = listMarker.contentIndent;
-          if (lineIndent > listMarker.contentIndent) {
-            const remainder = currentLine.slice(listMarker.contentIndent);
-            if (!parseListMarker(remainder)) sliceIndent = lineIndent;
-          }
-          listItem.push(currentLine.slice(sliceIndent));
-          lineIndex++;
-        } else if (lineIndent > indent) {
-          const stripIndent = Math.min(lineIndent, indent + 1);
-          listItem.push(currentLine.slice(stripIndent));
-          lineIndex++;
-        } else {
-          listItem.push(currentLine);
-          lineIndex++;
-        }
+        listItem.push(currentLine);
+        lineIndex++;
       }
     }
 
@@ -438,9 +432,8 @@ function parseBlockquoteNode(
     if (strippedLine !== null) {
       blockquote.push(strippedLine);
       lineIndex++;
-    } else if (isBlank(currentLine)) {
-      break;
-    } else {
+    } else if (isBlank(currentLine)) break;
+    else {
       const currentIndent = getIndent(currentLine);
       if (currentIndent === 0 && parseListMarker(currentLine)) break;
       if (isTopLevelNodeStarter(currentLine)) break;
@@ -467,11 +460,13 @@ function appendText(nodes: IrNode[] | InlineNode[], value: string) {
 }
 
 type InlineTokenByType = {
-  [T in InlineToken["type"]]: Extract<InlineToken, { type: T }>;
+  [TokenType in InlineToken["type"]]: Extract<InlineToken, { type: TokenType }>;
 };
 
 type InlineTokenLiteralHandlers = {
-  [T in InlineToken["type"]]: (token: InlineTokenByType[T]) => string;
+  [TokenType in InlineToken["type"]]: (
+    token: InlineTokenByType[TokenType]
+  ) => string;
 };
 
 const INLINE_TOKEN_LITERAL_HANDLERS: InlineTokenLiteralHandlers = {
@@ -482,13 +477,13 @@ const INLINE_TOKEN_LITERAL_HANDLERS: InlineTokenLiteralHandlers = {
   lparen: () => "(",
   rparen: () => ")",
   bang: () => "!",
-  delimiter_run: (token) => token.ch.repeat(token.len),
-  backtick_run: (token) => "`".repeat(token.len),
+  "delimiter-run": (token) => token.ch.repeat(token.len),
+  "backtick-run": (token) => "`".repeat(token.len),
   backslash: () => "\\",
 };
 
-function tokenToLiteral<T extends InlineToken["type"]>(
-  token: InlineTokenByType[T]
+function tokenToLiteral<TokenType extends InlineToken["type"]>(
+  token: InlineTokenByType[TokenType]
 ): string {
   return INLINE_TOKEN_LITERAL_HANDLERS[token.type](token);
 }
@@ -513,32 +508,21 @@ function tokenize(raw: string): InlineToken[] {
   for (let i = 0; i < raw.length; i++) {
     const char = raw[i];
 
-    if (char === "\n") {
-      pushToken({ type: "newline" });
-    } else if (char === "\\") {
-      pushToken({ type: "backslash" });
-    } else if (char === "!") {
-      pushToken({ type: "bang" });
-    } else if (char === "[") {
-      pushToken({ type: "lbracket" });
-    } else if (char === "]") {
-      pushToken({ type: "rbracket" });
-    } else if (char === "(") {
-      pushToken({ type: "lparen" });
-    } else if (char === ")") {
-      pushToken({ type: "rparen" });
-    } else if (char === "`") {
+    if (char === "\n") pushToken({ type: "newline" });
+    else if (char === "\\") pushToken({ type: "backslash" });
+    else if (char === "!") pushToken({ type: "bang" });
+    else if (char === "[") pushToken({ type: "lbracket" });
+    else if (char === "]") pushToken({ type: "rbracket" });
+    else if (char === "(") pushToken({ type: "lparen" });
+    else if (char === ")") pushToken({ type: "rparen" });
+    else if (char === "`") {
       let runIndex = i + 1;
       while (runIndex < raw.length && raw[runIndex] === "`") runIndex++;
-      pushToken({ type: "backtick_run", len: runIndex - i });
+      pushToken({ type: "backtick-run", len: runIndex - i });
       i = runIndex - 1;
-    } else if (
-      char === "_" &&
-      isAlphanum(raw[i - 1]) &&
-      isAlphanum(raw[i + 1])
-    ) {
+    } else if (char === "_" && isAlphanum(raw[i - 1]) && isAlphanum(raw[i + 1]))
       textBuffer += char;
-    } else if (DELIMITER_CHARS.includes(char)) {
+    else if (DELIMITER_CHARS.includes(char)) {
       let runIndex = i + 1;
       while (runIndex < raw.length && raw[runIndex] === char) runIndex++;
       const prevChar: string | undefined = raw[i - 1];
@@ -547,7 +531,7 @@ function tokenize(raw: string): InlineToken[] {
       const canClose = !isSpace(prevChar);
 
       pushToken({
-        type: "delimiter_run",
+        type: "delimiter-run",
         ch: char as DelimiterChar,
         len: runIndex - i,
         canOpen,
@@ -555,9 +539,7 @@ function tokenize(raw: string): InlineToken[] {
       });
 
       i = runIndex - 1;
-    } else {
-      textBuffer += char;
-    }
+    } else textBuffer += char;
   }
 
   flushText();
@@ -597,36 +579,31 @@ function applyBackslashEscapes(tokens: InlineToken[]): InlineToken[] {
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
-    if (token.type !== "backslash") {
-      transformed.push(token);
-    } else {
+    if (token.type !== "backslash") transformed.push(token);
+    else {
       const nextToken = tokens[i + 1];
-      if (!nextToken) {
-        pushText("\\");
-      } else {
+      if (!nextToken) pushText("\\");
+      else {
         const literal = tokenToLiteral(nextToken);
         const escapedChar = literal[0];
 
         if (ESCAPABLE.has(escapedChar)) {
           pushText(escapedChar);
 
-          if (nextToken.type === "delimiter_run" && nextToken.len > 1) {
+          if (nextToken.type === "delimiter-run" && nextToken.len > 1)
             transformed.push({
               ...nextToken,
               len: nextToken.len - 1,
               canOpen: true,
               canClose: true,
             });
-          } else if (nextToken.type === "backtick_run" && nextToken.len > 1) {
+          else if (nextToken.type === "backtick-run" && nextToken.len > 1)
             transformed.push({ ...nextToken, len: nextToken.len - 1 });
-          } else if (nextToken.type === "text" && nextToken.value.length > 1) {
+          else if (nextToken.type === "text" && nextToken.value.length > 1)
             pushText(nextToken.value.slice(1));
-          }
 
           i++;
-        } else {
-          pushText("\\");
-        }
+        } else pushText("\\");
       }
     }
   }
@@ -650,25 +627,24 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
 
-    if (token.type !== "backtick_run") {
-      nodes.push(token);
-    } else {
+    if (token.type !== "backtick-run") nodes.push(token);
+    else {
       const openerLen = token.len;
 
       let closingIndex = i + 1;
       while (closingIndex < tokens.length) {
         const candidateToken = tokens[closingIndex];
         if (
-          candidateToken.type === "backtick_run" &&
+          candidateToken.type === "backtick-run" &&
           candidateToken.len === openerLen
         )
           break;
         closingIndex++;
       }
 
-      if (closingIndex >= tokens.length) {
+      if (closingIndex >= tokens.length)
         appendText(nodes, "`".repeat(openerLen));
-      } else {
+      else {
         let codeRaw = "";
         for (let j = i + 1; j < closingIndex; j++) {
           codeRaw += tokenToLiteral(tokens[j]);
@@ -713,11 +689,9 @@ function irNodeToLiteral(node: IrNode): string {
 }
 
 function irNodesToLiteral(nodes: IrNode[]): string {
-  let literalText = "";
-  for (const node of nodes) {
-    literalText += irNodeToLiteral(node);
-  }
-  return literalText;
+  return nodes.reduce((literalText, node) => {
+    return literalText + irNodeToLiteral(node);
+  }, "");
 }
 
 type LinkParseResult = {
@@ -789,11 +763,9 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
     if (parsed) {
       nodesOut.push(parsed.node);
       i = parsed.nextIndex;
-    } else if (node.type === "text") {
+    } else if (node.type === "text")
       nodesOut.push(...parseAutolinksFromText(node.value));
-    } else {
-      nodesOut.push(node);
-    }
+    else nodesOut.push(node);
   }
 
   const mergedNodes: IrNode[] = [];
@@ -814,9 +786,8 @@ function parseAutolinksFromText(text: string): IrNode[] {
 
   RE_AUTOLINK_URL.lastIndex = 0;
   while ((match = RE_AUTOLINK_URL.exec(text))) {
-    if (match.index > lastIndex) {
+    if (match.index > lastIndex)
       nodes.push({ type: "text", value: text.slice(lastIndex, match.index) });
-    }
 
     const rawUrl = match[0];
     const { url, trailing } = trimUrl(rawUrl);
@@ -825,9 +796,8 @@ function parseAutolinksFromText(text: string): IrNode[] {
     lastIndex = match.index + rawUrl.length;
   }
 
-  if (lastIndex < text.length) {
+  if (lastIndex < text.length)
     nodes.push({ type: "text", value: text.slice(lastIndex) });
-  }
 
   return nodes;
 }
@@ -847,28 +817,24 @@ function trimUrl(rawUrl: string): { url: string; trailing: string } {
   return { url, trailing };
 }
 
-function countChar(text: string, ch: string): number {
+function countChar(text: string, targetChar: string): number {
   let count = 0;
-  for (const char of text) if (char === ch) count++;
+  for (const char of text) if (char === targetChar) count++;
   return count;
 }
 
 function expandDelimRuns(nodes: IrNode[]): IrNode[] {
-  const expanded: IrNode[] = [];
-  for (const node of nodes) {
-    if (node.type !== "delimiter_run") {
-      expanded.push(node);
-    } else {
-      expanded.push({
-        type: "delimiter",
-        ch: delimClass(node.ch),
-        len: node.len,
-        canOpen: node.canOpen,
-        canClose: node.canClose,
-      });
-    }
-  }
-  return expanded;
+  return nodes.map((node) =>
+    node.type !== "delimiter-run"
+      ? node
+      : {
+          type: "delimiter",
+          ch: DELIMITER_CLASS_MAP[node.ch],
+          len: node.len,
+          canOpen: node.canOpen,
+          canClose: node.canClose,
+        }
+  );
 }
 
 function irNodeToLiteralForFinalize(node: IrNode): string {
@@ -881,8 +847,8 @@ function irNodeToLiteralForFinalize(node: IrNode): string {
     node.type === "lparen" ||
     node.type === "rparen" ||
     node.type === "bang" ||
-    node.type === "delimiter_run" ||
-    node.type === "backtick_run" ||
+    node.type === "delimiter-run" ||
+    node.type === "backtick-run" ||
     node.type === "backslash"
   ) {
     return tokenToLiteral(node);
@@ -940,16 +906,10 @@ function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
 
   function consumeDelimRun(delimiter: InlineDelimiter) {
     if (delimiter.ch === "~") {
-      const odd = delimiter.len & 1;
-      const pairs = Math.floor((delimiter.len - odd) / 2);
-
+      const hasOdd = delimiter.len % 2 === 1;
+      const pairs = Math.floor((delimiter.len - (hasOdd ? 1 : 0)) / 2);
       const putOddBefore =
-        odd &&
-        (delimiter.canOpen && !delimiter.canClose
-          ? true
-          : delimiter.canClose && !delimiter.canOpen
-            ? false
-            : true);
+        hasOdd && !(delimiter.canClose && !delimiter.canOpen);
 
       if (putOddBefore) currentNodes.push({ type: "text", value: "~" });
 
@@ -966,7 +926,8 @@ function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
         else currentNodes.push({ type: "text", value: "~~" });
       }
 
-      if (odd && !putOddBefore) currentNodes.push({ type: "text", value: "~" });
+      if (hasOdd && !putOddBefore)
+        currentNodes.push({ type: "text", value: "~" });
       return;
     }
 
@@ -1224,9 +1185,9 @@ type InlineToken =
   | { type: "text"; value: string }
   | { type: "newline" }
   | { type: "backslash" }
-  | { type: "backtick_run"; len: number }
+  | { type: "backtick-run"; len: number }
   | {
-      type: "delimiter_run";
+      type: "delimiter-run";
       ch: DelimiterChar;
       len: number;
       canOpen: boolean;

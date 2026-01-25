@@ -373,9 +373,9 @@ describe("ast", () => {
     expect(runTest("* - *")).toBe("<p>* - *</p>");
   });
 
-  it("67 tildes code fence with padded info + longer closer", () => {
-    expect(runTest("~~~  js  \nconst x = 1;\n~~~~")).toBe(
-      `<pre><code class="language-js">const x = 1;</code></pre>`
+  it("67 fence allows internal backticks", () => {
+    expect(runTest("```\n`nested code`\n```")).toBe(
+      "<pre><code>`nested code`</code></pre>"
     );
   });
 
@@ -471,7 +471,7 @@ describe("ast", () => {
 
   it("85 blockquote with fenced code and language", () => {
     expect(runTest("> ```ts\n> const x = 1;\n> ```")).toBe(
-      "<blockquote><pre><code class=\"language-ts\">const x = 1;</code></pre></blockquote>"
+      '<blockquote><pre><code class="language-ts">const x = 1;</code></pre></blockquote>'
     );
   });
 
@@ -481,7 +481,7 @@ describe("ast", () => {
 
   it("87 code fence info only uses first token", () => {
     expect(runTest("```js extra\nx\n```")).toBe(
-      "<pre><code class=\"language-js\">x</code></pre>"
+      '<pre><code class="language-js">x</code></pre>'
     );
   });
 
@@ -520,12 +520,14 @@ describe("ast", () => {
   });
 
   it("94 blockquote ends before heading", () => {
-    expect(runTest("> a\n# b")).toBe("<blockquote><p>a</p></blockquote><h1>b</h1>");
+    expect(runTest("> a\n# b")).toBe(
+      "<blockquote><p>a</p></blockquote><h1>b</h1>"
+    );
   });
 
-  it("95 table alignment row with colons parses", () => {
+  it("95 table delimiter rejects colons", () => {
     expect(runTest("| a | b |\n| :-- | --: |\n| c | d |")).toBe(
-      "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>c</td><td>d</td></tr></tbody></table>"
+      "<p>| a | b | | :-- | --: | | c | d |</p>"
     );
   });
 
@@ -536,21 +538,15 @@ describe("ast", () => {
   });
 
   it("97 hardbreak inside link label", () => {
-    expect(runTest("[a  \nb](x)")).toBe(
-      '<p><a href="x">a<br />b</a></p>'
-    );
+    expect(runTest("[a  \nb](x)")).toBe('<p><a href="x">a<br />b</a></p>');
   });
 
   it("98 emphasis across line break inside link label", () => {
-    expect(runTest("[*a\nb*](x)")).toBe(
-      '<p><a href="x"><em>a b</em></a></p>'
-    );
+    expect(runTest("[*a\nb*](x)")).toBe('<p><a href="x"><em>a b</em></a></p>');
   });
 
   it("99 image alt does not parse inline", () => {
-    expect(runTest("![**a**](x)")).toBe(
-      '<p><img src="x" alt="**a**" /></p>'
-    );
+    expect(runTest("![**a**](x)")).toBe('<p><img src="x" alt="**a**" /></p>');
   });
 
   it("100 unterminated code fence consumes rest of document", () => {
@@ -700,9 +696,7 @@ describe("ast", () => {
   });
 
   it("126 hardbreak backslash inside link label", () => {
-    expect(runTest("[a\\\nb](x)")).toBe(
-      '<p><a href="x">a<br />b</a></p>'
-    );
+    expect(runTest("[a\\\nb](x)")).toBe('<p><a href="x">a<br />b</a></p>');
   });
 
   it("127 hardbreak backslash inside blockquote", () => {
@@ -724,9 +718,7 @@ describe("ast", () => {
   });
 
   it("131 backslash before newline in code fence stays literal", () => {
-    expect(runTest("```\na\\\nb\n```")).toBe(
-      "<pre><code>a\\\nb</code></pre>"
-    );
+    expect(runTest("```\na\\\nb\n```")).toBe("<pre><code>a\\\nb</code></pre>");
   });
 
   it("132 autolink with close paren should stop before paren", () => {
@@ -767,15 +759,13 @@ describe("ast", () => {
 
   it("138 autolink in nested list item paragraph", () => {
     expect(runTest("- a\n  - see https://example.com")).toBe(
-      "<ul><li><p>a</p><ul><li><p>see <a href=\"https://example.com\">https://example.com</a></p></li></ul></li></ul>"
+      '<ul><li><p>a</p><ul><li><p>see <a href="https://example.com">https://example.com</a></p></li></ul></li></ul>'
     );
   });
 
   it("139 table row with autolink and emphasis", () => {
-    expect(
-      runTest("| a | b |\n| - | - |\n| *https://e.com* | c |")
-    ).toBe(
-      "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><em><a href=\"https://e.com\">https://e.com</a></em></td><td>c</td></tr></tbody></table>"
+    expect(runTest("| a | b |\n| - | - |\n| *https://e.com* | c |")).toBe(
+      '<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><em><a href="https://e.com">https://e.com</a></em></td><td>c</td></tr></tbody></table>'
     );
   });
 
@@ -792,7 +782,7 @@ describe("ast", () => {
   });
 
   it("142 autolink with trailing slash and punctuation", () => {
-    expect(runTest("https://example.com/," )).toBe(
+    expect(runTest("https://example.com/,")).toBe(
       '<p><a href="https://example.com/">https://example.com/</a>,</p>'
     );
   });
@@ -825,13 +815,13 @@ describe("ast", () => {
 
   it("148 blockquote with table and autolink cell", () => {
     expect(runTest("> | a | b |\n> | - | - |\n> | https://a.com | c |")).toBe(
-      "<blockquote><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><a href=\"https://a.com\">https://a.com</a></td><td>c</td></tr></tbody></table></blockquote>"
+      '<blockquote><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td><a href="https://a.com">https://a.com</a></td><td>c</td></tr></tbody></table></blockquote>'
     );
   });
 
   it("149 list item with autolink and hardbreak backslash", () => {
     expect(runTest("- https://a.com \\\n  b")).toBe(
-      "<ul><li><p><a href=\"https://a.com\">https://a.com</a> <br />b</p></li></ul>"
+      '<ul><li><p><a href="https://a.com">https://a.com</a> <br />b</p></li></ul>'
     );
   });
 
