@@ -12,10 +12,7 @@ export function buildAst(markdown: string): AstNode[] {
 
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
-    nodes.push({
-      type: "p",
-      children: parseInline(paragraph.join("\n")),
-    });
+    nodes.push({ type: "p", children: parseInline(paragraph.join("\n")) });
     paragraph = [];
   };
 
@@ -29,9 +26,7 @@ export function buildAst(markdown: string): AstNode[] {
       const fence = parseFenceStart(line);
       if (fence) {
         flushParagraph();
-        const lang = fence.info
-          ? fence.info.split(RE_SPLIT_LANG)[0]
-          : undefined;
+        const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
 
         lineIndex++;
         const pre: string[] = [];
@@ -151,9 +146,8 @@ function parseHeading(line: string) {
   const matches = RE_HEADING.exec(line);
   if (!matches) return null;
   const level = matches[1].length as Level;
-  let raw = matches[2];
-  raw = raw.replace(RE_HEADING_TRAIL, "");
-  return { level, raw };
+  const raw = matches[2];
+  return { level, raw: raw.replace(RE_HEADING_TRAIL, "") };
 }
 
 function parseFenceStart(line: string) {
@@ -251,7 +245,7 @@ function splitTableRow(str: string): string[] {
   str = str.trim();
   if (str.startsWith("|")) str = str.slice(1);
   if (str.endsWith("|")) str = str.slice(0, -1);
-  return str.split("|").map((cellValue) => cellValue.trim());
+  return str.split("|").map((cell) => cell.trim());
 }
 
 function isTableDelimiterRow(line: string): boolean {
@@ -307,20 +301,20 @@ function parseTableNode(
   if (lineIndex + 1 >= lines.length) return null;
   if (!isTableDelimiterRow(lines[lineIndex + 1])) return null;
 
-  const headerRaw = splitTableRow(line);
+  const header = splitTableRow(line);
   let currentIndex = lineIndex + 2;
 
-  const rowsRaw: string[][] = [];
+  const rows: string[][] = [];
   while (
     currentIndex < lines.length &&
     !isBlank(lines[currentIndex]) &&
     isTableCandidate(lines[currentIndex])
   ) {
-    rowsRaw.push(splitTableRow(lines[currentIndex]));
+    rows.push(splitTableRow(lines[currentIndex]));
     currentIndex++;
   }
 
-  return { node: buildTableNode(headerRaw, rowsRaw), nextIndex: currentIndex };
+  return { node: buildTableNode(header, rows), nextIndex: currentIndex };
 }
 
 function parseListNode(
@@ -463,13 +457,13 @@ type InlineTokenByType = {
   [TokenType in InlineToken["type"]]: Extract<InlineToken, { type: TokenType }>;
 };
 
-type InlineTokenLiteralHandlers = {
+type InlineTokenLiteralLambdas = {
   [TokenType in InlineToken["type"]]: (
     token: InlineTokenByType[TokenType]
   ) => string;
 };
 
-const INLINE_TOKEN_LITERAL_HANDLERS: InlineTokenLiteralHandlers = {
+const INLINE_TOKEN_LITERALS: InlineTokenLiteralLambdas = {
   text: (token) => token.value,
   newline: () => "\n",
   lbracket: () => "[",
@@ -485,19 +479,19 @@ const INLINE_TOKEN_LITERAL_HANDLERS: InlineTokenLiteralHandlers = {
 function tokenToLiteral<TokenType extends InlineToken["type"]>(
   token: InlineTokenByType[TokenType]
 ): string {
-  return INLINE_TOKEN_LITERAL_HANDLERS[token.type](token);
+  return INLINE_TOKEN_LITERALS[token.type](token);
 }
 
-function tokenize(raw: string): InlineToken[] {
+function tokenize(str: string): InlineToken[] {
   const tokens: InlineToken[] = [];
-  let textBuffer = "";
+  let text = "";
 
   const flushText = () => {
-    if (!textBuffer) return;
+    if (!text) return;
     const last = tokens[tokens.length - 1];
-    if (last && last.type === "text") last.value += textBuffer;
-    else tokens.push({ type: "text", value: textBuffer });
-    textBuffer = "";
+    if (last && last.type === "text") last.value += text;
+    else tokens.push({ type: "text", value: text });
+    text = "";
   };
 
   const pushToken = (token: InlineToken) => {
@@ -505,8 +499,8 @@ function tokenize(raw: string): InlineToken[] {
     tokens.push(token);
   };
 
-  for (let i = 0; i < raw.length; i++) {
-    const char = raw[i];
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
 
     if (char === "\n") pushToken({ type: "newline" });
     else if (char === "\\") pushToken({ type: "backslash" });
@@ -517,16 +511,16 @@ function tokenize(raw: string): InlineToken[] {
     else if (char === ")") pushToken({ type: "rparen" });
     else if (char === "`") {
       let runIndex = i + 1;
-      while (runIndex < raw.length && raw[runIndex] === "`") runIndex++;
+      while (runIndex < str.length && str[runIndex] === "`") runIndex++;
       pushToken({ type: "backtick-run", len: runIndex - i });
       i = runIndex - 1;
-    } else if (char === "_" && isAlphanum(raw[i - 1]) && isAlphanum(raw[i + 1]))
-      textBuffer += char;
+    } else if (char === "_" && isAlphanum(str[i - 1]) && isAlphanum(str[i + 1]))
+      text += char;
     else if (DELIMITER_CHARS.includes(char)) {
       let runIndex = i + 1;
-      while (runIndex < raw.length && raw[runIndex] === char) runIndex++;
-      const prevChar: string | undefined = raw[i - 1];
-      const nextChar: string | undefined = raw[runIndex];
+      while (runIndex < str.length && str[runIndex] === char) runIndex++;
+      const prevChar: string | undefined = str[i - 1];
+      const nextChar: string | undefined = str[runIndex];
       const canOpen = !isSpace(nextChar);
       const canClose = !isSpace(prevChar);
 
@@ -539,7 +533,7 @@ function tokenize(raw: string): InlineToken[] {
       });
 
       i = runIndex - 1;
-    } else textBuffer += char;
+    } else text += char;
   }
 
   flushText();
@@ -645,12 +639,12 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
       if (closingIndex >= tokens.length)
         appendText(nodes, "`".repeat(openerLen));
       else {
-        let codeRaw = "";
+        let code = "";
         for (let j = i + 1; j < closingIndex; j++) {
-          codeRaw += tokenToLiteral(tokens[j]);
+          code += tokenToLiteral(tokens[j]);
         }
 
-        nodes.push({ type: "code", value: codeRaw });
+        nodes.push({ type: "code", value: code });
         i = closingIndex;
       }
     }
@@ -736,18 +730,18 @@ function parseLinkOrImage(
   const urlNodes = nodes.slice(rightBracketIndex + 2, rightParenIndex);
 
   const url = irNodesToLiteral(urlNodes).trim();
-  const labelRaw = irNodesToLiteral(labelNodes);
+  const label = irNodesToLiteral(labelNodes);
 
   if (!url) return null;
 
   if (isBang) {
     return {
-      node: { type: "img", url, alt: labelRaw },
+      node: { type: "img", url, alt: label },
       nextIndex: rightParenIndex,
     };
   }
 
-  const children = parseInline(labelRaw);
+  const children = parseInline(label);
   return {
     node: { type: "a", url, children },
     nextIndex: rightParenIndex,
@@ -802,8 +796,7 @@ function parseAutolinksFromText(text: string): IrNode[] {
   return nodes;
 }
 
-function trimUrl(rawUrl: string): { url: string; trailing: string } {
-  let url = rawUrl;
+function trimUrl(url: string): { url: string; trailing: string } {
   let trailing = "";
 
   while (url.length) {
@@ -1072,8 +1065,8 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineNode[] {
   return inlineNodes;
 }
 
-function parseInline(raw: string): InlineNode[] {
-  let tokens = tokenize(raw);
+function parseInline(str: string): InlineNode[] {
+  let tokens = tokenize(str);
   tokens = applyBackslashEscapes(tokens);
 
   let nodes: IrNode[] = resolveCodeSpans(tokens);
