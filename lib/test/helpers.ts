@@ -51,7 +51,10 @@ export function renderHtml(nodes: AstNode[]): string {
         }
         case "table": {
           const headCells = node.head.row.cells
-            .map((cell) => `<th>${renderHtml(cell.children)}</th>`)
+            .map((cell) => {
+              const alignAttr = cell.align ? ` align="${cell.align}"` : "";
+              return `<th${alignAttr}>${renderHtml(cell.children)}</th>`;
+            })
             .join("");
           const headRows = `<tr>${headCells}</tr>`;
           const head = `<thead>${headRows}</thead>`;
@@ -59,7 +62,10 @@ export function renderHtml(nodes: AstNode[]): string {
           const bodyRows = node.body.rows
             .map((row) => {
               const cells = row.cells
-                .map((cell) => `<td>${renderHtml(cell.children)}</td>`)
+                .map((cell) => {
+                  const alignAttr = cell.align ? ` align="${cell.align}"` : "";
+                  return `<td${alignAttr}>${renderHtml(cell.children)}</td>`;
+                })
                 .join("");
               return `<tr>${cells}</tr>`;
             })

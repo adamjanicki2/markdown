@@ -94,7 +94,7 @@ export function buildAst(markdown: string): AstNode[] {
 // Constants
 const RE_NEWLINES = /\r\n?/g;
 const RE_LEADING_SPACES = /^ */;
-const RE_HEADING = /^(#{1,6})[ \t]+(.*)$/;
+const RE_HEADING = /^[ ]{0,3}(#{1,6})[ \t]+(.*)$/;
 const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
 const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
 const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
@@ -102,12 +102,16 @@ const RE_FENCE_TICKS = /^`{3,}$/;
 const RE_UL_MARKER = /^([-+*])[ \t]+/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
-const RE_TABLE_DELIM = /^-+$/;
+const RE_TABLE_DELIM_MIN1 = /^-+$/;
+const RE_TABLE_DELIM_MIN3 = /^-{3,}$/;
+const RE_TABLE_ALIGN_LEFT = /^:-+$/;
+const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
+const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
+const RE_COLON = /:/g;
 const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
 const RE_LIST_REST_SPACES = /[ \t]+/g;
 const RE_LIST_MARKER_ONLY = /^[*+-]+$/;
-const RE_SPACE_TAB = /[ \t]/;
 const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s<>()]+/g;
 const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
@@ -121,7 +125,7 @@ const isBlank = (str: string) => !str.trim();
 const getIndent = (line: string) =>
   RE_LEADING_SPACES.exec(line)?.[0].length ?? 0;
 const isSpace = (char?: string) =>
-  char === " " || char === "\t" || char === "\n";
+  char === undefined || char === " " || char === "\t" || char === "\n";
 const isAlphanum = (char?: string) => !!char && RE_ALPHANUM.test(char);
 const isTopLevelNodeStarter = (line: string) =>
   Boolean(
@@ -174,12 +178,14 @@ type ListMarker = {
   indent: number;
   markerWidth: number;
   contentIndent: number;
+  markerChar: string;
   start?: number;
 };
 
 function parseListMarker(line: string): ListMarker | null {
   const indent = getIndent(line);
   const rest = line.slice(indent);
+  const restTrimmed = rest.trim();
 
   const uliMatches = RE_UL_MARKER.exec(rest);
   if (uliMatches) {
@@ -189,6 +195,20 @@ function parseListMarker(line: string): ListMarker | null {
       indent,
       markerWidth,
       contentIndent: indent + markerWidth,
+      markerChar: uliMatches[1],
+    };
+  }
+
+  if (
+    restTrimmed.length === 1 &&
+    (restTrimmed === "-" || restTrimmed === "+" || restTrimmed === "*")
+  ) {
+    return {
+      ordered: false,
+      indent,
+      markerWidth: rest.length,
+      contentIndent: indent + rest.length,
+      markerChar: restTrimmed,
     };
   }
 
@@ -201,6 +221,7 @@ function parseListMarker(line: string): ListMarker | null {
       indent,
       markerWidth,
       contentIndent: indent + markerWidth,
+      markerChar: oliMatches[2],
     };
   }
 
@@ -208,15 +229,18 @@ function parseListMarker(line: string): ListMarker | null {
 }
 
 function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
+  if (!marker.ordered && isHorizontalRule(line)) return true;
   const rest = line.slice(marker.contentIndent);
   if (!rest.trim()) return false;
 
   const trimmed = rest.replace(RE_LIST_REST_SPACES, "");
   if (!RE_LIST_MARKER_ONLY.test(trimmed)) return false;
 
-  const distinct = new Set(trimmed.split(""));
-  if (distinct.size > 1) return true;
-  return RE_SPACE_TAB.test(rest);
+  if (marker.ordered) return false;
+  if (trimmed.length < 3) return false;
+  for (const character of trimmed)
+    if (character !== marker.markerChar) return false;
+  return true;
 }
 
 function getBlockquoteInfo(str: string) {
@@ -248,15 +272,37 @@ function splitTableRow(str: string): string[] {
   return str.split("|").map((cell) => cell.trim());
 }
 
-function isTableDelimiterRow(line: string): boolean {
-  const cells = splitTableRow(line);
-  if (cells.length <= 1) return false;
+function hasOuterPipes(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|");
+}
 
-  return cells.every((cell) => {
-    cell = cell.replace(RE_WHITESPACE, "");
-    if (cell.length === 0) return false;
-    return RE_TABLE_DELIM.test(cell);
-  });
+type TableAlign = "left" | "right" | "center";
+
+function parseTableAlignments(
+  line: string,
+  minDashes: number
+): Array<TableAlign | undefined> | null {
+  const cells = splitTableRow(line);
+  if (cells.length <= 1) return null;
+
+  const delimRegex = minDashes >= 3 ? RE_TABLE_DELIM_MIN3 : RE_TABLE_DELIM_MIN1;
+  const alignments: Array<TableAlign | undefined> = [];
+
+  for (const cell of cells) {
+    const trimmed = cell.replace(RE_WHITESPACE, "");
+    if (trimmed.length === 0) return null;
+    const dashCount = countChar(trimmed.replace(RE_COLON, ""), "-");
+    if (dashCount < minDashes) return null;
+
+    if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
+    else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
+    else if (RE_TABLE_ALIGN_RIGHT.test(trimmed)) alignments.push("right");
+    else if (delimRegex.test(trimmed)) alignments.push(undefined);
+    else return null;
+  }
+
+  return alignments;
 }
 
 function isTableCandidate(line: string): boolean {
@@ -269,24 +315,34 @@ type NodeParseResult<NodeType extends AstNode> = {
   nextIndex: number;
 };
 
-function buildTableNode(header: string[], rows: string[][]): TableNode {
+function buildTableNode(
+  header: string[],
+  rows: string[][],
+  alignments: Array<TableAlign | undefined>
+): TableNode {
   const headerRow: TableHeaderRowNode = {
     type: "tr",
-    cells: header.map<TableHeaderCellNode>((cellValue) => ({
+
+    cells: header.map<TableHeaderCellNode>((cellValue, cellIndex) => ({
       type: "th",
+      align: alignments[cellIndex],
       children: parseInline(cellValue),
     })),
   };
   const bodyRows: TableBodyRowNode[] = rows.map((row) => ({
     type: "tr",
-    cells: row.map<TableCellNode>((cellValue) => ({
+
+    cells: row.map<TableCellNode>((cellValue, cellIndex) => ({
       type: "td",
+
+      align: alignments[cellIndex],
       children: parseInline(cellValue),
     })),
   }));
 
   return {
     type: "table",
+
     head: { type: "thead", row: headerRow },
     body: { type: "tbody", rows: bodyRows },
   };
@@ -299,7 +355,10 @@ function parseTableNode(
   const line = lines[lineIndex];
   if (!isTableCandidate(line)) return null;
   if (lineIndex + 1 >= lines.length) return null;
-  if (!isTableDelimiterRow(lines[lineIndex + 1])) return null;
+  const headerHasOuterPipes = hasOuterPipes(line);
+  const minDashes = headerHasOuterPipes ? 1 : 3;
+  const alignments = parseTableAlignments(lines[lineIndex + 1], minDashes);
+  if (!alignments) return null;
 
   const header = splitTableRow(line);
   let currentIndex = lineIndex + 2;
@@ -314,7 +373,10 @@ function parseTableNode(
     currentIndex++;
   }
 
-  return { node: buildTableNode(header, rows), nextIndex: currentIndex };
+  return {
+    node: buildTableNode(header, rows, alignments),
+    nextIndex: currentIndex,
+  };
 }
 
 function parseListNode(
@@ -335,7 +397,10 @@ function parseListNode(
     const marker = parseListMarker(line);
     if (!marker) return null;
     if (marker.ordered !== ordered) return null;
-    if (marker.indent !== indent) return null;
+    if (!ordered && marker.markerChar !== firstMarker.markerChar) return null;
+    if (!ordered && marker.indent !== indent) return null;
+    if (ordered && (marker.indent < indent || marker.indent > indent + 3))
+      return null;
     if (shouldDisallowListStart(line, marker)) return null;
     return marker;
   };
@@ -372,14 +437,18 @@ function parseListNode(
         if (nextIndent < listMarker.contentIndent) break;
         if (nextIndent <= indent && isTopLevelNodeStarter(nextLine)) break;
 
+        tight = false;
         listItem.push("");
         lineIndex++;
         continue;
       }
 
       const lineIndent = getIndent(currentLine);
+      const otherMarker = parseListMarker(currentLine);
 
       if (getSameListMarker(currentLine)) break;
+
+      if (otherMarker && otherMarker.indent <= indent) break;
 
       if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
 
@@ -668,6 +737,7 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
 }
 
 function irNodeToToken(node: IrNode): InlineToken | null {
+  if ("block" in node) return null;
   if (
     node.type === "text" ||
     node.type === "newline" ||
@@ -756,8 +826,6 @@ function parseLinkOrImage(
 
   const url = irNodesToLiteral(urlNodes).trim();
   const label = irNodesToLiteral(labelNodes);
-
-  if (!url) return null;
 
   if (isBang) {
     return {
@@ -955,19 +1023,20 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     }
     if (remaining === 1) pieces.push(1);
 
-    if (
-      pieces.length >= 2 &&
-      pieces[pieces.length - 2] === 2 &&
-      pieces[pieces.length - 1] === 1
-    ) {
-      const top = stack[stack.length - 1];
-      if (
-        delimiter.canClose &&
-        top &&
-        top.delimiterChar === delimiter.ch &&
-        top.delimiterLength === 1
-      ) {
-        pieces.splice(pieces.length - 2, 2, 1, 2);
+    const canOpenOnly = delimiter.canOpen && !delimiter.canClose;
+    const canCloseOnly = delimiter.canClose && !delimiter.canOpen;
+    if (pieces.length === 2 && pieces[0] === 2 && pieces[1] === 1) {
+      if (canOpenOnly) pieces.splice(0, 2, 1, 2);
+      else if (!canCloseOnly) {
+        const top = stack[stack.length - 1];
+        if (
+          delimiter.canClose &&
+          top &&
+          top.delimiterChar === delimiter.ch &&
+          top.delimiterLength === 1
+        ) {
+          pieces.splice(0, 2, 1, 2);
+        }
       }
     }
 
@@ -1124,6 +1193,7 @@ type BlockAstNode =
 
 // Main AST node type returned by the exported AST builder
 export type AstNode = InlineAstNode | BlockAstNode;
+export type InlineNode = InlineAstNode;
 
 type ParagraphNode = { type: "p"; children: InlineAstNode[] };
 
@@ -1131,6 +1201,7 @@ type Level = 1 | 2 | 3 | 4 | 5 | 6;
 
 type HeadingNode = {
   type: "h";
+
   level: Level;
   children: InlineAstNode[];
 };
@@ -1139,17 +1210,20 @@ type HorizontalRuleNode = { type: "hr" };
 
 type PreNode = {
   type: "pre";
+
   lang?: string;
   raw: string;
 };
 
 type BlockquoteNode = {
   type: "blockquote";
+
   children: AstNode[];
 };
 
 type ListNode = {
   type: "list";
+
   ordered: boolean;
   start?: number;
   tight: boolean;
@@ -1158,42 +1232,52 @@ type ListNode = {
 
 type ListItemNode = {
   type: "li";
+
   children: AstNode[];
 };
 
 type TableNode = {
   type: "table";
+
   head: TableHeadNode;
   body: TableBodyNode;
 };
 
 type TableHeadNode = {
   type: "thead";
+
   row: TableHeaderRowNode;
 };
 
 type TableBodyNode = {
   type: "tbody";
+
   rows: TableBodyRowNode[];
 };
 
 type TableHeaderRowNode = {
   type: "tr";
+
   cells: TableHeaderCellNode[];
 };
 
 type TableBodyRowNode = {
   type: "tr";
+
   cells: TableCellNode[];
 };
 
 type TableHeaderCellNode = {
   type: "th";
+
+  align?: TableAlign;
   children: InlineAstNode[];
 };
 
 type TableCellNode = {
   type: "td";
+
+  align?: TableAlign;
   children: InlineAstNode[];
 };
 
@@ -1201,6 +1285,7 @@ type TextNode = { type: "text"; value: string };
 type CodeNode = { type: "code"; value: string };
 type LinkNode = {
   type: "a";
+
   url: string;
   children?: InlineAstNode[];
 };
