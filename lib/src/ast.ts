@@ -446,7 +446,7 @@ function parseBlockquoteNode(
   };
 }
 
-function appendText(nodes: IrNode[] | InlineNode[], value: string) {
+function appendText(nodes: IrNode[], value: string) {
   if (!value) return;
   const last = nodes[nodes.length - 1];
   if (last && last.type === "text") last.value += value;
@@ -659,34 +659,37 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
 }
 
 function irNodeToToken(node: IrNode): InlineToken | null {
-  if (node.type === "code" || node.type === "a" || node.type === "img")
-    return null;
-  return node as InlineToken;
+  if (
+    node.type === "text" ||
+    node.type === "newline" ||
+    node.type === "backslash" ||
+    node.type === "backtick-run" ||
+    node.type === "delimiter-run" ||
+    node.type === "lbracket" ||
+    node.type === "rbracket" ||
+    node.type === "lparen" ||
+    node.type === "rparen" ||
+    node.type === "bang"
+  )
+    return node;
+  return null;
 }
 
 function irNodeToLiteral(node: IrNode): string {
   if (node.type === "text") return node.value;
   if (node.type === "code") return "`" + node.value + "`";
-
   if (node.type === "hardbreak") return "\n";
-
-  if (node.type === "a") return "";
-  if (node.type === "img") return "";
-
+  if (node.type === "a" || node.type === "img") return "";
   if (node.type === "em") return irNodesToLiteral(node.children);
   if (node.type === "strong") return irNodesToLiteral(node.children);
   if (node.type === "del") return irNodesToLiteral(node.children);
-
   if (node.type === "delimiter") return node.ch.repeat(node.len);
 
   return tokenToLiteral(node);
 }
 
-function irNodesToLiteral(nodes: IrNode[]): string {
-  return nodes.reduce((literalText, node) => {
-    return literalText + irNodeToLiteral(node);
-  }, "");
-}
+const irNodesToLiteral = (nodes: IrNode[]): string =>
+  nodes.reduce((literalText, node) => literalText + irNodeToLiteral(node), "");
 
 type LinkParseResult = {
   node: IrNode;
@@ -816,20 +819,6 @@ function countChar(text: string, targetChar: string): number {
   return count;
 }
 
-function expandDelimRuns(nodes: IrNode[]): IrNode[] {
-  return nodes.map((node) =>
-    node.type !== "delimiter-run"
-      ? node
-      : {
-          type: "delimiter",
-          ch: DELIMITER_CLASS_MAP[node.ch],
-          len: node.len,
-          canOpen: node.canOpen,
-          canClose: node.canClose,
-        }
-  );
-}
-
 function irNodeToLiteralForFinalize(node: IrNode): string {
   if (node.type === "delimiter") return node.ch.repeat(node.len);
   if (
@@ -857,8 +846,18 @@ type Frame = {
   nodes: IrNode[];
 };
 
-function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
-  const nodes = expandDelimRuns(nodesIn);
+function resolveDelimiters(nodes: IrNode[]): IrNode[] {
+  nodes = nodes.map((node) =>
+    node.type !== "delimiter-run"
+      ? node
+      : {
+          type: "delimiter",
+          ch: DELIMITER_CLASS_MAP[node.ch],
+          len: node.len,
+          canOpen: node.canOpen,
+          canClose: node.canClose,
+        }
+  );
 
   const stack: Frame[] = [];
   let currentNodes: IrNode[] = [];
@@ -899,10 +898,9 @@ function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
 
   function consumeDelimRun(delimiter: InlineDelimiter) {
     if (delimiter.ch === "~") {
-      const hasOdd = delimiter.len % 2 === 1;
-      const pairs = Math.floor((delimiter.len - (hasOdd ? 1 : 0)) / 2);
-      const putOddBefore =
-        hasOdd && !(delimiter.canClose && !delimiter.canOpen);
+      const odd = delimiter.len & 1;
+      const pairs = Math.floor((delimiter.len - odd) / 2);
+      const putOddBefore = odd && !(delimiter.canClose && !delimiter.canOpen);
 
       if (putOddBefore) currentNodes.push({ type: "text", value: "~" });
 
@@ -919,8 +917,7 @@ function resolveDelimiters(nodesIn: IrNode[]): IrNode[] {
         else currentNodes.push({ type: "text", value: "~~" });
       }
 
-      if (hasOdd && !putOddBefore)
-        currentNodes.push({ type: "text", value: "~" });
+      if (odd && !putOddBefore) currentNodes.push({ type: "text", value: "~" });
       return;
     }
 
