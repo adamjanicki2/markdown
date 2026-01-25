@@ -331,25 +331,47 @@ function parseListNode(
   const items: ListItemNode[] = [];
   let tight = true;
 
+  const getSameListMarker = (line: string): ListMarker | null => {
+    const marker = parseListMarker(line);
+    if (!marker) return null;
+    if (marker.ordered !== ordered) return null;
+    if (marker.indent !== indent) return null;
+    if (shouldDisallowListStart(line, marker)) return null;
+    return marker;
+  };
+
   let lineIndex = startIndex;
   while (lineIndex < lines.length) {
-    const listMarker = parseListMarker(lines[lineIndex]);
+    const listMarker = getSameListMarker(lines[lineIndex]);
     if (!listMarker) break;
-    if (listMarker.ordered !== ordered) break;
-    if (listMarker.indent !== indent) break;
-    if (shouldDisallowListStart(lines[lineIndex], listMarker)) break;
 
     const contentAfterMarker = lines[lineIndex].slice(listMarker.contentIndent);
     lineIndex++;
 
     const listItem: string[] = [contentAfterMarker];
-    let sawBlankLine = false;
 
     while (lineIndex < lines.length) {
       const currentLine = lines[lineIndex];
 
       if (isBlank(currentLine)) {
-        sawBlankLine = true;
+        let lookaheadIndex = lineIndex + 1;
+        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
+          lookaheadIndex++;
+
+        const nextLine =
+          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
+        if (!nextLine) break;
+
+        if (getSameListMarker(nextLine)) {
+          tight = false;
+          lineIndex = lookaheadIndex;
+          break;
+        }
+
+        const nextIndent = getIndent(nextLine);
+        if (nextIndent < listMarker.contentIndent) break;
+        if (nextIndent <= indent && isTopLevelNodeStarter(nextLine)) break;
+
         listItem.push("");
         lineIndex++;
         continue;
@@ -357,16 +379,7 @@ function parseListNode(
 
       const lineIndent = getIndent(currentLine);
 
-      if (sawBlankLine && lineIndent < listMarker.contentIndent) break;
-
-      const nextListMarker = parseListMarker(currentLine);
-      if (
-        nextListMarker &&
-        nextListMarker.ordered === ordered &&
-        nextListMarker.indent === indent &&
-        !shouldDisallowListStart(currentLine, nextListMarker)
-      )
-        break;
+      if (getSameListMarker(currentLine)) break;
 
       if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
 
@@ -388,16 +401,15 @@ function parseListNode(
       }
     }
 
-    if (sawBlankLine) tight = false;
+    items.push({ type: "li", children: buildAst(listItem.join("\n")) });
+    if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
+  }
 
-    items.push({
-      type: "li",
-      children: buildAst(listItem.join("\n")),
-    });
-
-    while (lineIndex < lines.length && isBlank(lines[lineIndex])) {
-      tight = false;
-      lineIndex++;
+  if (tight) {
+    for (const item of items) {
+      item.children = item.children.flatMap((child) =>
+        child.type === "p" ? child.children : child
+      );
     }
   }
 
@@ -438,10 +450,7 @@ function parseBlockquoteNode(
   }
 
   return {
-    node: {
-      type: "blockquote",
-      children: buildAst(blockquote.join("\n")),
-    },
+    node: { type: "blockquote", children: buildAst(blockquote.join("\n")) },
     nextIndex: lineIndex,
   };
 }
@@ -678,7 +687,7 @@ function irNodeToToken(node: IrNode): InlineToken | null {
 function irNodeToLiteral(node: IrNode): string {
   if (node.type === "text") return node.value;
   if (node.type === "code") return "`" + node.value + "`";
-  if (node.type === "hardbreak") return "\n";
+  if (node.type === "linebreak") return "\n";
   if (node.type === "a" || node.type === "img") return "";
   if (node.type === "em") return irNodesToLiteral(node.children);
   if (node.type === "strong") return irNodesToLiteral(node.children);
@@ -996,10 +1005,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
       currentNodes.push(node);
     } else if (node.type === "delimiter") {
       if (!node.canOpen && !node.canClose) {
-        currentNodes.push({
-          type: "text",
-          value: node.ch.repeat(node.len),
-        });
+        currentNodes.push({ type: "text", value: node.ch.repeat(node.len) });
       } else {
         consumeDelimRun(node);
       }
@@ -1029,13 +1035,13 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
   return mergedNodes;
 }
 
-function handleInlineNewline(inlineNodes: InlineNode[]): void {
+function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
   const hard =
     trimTwoTrailingSpaces(inlineNodes) || trimTrailingBackslash(inlineNodes);
-  inlineNodes.push(hard ? { type: "hardbreak" } : { type: "text", value: " " });
+  inlineNodes.push({ type: "linebreak", hard });
 }
 
-function trimTwoTrailingSpaces(inlineNodes: InlineNode[]): boolean {
+function trimTwoTrailingSpaces(inlineNodes: InlineAstNode[]): boolean {
   const last = inlineNodes[inlineNodes.length - 1];
   if (!last || last.type !== "text") return false;
   if (!last.value.endsWith("  ")) return false;
@@ -1044,7 +1050,7 @@ function trimTwoTrailingSpaces(inlineNodes: InlineNode[]): boolean {
   return true;
 }
 
-function trimTrailingBackslash(inlineNodes: InlineNode[]): boolean {
+function trimTrailingBackslash(inlineNodes: InlineAstNode[]): boolean {
   const last = inlineNodes[inlineNodes.length - 1];
   if (!last || last.type !== "text") return false;
   if (!last.value.endsWith("\\")) return false;
@@ -1053,8 +1059,8 @@ function trimTrailingBackslash(inlineNodes: InlineNode[]): boolean {
   return true;
 }
 
-function finalizeInlineNodes(nodesList: IrNode[]): InlineNode[] {
-  const inlineNodes: InlineNode[] = [];
+function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
+  const inlineNodes: InlineAstNode[] = [];
 
   for (const node of nodesList) {
     if (
@@ -1078,7 +1084,7 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineNode[] {
   return inlineNodes;
 }
 
-function parseInline(str: string): InlineNode[] {
+function parseInline(str: string): InlineAstNode[] {
   let tokens = tokenize(str);
   tokens = applyBackslashEscapes(tokens);
 
@@ -1090,25 +1096,43 @@ function parseInline(str: string): InlineNode[] {
 }
 
 // Types
+type InlineAstNode =
+  | TextNode
+  | CodeNode
+  | LinkNode
+  | ImageNode
+  | EmNode
+  | StrongNode
+  | DelNode
+  | LinebreakNode;
 
-// Main AST node type returned by the exported AST builder
-export type AstNode =
+type BlockAstNode =
   | ParagraphNode
   | HeadingNode
   | HorizontalRuleNode
   | PreNode
   | BlockquoteNode
   | ListNode
-  | TableNode;
+  | ListItemNode
+  | TableNode
+  | TableHeadNode
+  | TableBodyNode
+  | TableHeaderRowNode
+  | TableBodyRowNode
+  | TableHeaderCellNode
+  | TableCellNode;
 
-type ParagraphNode = { type: "p"; children: InlineNode[] };
+// Main AST node type returned by the exported AST builder
+export type AstNode = InlineAstNode | BlockAstNode;
+
+type ParagraphNode = { type: "p"; children: InlineAstNode[] };
 
 type Level = 1 | 2 | 3 | 4 | 5 | 6;
 
 type HeadingNode = {
   type: "h";
   level: Level;
-  children: InlineNode[];
+  children: InlineAstNode[];
 };
 
 type HorizontalRuleNode = { type: "hr" };
@@ -1165,25 +1189,26 @@ type TableBodyRowNode = {
 
 type TableHeaderCellNode = {
   type: "th";
-  children: InlineNode[];
+  children: InlineAstNode[];
 };
 
 type TableCellNode = {
   type: "td";
-  children: InlineNode[];
+  children: InlineAstNode[];
 };
 
-// Main inline node type for nodes that can be found within a single block
-// and can't reenter into the main AstNode type
-export type InlineNode =
-  | { type: "text"; value: string }
-  | { type: "code"; value: string }
-  | { type: "a"; url: string; children?: InlineNode[] }
-  | { type: "img"; url: string; alt: string }
-  | { type: "em"; children: InlineNode[] }
-  | { type: "strong"; children: InlineNode[] }
-  | { type: "del"; children: InlineNode[] }
-  | { type: "hardbreak" };
+type TextNode = { type: "text"; value: string };
+type CodeNode = { type: "code"; value: string };
+type LinkNode = {
+  type: "a";
+  url: string;
+  children?: InlineAstNode[];
+};
+type ImageNode = { type: "img"; url: string; alt: string };
+type EmNode = { type: "em"; children: InlineAstNode[] };
+type StrongNode = { type: "strong"; children: InlineAstNode[] };
+type DelNode = { type: "del"; children: InlineAstNode[] };
+type LinebreakNode = { type: "linebreak"; hard: boolean };
 
 type DelimiterChar = keyof typeof DELIMITER_CLASS_MAP;
 
@@ -1214,4 +1239,4 @@ type InlineDelimiter = {
 };
 
 // intermediate representation node
-type IrNode = InlineToken | InlineNode | InlineDelimiter;
+type IrNode = InlineToken | InlineAstNode | InlineDelimiter;
