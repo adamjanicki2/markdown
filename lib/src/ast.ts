@@ -41,21 +41,21 @@ export function buildAst(markdown: string): AstNode[] {
       } else {
         const fence = parseFenceStart(line);
         if (fence) {
-        flushParagraph();
-        const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
+          flushParagraph();
+          const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
 
-        lineIndex++;
-        const pre: string[] = [];
-        while (
-          lineIndex < lines.length &&
-          !isFenceEnd(lines[lineIndex], fence.fenceLen)
-        ) {
-          pre.push(lines[lineIndex]);
           lineIndex++;
-        }
-        if (lineIndex < lines.length) lineIndex++;
+          const pre: string[] = [];
+          while (
+            lineIndex < lines.length &&
+            !isFenceEnd(lines[lineIndex], fence.fenceLen)
+          ) {
+            pre.push(lines[lineIndex]);
+            lineIndex++;
+          }
+          if (lineIndex < lines.length) lineIndex++;
 
-        nodes.push({ type: "pre", lang, raw: pre.join("\n") });
+          nodes.push({ type: "pre", lang, raw: pre.join("\n") });
         } else {
           const list = parseListNode(lines, lineIndex, isTopLevelNodeStarter);
           if (list) {
@@ -130,12 +130,10 @@ const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
 const RE_LIST_REST_SPACES = /[ \t]+/g;
 const RE_LIST_MARKER_ONLY = /^[*+-]+$/;
-const RE_AUTOLINK_URL =
-  /(^|[^A-Za-z])https?:\/\/[A-Za-z0-9\-._~:/?#\[\]@!$&'*+,;=%]+/g;
+const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s]+/g;
 const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
-const DELIMITER_CLASS_MAP = { "*": "*", _: "*", "~": "~" } as const;
-const DELIMITER_CHARS = Object.keys(DELIMITER_CLASS_MAP);
+const DELIMITER_CHARS = ["*", "_", "~"] as const;
 
 // Utils
 const normalizeNewlines = (str: string) => str.replace(RE_NEWLINES, "\n");
@@ -622,11 +620,16 @@ function tokenize(str: string): InlineToken[] {
       i = runIndex - 1;
     } else if (char === "_" && isAlphanum(str[i - 1]) && isAlphanum(str[i + 1]))
       text += char;
-    else if (DELIMITER_CHARS.includes(char)) {
+    else if ((DELIMITER_CHARS as readonly string[]).includes(char)) {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === char) runIndex++;
       const prevChar: string | undefined = str[i - 1];
       const nextChar: string | undefined = str[runIndex];
+      if (char === "_" && isAlphanum(prevChar) && isAlphanum(nextChar)) {
+        text += char.repeat(runIndex - i);
+        i = runIndex - 1;
+        continue;
+      }
       const canOpen = !isSpace(nextChar);
       const canClose = !isSpace(prevChar);
 
@@ -977,7 +980,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
       ? node
       : {
           type: "delimiter",
-          ch: DELIMITER_CLASS_MAP[node.ch],
+          ch: node.ch,
           len: node.len,
           canOpen: node.canOpen,
           canClose: node.canClose,
@@ -1063,22 +1066,47 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     }
 
     for (const delimiterLength of pieces) {
-      const top = stack[stack.length - 1];
+      let handled = false;
+      while (!handled) {
+        const top = stack[stack.length - 1];
+        const canClose =
+          delimiter.canClose &&
+          top &&
+          top.delimiterChar === delimiter.ch &&
+          top.delimiterLength === delimiterLength;
+        const canOpen = delimiter.canOpen;
 
-      const canClose =
-        delimiter.canClose &&
-        top &&
-        top.delimiterChar === delimiter.ch &&
-        top.delimiterLength === delimiterLength;
-      const canOpen = delimiter.canOpen;
-
-      if (canClose) close(delimiter.ch, delimiterLength);
-      else if (canOpen) open(delimiter.ch, delimiterLength);
-      else
-        currentNodes.push({
-          type: "text",
-          value: delimiter.ch.repeat(delimiterLength),
-        });
+        if (canClose && currentNodes.length === 0) {
+          currentNodes.push({
+            type: "text",
+            value: delimiter.ch.repeat(delimiterLength),
+          });
+          handled = true;
+        } else if (canClose) {
+          close(delimiter.ch, delimiterLength);
+          handled = true;
+        } else if (canOpen) {
+          open(delimiter.ch, delimiterLength);
+          handled = true;
+        } else if (currentNodes.length === 0 && top) {
+          const frame = stack.pop();
+          if (!frame) {
+            handled = true;
+          } else {
+            currentNodes = frame.nodes;
+            currentNodes.push({
+              type: "text",
+              value: frame.delimiterChar.repeat(frame.delimiterLength),
+            });
+          }
+        } else {
+          currentNodes.push({
+            type: "text",
+            value: delimiter.ch.repeat(delimiterLength),
+          });
+          handled = true;
+        }
+      }
     }
   }
 
@@ -1329,7 +1357,7 @@ type StrongNode = { type: "strong"; children: InlineAstNode[] };
 type DelNode = { type: "del"; children: InlineAstNode[] };
 type LinebreakNode = { type: "linebreak"; hard: boolean };
 
-type DelimiterChar = keyof typeof DELIMITER_CLASS_MAP;
+type DelimiterChar = (typeof DELIMITER_CHARS)[number];
 
 type InlineToken =
   | { type: "text"; value: string }
