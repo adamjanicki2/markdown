@@ -136,7 +136,7 @@ const isTopLevelNodeStarter = (line: string) =>
   );
 
 function isToken(node: IrNode): node is InlineToken {
-  return TOKEN_TYPES.has(node.type);
+  return (TOKEN_TYPES as Set<string>).has(node.type);
 }
 
 function appendText(nodes: IrNode[], value: string) {
@@ -1057,7 +1057,7 @@ const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
 
-const TOKEN_TYPES = new Set([
+const TOKEN_TYPES = new Set<InlineToken["type"]>([
   "text",
   "newline",
   "backslash",
