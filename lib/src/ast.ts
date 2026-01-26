@@ -364,15 +364,22 @@ function parseTableNode(
   if (!alignments) return null;
 
   const header = splitTableRow(line);
+  const headerLength = header.length;
   let currentIndex = lineIndex + 2;
 
   const rows: string[][] = [];
   while (
     currentIndex < lines.length &&
-    !isBlank(lines[currentIndex]) &&
-    isTableCandidate(lines[currentIndex])
+    !isBlank(lines[currentIndex])
   ) {
-    rows.push(splitTableRow(lines[currentIndex]));
+    const rowLine = lines[currentIndex];
+    if (!isTableCandidate(rowLine) && isTopLevelNodeStarter(rowLine)) break;
+
+    const rawRow = isTableCandidate(rowLine)
+      ? splitTableRow(rowLine)
+      : [rowLine.trim()];
+    while (rawRow.length < headerLength) rawRow.push("");
+    rows.push(rawRow);
     currentIndex++;
   }
 
