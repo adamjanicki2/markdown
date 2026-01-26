@@ -60,8 +60,8 @@ export function buildAst(markdown: string): AstNode[] {
           const list = parseListNode(lines, lineIndex, isTopLevelNodeStarter);
           if (list) {
             flushParagraph();
-            nodes.push(list.node);
-            lineIndex = list.nextIndex;
+          nodes.push(list.node);
+          lineIndex = list.nextIndex;
           } else if (isHorizontalRule(line)) {
             flushParagraph();
             nodes.push({ type: "hr" });
@@ -80,9 +80,9 @@ export function buildAst(markdown: string): AstNode[] {
               const table = parseTableNode(lines, lineIndex);
               if (table) {
                 flushParagraph();
-                nodes.push(table.node);
-                lineIndex = table.nextIndex;
-              } else {
+              nodes.push(table.node);
+              lineIndex = table.nextIndex;
+            } else {
                 const blockquote = parseBlockquoteNode(
                   lines,
                   lineIndex,
@@ -130,7 +130,7 @@ const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
 const RE_LIST_REST_SPACES = /[ \t]+/g;
 const RE_LIST_MARKER_ONLY = /^[*+-]+$/;
-const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s]+/g;
+const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s<>()]+/g;
 const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const DELIMITER_CHARS = ["*", "_", "~"] as const;
@@ -285,10 +285,32 @@ function stripBlockquoteMarker(str: string) {
 }
 
 function splitTableRow(str: string): string[] {
-  str = str.trim();
-  if (str.startsWith("|")) str = str.slice(1);
-  if (str.endsWith("|")) str = str.slice(0, -1);
-  return str.split("|").map((cell) => cell.trim());
+  let text = str.trim();
+  if (text.startsWith("|")) text = text.slice(1);
+  if (text.endsWith("|")) text = text.slice(0, -1);
+
+  const cells: string[] = [];
+  let current = "";
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+    if (char === "\\" && nextChar === "|") {
+      current += "|";
+      index += 2;
+      continue;
+    }
+    if (char === "|") {
+      cells.push(current.trim());
+      current = "";
+      index++;
+      continue;
+    }
+    current += char;
+    index++;
+  }
+  cells.push(current.trim());
+  return cells;
 }
 
 function hasOuterPipes(line: string): boolean {
@@ -475,6 +497,15 @@ function parseListNode(
       if (getSameListMarker(currentLine)) break;
 
       if (otherMarker && otherMarker.indent <= indent) break;
+      if (
+        otherMarker &&
+        otherMarker.ordered &&
+        otherMarker.indent > listMarker.contentIndent + 3
+      ) {
+        listItem.push(currentLine.slice(listMarker.contentIndent));
+        lineIndex++;
+        continue;
+      }
 
       if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
 
@@ -937,7 +968,11 @@ function trimUrl(url: string): { url: string; trailing: string } {
   while (url.length) {
     const lastChar = url[url.length - 1];
     if (!RE_AUTOLINK_TRAILING_PUNCT.test(lastChar)) break;
-    if (lastChar === ")" && countChar(url, "(") >= countChar(url, ")")) break;
+    if (lastChar === ")") {
+      const openCount = countChar(url, "(");
+      const closeCount = countChar(url, ")");
+      if (closeCount <= openCount) break;
+    }
     url = url.slice(0, -1);
     trailing = lastChar + trailing;
   }

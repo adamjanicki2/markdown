@@ -41,7 +41,7 @@ export function renderHtml(nodes: AstNode[]): string {
         case "list": {
           const tag = node.ordered ? "ol" : "ul";
           const startAttr =
-            node.ordered && node.start && node.start !== 1
+            node.ordered && node.start !== undefined && node.start !== 1
               ? ` start="${node.start}"`
               : "";
           const items = node.items

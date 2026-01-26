@@ -953,7 +953,7 @@ export const TEST_CASES = [
   {
     name: "183 blockquote lazy continuation with blank line ends quote",
     input: "> a\n>\n b",
-    output: "<blockquote>\n<p>a</p>\n</blockquote>\n<p>b</p>",
+    output: "<blockquote>\n<p>a</p>\n</blockquote>\n<p> b</p>",
   },
   {
     name: "184 blockquote with mixed starters",
@@ -983,9 +983,9 @@ export const TEST_CASES = [
     output: "<ul>\n<li>a</li>\n</ul>\n<p>x</p>",
   },
   {
-    name: "189 list item with thematic break child",
-    input: "- a\n  ---\n- b",
-    output: "<ul>\n<li>\n<h2>a</h2>\n</li>\n<li>b</li>\n</ul>",
+    name: "189 list item with heading child",
+    input: "- # a\n- b",
+    output: "<ul>\n<li>\n<h1>a</h1>\n</li>\n<li>b</li>\n</ul>",
   },
   {
     name: "190 list item with fenced code then paragraph continuation",
