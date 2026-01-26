@@ -575,8 +575,8 @@ const INLINE_TOKEN_LITERALS: InlineTokenLiteralLambdas = {
   lparen: () => "(",
   rparen: () => ")",
   bang: () => "!",
-  "delimiter-run": (token) => token.ch.repeat(token.len),
-  "backtick-run": (token) => "`".repeat(token.len),
+  delimiter: (token) => token.ch.repeat(token.len),
+  backtick: (token) => "`".repeat(token.len),
   backslash: () => "\\",
   "escaped-backslash": () => "\\",
 };
@@ -617,7 +617,7 @@ function tokenize(str: string): InlineToken[] {
     else if (char === "`") {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === "`") runIndex++;
-      pushToken({ type: "backtick-run", len: runIndex - i });
+      pushToken({ type: "backtick", len: runIndex - i });
       i = runIndex - 1;
     } else if (char === "_" && isAlphanum(str[i - 1]) && isAlphanum(str[i + 1]))
       text += char;
@@ -635,7 +635,7 @@ function tokenize(str: string): InlineToken[] {
       const canClose = !isSpace(prevChar);
 
       pushToken({
-        type: "delimiter-run",
+        type: "delimiter",
         ch: char as DelimiterChar,
         len: runIndex - i,
         canOpen,
@@ -696,14 +696,14 @@ function applyBackslashEscapes(tokens: InlineToken[]): InlineToken[] {
             transformed.push({ type: "escaped-backslash" });
           else pushText(escapedChar);
 
-          if (nextToken.type === "delimiter-run" && nextToken.len > 1)
+          if (nextToken.type === "delimiter" && nextToken.len > 1)
             transformed.push({
               ...nextToken,
               len: nextToken.len - 1,
               canOpen: true,
               canClose: true,
             });
-          else if (nextToken.type === "backtick-run" && nextToken.len > 1)
+          else if (nextToken.type === "backtick" && nextToken.len > 1)
             transformed.push({ ...nextToken, len: nextToken.len - 1 });
           else if (nextToken.type === "text" && nextToken.value.length > 1)
             pushText(nextToken.value.slice(1));
@@ -733,7 +733,7 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
 
-    if (token.type !== "backtick-run") nodes.push(token);
+    if (token.type !== "backtick") nodes.push(token);
     else {
       const openerLen = token.len;
 
@@ -741,7 +741,7 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
       while (closingIndex < tokens.length) {
         const candidateToken = tokens[closingIndex];
         if (
-          candidateToken.type === "backtick-run" &&
+          candidateToken.type === "backtick" &&
           candidateToken.len === openerLen
         )
           break;
@@ -771,14 +771,13 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
 }
 
 function irNodeToToken(node: IrNode): InlineToken | null {
-  if ("block" in node) return null;
   if (
     node.type === "text" ||
     node.type === "newline" ||
     node.type === "backslash" ||
     node.type === "escaped-backslash" ||
-    node.type === "backtick-run" ||
-    node.type === "delimiter-run" ||
+    node.type === "backtick" ||
+    node.type === "delimiter" ||
     node.type === "lbracket" ||
     node.type === "rbracket" ||
     node.type === "lparen" ||
@@ -953,7 +952,6 @@ function countChar(text: string, targetChar: string): number {
 }
 
 function irNodeToLiteralForFinalize(node: IrNode): string {
-  if (node.type === "delimiter") return node.ch.repeat(node.len);
   if (
     node.type === "text" ||
     node.type === "newline" ||
@@ -962,8 +960,8 @@ function irNodeToLiteralForFinalize(node: IrNode): string {
     node.type === "lparen" ||
     node.type === "rparen" ||
     node.type === "bang" ||
-    node.type === "delimiter-run" ||
-    node.type === "backtick-run" ||
+    node.type === "delimiter" ||
+    node.type === "backtick" ||
     node.type === "backslash" ||
     node.type === "escaped-backslash"
   ) {
@@ -981,18 +979,6 @@ type Frame = {
 };
 
 function resolveDelimiters(nodes: IrNode[]): IrNode[] {
-  nodes = nodes.map((node) =>
-    node.type !== "delimiter-run"
-      ? node
-      : {
-          type: "delimiter",
-          ch: node.ch,
-          len: node.len,
-          canOpen: node.canOpen,
-          canClose: node.canClose,
-        }
-  );
-
   const stack: Frame[] = [];
   let currentNodes: IrNode[] = [];
 
@@ -1030,7 +1016,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     }
   };
 
-  function consumeDelimRun(delimiter: InlineDelimiter) {
+  function consumeDelimRun(delimiter: DelimiterToken) {
     if (delimiter.ch === "~") {
       const odd = delimiter.len & 1;
       const pairs = Math.floor((delimiter.len - odd) / 2);
@@ -1365,26 +1351,7 @@ type LinebreakNode = { type: "linebreak"; hard: boolean };
 
 type DelimiterChar = (typeof DELIMITER_CHARS)[number];
 
-type InlineToken =
-  | { type: "text"; value: string }
-  | { type: "newline" }
-  | { type: "backslash" }
-  | { type: "escaped-backslash" }
-  | { type: "backtick-run"; len: number }
-  | {
-      type: "delimiter-run";
-      ch: DelimiterChar;
-      len: number;
-      canOpen: boolean;
-      canClose: boolean;
-    }
-  | { type: "lbracket" }
-  | { type: "rbracket" }
-  | { type: "lparen" }
-  | { type: "rparen" }
-  | { type: "bang" };
-
-type InlineDelimiter = {
+type DelimiterToken = {
   type: "delimiter";
   ch: DelimiterChar;
   len: number;
@@ -1392,5 +1359,18 @@ type InlineDelimiter = {
   canClose: boolean;
 };
 
+type InlineToken =
+  | { type: "text"; value: string }
+  | { type: "newline" }
+  | { type: "backslash" }
+  | { type: "escaped-backslash" }
+  | { type: "backtick"; len: number }
+  | DelimiterToken
+  | { type: "lbracket" }
+  | { type: "rbracket" }
+  | { type: "lparen" }
+  | { type: "rparen" }
+  | { type: "bang" };
+
 // intermediate representation node
-type IrNode = InlineToken | InlineAstNode | InlineDelimiter;
+type IrNode = InlineToken | InlineAstNode;
