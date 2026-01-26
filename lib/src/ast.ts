@@ -537,12 +537,10 @@ function parseListNode(
       if (getSameListMarker(currentLine)) break;
 
       if (otherMarker && otherMarker.indent <= indent) break;
-      if (
-        otherMarker &&
-        otherMarker.ordered &&
-        otherMarker.indent > listMarker.contentIndent + 3
-      ) {
-        listItem.push(currentLine.slice(listMarker.contentIndent));
+      if (otherMarker && otherMarker.ordered && otherMarker.indent >= 4) {
+        const trimmedLine = currentLine.slice(lineIndent);
+        const lastIndex = listItem.length - 1;
+        listItem[lastIndex] = listItem[lastIndex] + trimmedLine;
         lineIndex++;
         continue;
       }
@@ -602,6 +600,17 @@ function parseBlockquoteNode(
     const strippedLine = stripBlockquoteMarker(currentLine);
 
     if (strippedLine !== null) {
+      if (strippedLine.trim() === "") {
+        let lookaheadIndex = lineIndex + 1;
+        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
+          lookaheadIndex++;
+        const nextLine =
+          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
+        if (!nextLine || stripBlockquoteMarker(nextLine) === null) {
+          lineIndex++;
+          break;
+        }
+      }
       blockquote.push(strippedLine);
       lineIndex++;
     } else if (isBlank(currentLine)) break;
@@ -847,9 +856,20 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
     if (parsed) {
       nodesOut.push(parsed.node);
       i = parsed.nextIndex;
-    } else if (node.type === "text")
-      nodesOut.push(...parseAutolinksFromText(node.value));
-    else nodesOut.push(node);
+    } else if (node.type === "text") {
+      let combinedText = node.value;
+      let lookaheadIndex = i + 1;
+      while (lookaheadIndex < nodes.length) {
+        const nextNode = nodes[lookaheadIndex];
+        if (nextNode.type === "text") combinedText += nextNode.value;
+        else if (nextNode.type === "lparen" || nextNode.type === "rparen")
+          combinedText += nodeToLiteral(nextNode);
+        else break;
+        lookaheadIndex++;
+      }
+      nodesOut.push(...parseAutolinksFromText(combinedText));
+      i = lookaheadIndex - 1;
+    } else nodesOut.push(node);
   }
 
   return mergeAdjacentText(nodesOut);
@@ -1140,7 +1160,7 @@ const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
 const RE_LIST_REST_SPACES = /[ \t]+/g;
 const RE_LIST_MARKER_ONLY = /^[*+-]+$/;
-const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s<>()]+/g;
+const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s]+/g;
 const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const ESCAPABLE = new Set([

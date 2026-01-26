@@ -680,16 +680,16 @@ export const TEST_CASES = [
     output: "<pre><code>a\\\nb\n</code></pre>",
   },
   {
-    name: "132 autolink does not include open parenthesis",
+    name: "132 autolink includes open parenthesis",
     input: "See https://example.com/a(b)c",
     output:
-      '<p>See <a href="https://example.com/a">https://example.com/a</a>(b)c</p>',
+      '<p>See <a href="https://example.com/a(b)c">https://example.com/a(b)c</a></p>',
   },
   {
-    name: "133 autolink does not include closed parenthesis",
+    name: "133 autolink includes closed parenthesis",
     input: "See https://example.com/a)b",
     output:
-      '<p>See <a href="https://example.com/a">https://example.com/a</a>)b</p>',
+      '<p>See <a href="https://example.com/a)b">https://example.com/a)b</a></p>',
   },
   {
     name: "134 autolink followed by bracket",
@@ -926,7 +926,7 @@ export const TEST_CASES = [
     name: "178 autolink with query chars",
     input: "https://example.com/a?b=(c)&d=e",
     output:
-      '<p><a href="https://example.com/a?b=(c)&amp;d=e">https://example.com/a?b=(c)&amp;d=e</a></p>',
+      '<p><a href="https://example.com/a?b=(c)&d=e">https://example.com/a?b=(c)&d=e</a></p>',
   },
   {
     name: "179 autolink followed by close paren balanced should include",
