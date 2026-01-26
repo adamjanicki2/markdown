@@ -382,6 +382,7 @@ function parseTableNode(
   if (!alignments) return null;
 
   const header = splitTableRow(line);
+  if (alignments.length !== header.length) return null;
   const headerLength = header.length;
   let currentIndex = lineIndex + 2;
 
@@ -848,9 +849,14 @@ function parseLinkOrImage(
   if (!leftParenToken || leftParenToken.type !== "lparen") return null;
 
   let rightParenIndex = rightBracketIndex + 2;
+  let parenDepth = 0;
   while (rightParenIndex < nodes.length) {
     const candidateToken = irNodeToToken(nodes[rightParenIndex]);
-    if (candidateToken && candidateToken.type === "rparen") break;
+    if (candidateToken && candidateToken.type === "lparen") parenDepth++;
+    else if (candidateToken && candidateToken.type === "rparen") {
+      if (parenDepth === 0) break;
+      parenDepth--;
+    }
     rightParenIndex++;
   }
   if (rightParenIndex >= nodes.length) return null;
