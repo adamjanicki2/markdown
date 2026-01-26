@@ -23,8 +23,24 @@ export function buildAst(markdown: string): AstNode[] {
       flushParagraph();
       lineIndex++;
     } else {
-      const fence = parseFenceStart(line);
-      if (fence) {
+      if (getIndent(line) >= 4) {
+        flushParagraph();
+        const pre: string[] = [];
+        while (lineIndex < lines.length) {
+          const currentLine = lines[lineIndex];
+          if (isBlank(currentLine)) {
+            pre.push("");
+            lineIndex++;
+            continue;
+          }
+          if (!RE_INDENTED_CODE.test(currentLine)) break;
+          pre.push(currentLine.slice(4));
+          lineIndex++;
+        }
+        nodes.push({ type: "pre", lang: undefined, raw: pre.join("\n") });
+      } else {
+        const fence = parseFenceStart(line);
+        if (fence) {
         flushParagraph();
         const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
 
@@ -40,45 +56,46 @@ export function buildAst(markdown: string): AstNode[] {
         if (lineIndex < lines.length) lineIndex++;
 
         nodes.push({ type: "pre", lang, raw: pre.join("\n") });
-      } else {
-        const list = parseListNode(lines, lineIndex, isTopLevelNodeStarter);
-        if (list) {
-          flushParagraph();
-          nodes.push(list.node);
-          lineIndex = list.nextIndex;
-        } else if (isHorizontalRule(line)) {
-          flushParagraph();
-          nodes.push({ type: "hr" });
-          lineIndex++;
         } else {
-          const heading = parseHeading(line);
-          if (heading) {
+          const list = parseListNode(lines, lineIndex, isTopLevelNodeStarter);
+          if (list) {
             flushParagraph();
-            nodes.push({
-              type: "h",
-              level: heading.level,
-              children: parseInline(heading.raw),
-            });
+            nodes.push(list.node);
+            lineIndex = list.nextIndex;
+          } else if (isHorizontalRule(line)) {
+            flushParagraph();
+            nodes.push({ type: "hr" });
             lineIndex++;
           } else {
-            const table = parseTableNode(lines, lineIndex);
-            if (table) {
+            const heading = parseHeading(line);
+            if (heading) {
               flushParagraph();
-              nodes.push(table.node);
-              lineIndex = table.nextIndex;
+              nodes.push({
+                type: "h",
+                level: heading.level,
+                children: parseInline(heading.raw),
+              });
+              lineIndex++;
             } else {
-              const blockquote = parseBlockquoteNode(
-                lines,
-                lineIndex,
-                isTopLevelNodeStarter
-              );
-              if (blockquote) {
+              const table = parseTableNode(lines, lineIndex);
+              if (table) {
                 flushParagraph();
-                nodes.push(blockquote.node);
-                lineIndex = blockquote.nextIndex;
+                nodes.push(table.node);
+                lineIndex = table.nextIndex;
               } else {
-                paragraph.push(line);
-                lineIndex++;
+                const blockquote = parseBlockquoteNode(
+                  lines,
+                  lineIndex,
+                  isTopLevelNodeStarter
+                );
+                if (blockquote) {
+                  flushParagraph();
+                  nodes.push(blockquote.node);
+                  lineIndex = blockquote.nextIndex;
+                } else {
+                  paragraph.push(line);
+                  lineIndex++;
+                }
               }
             }
           }
@@ -99,6 +116,7 @@ const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
 const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
 const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
 const RE_FENCE_TICKS = /^`{3,}$/;
+const RE_INDENTED_CODE = /^ {4}/;
 const RE_UL_MARKER = /^([-+*])[ \t]+/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
@@ -138,12 +156,14 @@ const isTopLevelNodeStarter = (line: string) =>
   );
 
 function isHorizontalRule(str: string) {
-  str = str.trim();
+  if (getIndent(str) > 3) return false;
+  str = str.replace(RE_FENCE_LEADING_SPACES, "").trim();
   if (str.length < 3) return false;
   const char = str[0];
   if (char !== "-" && char !== "*" && char !== "_") return false;
   for (const character of str)
-    if (character !== char && character !== " ") return false;
+    if (character !== char && character !== " " && character !== "\t")
+      return false;
   return str.split("").filter((character) => character === char).length >= 3;
 }
 

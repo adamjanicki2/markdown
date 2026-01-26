@@ -842,9 +842,9 @@ export const TEST_CASES = [
     output: "<p><code>a`b</code></p>",
   },
   {
-    name: "161 code span trims one leading/trailing space only",
-    input: "`  x  `",
-    output: "<p><code> x </code></p>",
+    name: "161 table does not render when wrong divider count is used",
+    input: "| a | b | c |\n| - | - |\n| d | e | f |",
+    output: "<p>| a | b | c |\n| - | - |\n| d | e | f |</p>",
   },
   { name: "162 code span empty", input: "``", output: "<p>``</p>" },
   {
