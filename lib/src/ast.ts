@@ -368,18 +368,15 @@ function parseTableNode(
   let currentIndex = lineIndex + 2;
 
   const rows: string[][] = [];
-  while (
-    currentIndex < lines.length &&
-    !isBlank(lines[currentIndex])
-  ) {
+  while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
     const rowLine = lines[currentIndex];
     if (!isTableCandidate(rowLine) && isTopLevelNodeStarter(rowLine)) break;
 
-    const rawRow = isTableCandidate(rowLine)
+    const row = isTableCandidate(rowLine)
       ? splitTableRow(rowLine)
       : [rowLine.trim()];
-    while (rawRow.length < headerLength) rawRow.push("");
-    rows.push(rawRow);
+    while (row.length < headerLength) row.push("");
+    rows.push(row.slice(0, headerLength));
     currentIndex++;
   }
 

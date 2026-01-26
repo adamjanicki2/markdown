@@ -804,15 +804,15 @@ export const TEST_CASES = [
     input:
       '> - item\n>   | a | b |\n>   | - | - |\n>   | `x|y` | ~~z~~ |\n>\n>   ```js\n>   const url = "https://example.com";\n>   ```',
     output:
-      '<blockquote>\n<ul>\n<li>\n<p>item</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>`x</td>\n<td>y`</td>\n</tr>\n</tbody>\n</table>\n<pre><code class="language-js">const url = &quot;https://example.com&quot;;\n</code></pre>\n</li>\n</ul>\n</blockquote>',
+      '<blockquote>\n<ul>\n<li>\n<p>item</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>`x</td>\n<td>y`</td>\n</tr>\n</tbody>\n</table>\n<pre><code class="language-js">const url = "https://example.com";\n</code></pre>\n</li>\n</ul>\n</blockquote>',
   },
   {
-    name: "154 atx heading requires space after # (should be paragraph)",
+    name: "154 heading requires space after # (should be paragraph)",
     input: "#Title",
     output: "<p>#Title</p>",
   },
   {
-    name: "155 atx heading with more than 6 hashes clamps/treated as heading 6-ish",
+    name: "155 heading with more than 6 hashes clamps/treated as heading 6-ish",
     input: "####### too many",
     output: "<p>####### too many</p>",
   },
