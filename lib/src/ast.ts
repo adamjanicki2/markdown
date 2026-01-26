@@ -146,12 +146,14 @@ function appendText(nodes: IrNode[], value: string) {
   else nodes.push({ type: "text", value });
 }
 
-function mergeAdjacentText<T extends { type: string }>(nodes: T[]): T[] {
+const isTextNode = (node: IrNode | InlineToken): node is TextNode =>
+  node.type === "text";
+function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
   const merged: T[] = [];
   for (const node of nodes) {
     const last = merged[merged.length - 1];
-    if (last && node.type === "text" && last.type === "text") {
-      (last as unknown as TextNode).value += (node as unknown as TextNode).value;
+    if (last && isTextNode(node) && isTextNode(last)) {
+      last.value += node.value;
     } else {
       merged.push(node);
     }
@@ -160,8 +162,15 @@ function mergeAdjacentText<T extends { type: string }>(nodes: T[]): T[] {
 }
 
 const LITERAL_MAP: Record<string, string> = {
-  newline: "\n", linebreak: "\n", lbracket: "[", rbracket: "]",
-  lparen: "(", rparen: ")", bang: "!", backslash: "\\", "escaped-backslash": "\\",
+  newline: "\n",
+  linebreak: "\n",
+  lbracket: "[",
+  rbracket: "]",
+  lparen: "(",
+  rparen: ")",
+  bang: "!",
+  backslash: "\\",
+  "escaped-backslash": "\\",
 };
 
 function nodeToLiteral(node: IrNode): string {
@@ -183,7 +192,12 @@ const isHorizontalRule = (str: string) => RE_HR.test(str);
 
 function parseHeading(line: string) {
   const m = RE_HEADING.exec(line);
-  return m ? { level: Math.min(m[1].length, 6) as Level, raw: m[2].replace(RE_HEADING_TRAIL, "") } : null;
+  return m
+    ? {
+        level: Math.min(m[1].length, 6) as Level,
+        raw: m[2].replace(RE_HEADING_TRAIL, ""),
+      }
+    : null;
 }
 
 function parseFenceStart(line: string) {
@@ -232,7 +246,11 @@ function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
   if (marker.ordered) return false;
   if (isHorizontalRule(line)) return true;
   const rest = line.slice(marker.contentIndent).replace(/[ \t]/g, "");
-  return rest.length >= 3 && new Set(rest).size === 1 && rest[0] === marker.markerChar;
+  return (
+    rest.length >= 3 &&
+    new Set(rest).size === 1 &&
+    rest[0] === marker.markerChar
+  );
 }
 
 function getBlockquoteInfo(str: string) {
@@ -253,7 +271,9 @@ function getBlockquoteInfo(str: string) {
 function stripBlockquoteMarker(str: string) {
   const info = getBlockquoteInfo(str);
   if (!info) return null;
-  return info.depth === 1 ? info.content : ">".repeat(info.depth - 1) + " " + info.content;
+  return info.depth === 1
+    ? info.content
+    : ">".repeat(info.depth - 1) + " " + info.content;
 }
 
 function splitTableRow(str: string): string[] {
@@ -319,30 +339,28 @@ function buildTableNode(
   rows: string[][],
   alignments: Array<TableAlign | undefined>
 ): TableNode {
+  const headRow: TableRowNode<TableHeaderCellNode> = {
+    type: "tr",
+    cells: header.map((cellValue, cellIndex) => ({
+      type: "th",
+      align: alignments[cellIndex],
+      children: parseInline(cellValue),
+    })),
+  };
+
+  const bodyRows: TableRowNode<TableBodyCellNode>[] = rows.map((row) => ({
+    type: "tr",
+    cells: row.map((cellValue, cellIndex) => ({
+      type: "td",
+      align: alignments[cellIndex],
+      children: parseInline(cellValue),
+    })),
+  }));
+
   return {
     type: "table",
-    head: {
-      type: "thead",
-      row: {
-        type: "tr",
-        cells: header.map((cellValue, cellIndex) => ({
-          type: "th" as const,
-          align: alignments[cellIndex],
-          children: parseInline(cellValue),
-        })),
-      },
-    },
-    body: {
-      type: "tbody",
-      rows: rows.map((row) => ({
-        type: "tr",
-        cells: row.map((cellValue, cellIndex) => ({
-          type: "td" as const,
-          align: alignments[cellIndex],
-          children: parseInline(cellValue),
-        })),
-      })),
-    },
+    head: { type: "thead", row: headRow },
+    body: { type: "tbody", rows: bodyRows },
   };
 }
 
@@ -369,8 +387,7 @@ function parseTableNode(
   const rows: string[][] = [];
   while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
     const rowLine = lines[currentIndex];
-    const rowCells =
-      rowLine.includes("|") ? splitTableRow(rowLine) : null;
+    const rowCells = rowLine.includes("|") ? splitTableRow(rowLine) : null;
     const isCandidate = rowCells !== null && rowCells.length > 1;
     if (!isCandidate && isTopLevelNodeStarter(rowLine)) break;
 
@@ -469,7 +486,10 @@ function parseListNode(
       let sliceAt = 0;
       if (lineIndent >= listMarker.contentIndent) {
         sliceAt = listMarker.contentIndent;
-        if (lineIndent > listMarker.contentIndent && !parseListMarker(currentLine.slice(listMarker.contentIndent)))
+        if (
+          lineIndent > listMarker.contentIndent &&
+          !parseListMarker(currentLine.slice(listMarker.contentIndent))
+        )
           sliceAt = lineIndent;
       } else if (lineIndent > indent) {
         sliceAt = Math.min(lineIndent, indent + 1);
@@ -834,7 +854,10 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
   const stack: Frame[] = [];
   let currentNodes: IrNode[] = [];
 
-  const open = (delimiterChar: Frame["delimiterChar"], delimiterLength: Frame["delimiterLength"]) => {
+  const open = (
+    delimiterChar: Frame["delimiterChar"],
+    delimiterLength: Frame["delimiterLength"]
+  ) => {
     stack.push({ delimiterChar, delimiterLength, nodes: currentNodes });
     currentNodes = [];
   };
@@ -861,7 +884,11 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
       if (putOddBefore) emitText("~", 1);
       for (let i = 0; i < pairs; i++) {
         const top = stack[stack.length - 1];
-        if (delimiter.canClose && top?.delimiterChar === "~" && top.delimiterLength === 2)
+        if (
+          delimiter.canClose &&
+          top?.delimiterChar === "~" &&
+          top.delimiterLength === 2
+        )
           close("~", 2);
         else if (delimiter.canOpen) open("~", 2);
         else emitText("~", 2);
@@ -872,27 +899,47 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
 
     let remaining = delimiter.len;
     const pieces: number[] = [];
-    while (remaining >= 2) { pieces.push(2); remaining -= 2; }
+    while (remaining >= 2) {
+      pieces.push(2);
+      remaining -= 2;
+    }
     if (remaining === 1) pieces.push(1);
     if (pieces.length === 2 && pieces[0] === 2 && pieces[1] === 1) {
       const top = stack[stack.length - 1];
-      if (delimiter.canOpen && !(delimiter.canClose && top?.delimiterChar === delimiter.ch))
+      if (
+        delimiter.canOpen &&
+        !(delimiter.canClose && top?.delimiterChar === delimiter.ch)
+      )
         pieces.splice(0, 2, 1, 2);
     }
 
     for (const pieceLen of pieces) {
       while (true) {
         const top = stack[stack.length - 1];
-        const canClose = delimiter.canClose && top?.delimiterChar === delimiter.ch
-          && top.delimiterLength === pieceLen;
-        if (canClose && !currentNodes.length) { emitText(delimiter.ch, pieceLen); break; }
-        if (canClose) { close(delimiter.ch, pieceLen); break; }
-        if (delimiter.canOpen) { open(delimiter.ch, pieceLen); break; }
+        const canClose =
+          delimiter.canClose &&
+          top?.delimiterChar === delimiter.ch &&
+          top.delimiterLength === pieceLen;
+        if (canClose && !currentNodes.length) {
+          emitText(delimiter.ch, pieceLen);
+          break;
+        }
+        if (canClose) {
+          close(delimiter.ch, pieceLen);
+          break;
+        }
+        if (delimiter.canOpen) {
+          open(delimiter.ch, pieceLen);
+          break;
+        }
         if (!currentNodes.length && top) {
           const frame = stack.pop()!;
           currentNodes = frame.nodes;
           emitText(frame.delimiterChar, frame.delimiterLength);
-        } else { emitText(delimiter.ch, pieceLen); break; }
+        } else {
+          emitText(delimiter.ch, pieceLen);
+          break;
+        }
       }
     }
   }
@@ -975,7 +1022,15 @@ function parseInline(str: string): InlineAstNode[] {
 
 // Constants
 const DELIMITER_CHARS = ["*", "_", "~"] as const;
-const SIMPLE_TOKENS: Record<string, InlineToken> = { "\n": { type: "newline" }, "\\": { type: "backslash" }, "!": { type: "bang" }, "[": { type: "lbracket" }, "]": { type: "rbracket" }, "(": { type: "lparen" }, ")": { type: "rparen" } };
+const SIMPLE_TOKENS: Record<string, InlineToken> = {
+  "\n": { type: "newline" },
+  "\\": { type: "backslash" },
+  "!": { type: "bang" },
+  "[": { type: "lbracket" },
+  "]": { type: "rbracket" },
+  "(": { type: "lparen" },
+  ")": { type: "rparen" },
+};
 
 const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
 const RE_NEWLINES = /\r\n?/g;
@@ -1002,7 +1057,19 @@ const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
 
-const TOKEN_TYPES = new Set(["text", "newline", "backslash", "escaped-backslash", "backtick", "delimiter", "lbracket", "rbracket", "lparen", "rparen", "bang"]);
+const TOKEN_TYPES = new Set([
+  "text",
+  "newline",
+  "backslash",
+  "escaped-backslash",
+  "backtick",
+  "delimiter",
+  "lbracket",
+  "rbracket",
+  "lparen",
+  "rparen",
+  "bang",
+]);
 
 // Types
 type Level = 1 | 2 | 3 | 4 | 5 | 6;
@@ -1066,22 +1133,39 @@ type ListNode = {
   items: ListItemNode[];
 };
 
+type TableHeaderCellNode = {
+  type: "th";
+  align?: TableAlign;
+  children: InlineAstNode[];
+};
+
+type TableBodyCellNode = {
+  type: "td";
+  align?: TableAlign;
+  children: InlineAstNode[];
+};
+
+type TableRowNode<
+  TableCellNode extends TableHeaderCellNode | TableBodyCellNode,
+> = {
+  type: "tr";
+  cells: TableCellNode[];
+};
+
+type TableHeadNode = {
+  type: "thead";
+  row: TableRowNode<TableHeaderCellNode>;
+};
+
+type TableBodyNode = {
+  type: "tbody";
+  rows: TableRowNode<TableBodyCellNode>[];
+};
+
 type TableNode = {
   type: "table";
-  head: {
-    type: "thead";
-    row: {
-      type: "tr";
-      cells: { type: "th"; align?: TableAlign; children: InlineAstNode[] }[];
-    };
-  };
-  body: {
-    type: "tbody";
-    rows: {
-      type: "tr";
-      cells: { type: "td"; align?: TableAlign; children: InlineAstNode[] }[];
-    }[];
-  };
+  head: TableHeadNode;
+  body: TableBodyNode;
 };
 
 type BlockAstNode =
