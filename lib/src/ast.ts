@@ -147,14 +147,15 @@ function appendText(nodes: IrNode[], value: string) {
   else nodes.push({ type: "text", value });
 }
 
+const istextNode = (node: { type: string }): node is TextNode =>
+  node.type === "text";
+
 function mergeAdjacentText<T extends { type: string }>(nodes: T[]): T[] {
   const merged: T[] = [];
   for (const node of nodes) {
     const last = merged[merged.length - 1];
-    if (node.type === "text" && last && last.type === "text") {
-      (last as unknown as { value: string }).value += (
-        node as unknown as { value: string }
-      ).value;
+    if (last && istextNode(node) && istextNode(last)) {
+      last.value += node.value;
     } else {
       merged.push(node);
     }
