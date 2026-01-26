@@ -1,70 +1,47 @@
-import type { AstNode, InlineNode } from "../src/ast";
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function renderInline(nodes: InlineNode[]): string {
-  return nodes
-    .map((node) => {
-      switch (node.type) {
-        case "text":
-          return escapeHtml(node.value);
-        case "code":
-          return `<code>${escapeHtml(node.value)}</code>`;
-        case "em":
-          return `<em>${renderInline(node.children)}</em>`;
-        case "strong":
-          return `<strong>${renderInline(node.children)}</strong>`;
-        case "del":
-          return `<del>${renderInline(node.children)}</del>`;
-        case "a": {
-          const href = escapeHtml(node.url);
-          const children =
-            node.children ?? [{ type: "text", value: node.url }];
-          return `<a href="${href}">${renderInline(children)}</a>`;
-        }
-        case "img": {
-          const src = escapeHtml(node.url);
-          const alt = escapeHtml(node.alt);
-          return `<img src="${src}" alt="${alt}" />`;
-        }
-        case "hardbreak":
-          return `<br />`;
-        default: {
-          throw new Error("should not get here");
-        }
-      }
-    })
-    .join("");
-}
+import type { AstNode } from "../src/ast";
 
 export function renderHtml(nodes: AstNode[]): string {
   return nodes
     .map((node) => {
       switch (node.type) {
+        case "text":
+          return node.value;
+        case "code":
+          return `<code>${node.value}</code>`;
+        case "em":
+          return `<em>${renderHtml(node.children)}</em>`;
+        case "strong":
+          return `<strong>${renderHtml(node.children)}</strong>`;
+        case "del":
+          return `<del>${renderHtml(node.children)}</del>`;
+        case "a": {
+          const href = node.url;
+          const children = node.children ?? [{ type: "text", value: node.url }];
+          return `<a href="${href}">${renderHtml(children)}</a>`;
+        }
+        case "img": {
+          const src = node.url;
+          const alt = node.alt;
+          return `<img src="${src}" alt="${alt}" />`;
+        }
+        case "linebreak":
+          return node.hard ? "<br />" : "\n";
         case "p":
-          return `<p>${renderInline(node.children)}</p>`;
+          return `<p>${renderHtml(node.children)}</p>`;
         case "h":
-          return `<h${node.level}>${renderInline(node.children)}</h${node.level}>`;
+          return `<h${node.level}>${renderHtml(node.children)}</h${node.level}>`;
         case "hr":
           return `<hr />`;
         case "pre": {
-          const klass = node.lang
-            ? ` class="language-${escapeHtml(node.lang)}"`
-            : "";
-          return `<pre><code${klass}>${escapeHtml(node.raw)}</code></pre>`;
+          const klass = node.lang ? ` class="language-${node.lang}"` : "";
+          return `<pre><code${klass}>${node.raw}</code></pre>`;
         }
         case "blockquote":
           return `<blockquote>${renderHtml(node.children)}</blockquote>`;
         case "list": {
           const tag = node.ordered ? "ol" : "ul";
           const startAttr =
-            node.ordered && node.start && node.start !== 1
+            node.ordered && node.start !== undefined && node.start !== 1
               ? ` start="${node.start}"`
               : "";
           const items = node.items
@@ -74,7 +51,10 @@ export function renderHtml(nodes: AstNode[]): string {
         }
         case "table": {
           const headCells = node.head.row.cells
-            .map((cell) => `<th>${renderInline(cell.children)}</th>`)
+            .map((cell) => {
+              const alignAttr = cell.align ? ` align="${cell.align}"` : "";
+              return `<th${alignAttr}>${renderHtml(cell.children)}</th>`;
+            })
             .join("");
           const headRows = `<tr>${headCells}</tr>`;
           const head = `<thead>${headRows}</thead>`;
@@ -82,7 +62,10 @@ export function renderHtml(nodes: AstNode[]): string {
           const bodyRows = node.body.rows
             .map((row) => {
               const cells = row.cells
-                .map((cell) => `<td>${renderInline(cell.children)}</td>`)
+                .map((cell) => {
+                  const alignAttr = cell.align ? ` align="${cell.align}"` : "";
+                  return `<td${alignAttr}>${renderHtml(cell.children)}</td>`;
+                })
                 .join("");
               return `<tr>${cells}</tr>`;
             })
