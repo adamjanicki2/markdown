@@ -24,8 +24,8 @@ export function renderHtml(nodes: AstNode[]): string {
           const alt = node.alt;
           return `<img src="${src}" alt="${alt}" />`;
         }
-        case "linebreak":
-          return node.hard ? "<br />" : "\n";
+        case "br":
+          return "<br />";
         case "p":
           return `<p>${renderHtml(node.children)}</p>`;
         case "h":

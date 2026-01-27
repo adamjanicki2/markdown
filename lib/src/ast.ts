@@ -149,7 +149,7 @@ function nodeToLiteral(node: IrNode): string {
   if (node.type === "delimiter") return node.char.repeat(node.len);
   if (node.type === "backtick") return "`".repeat(node.len);
   if (node.type === "code") return "`" + node.value + "`";
-  if (node.type === "linebreak" || node.type === "newline") return "\n";
+  if (node.type === "br" || node.type === "newline") return "\n";
   if (node.type === "em" || node.type === "strong" || node.type === "del")
     return nodesToLiteral(node.children);
   return "";
@@ -841,7 +841,7 @@ function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
     hard = true;
     if (!last.value) inlineNodes.pop();
   }
-  inlineNodes.push({ type: "linebreak", hard });
+  inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
 }
 
 function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
@@ -923,7 +923,7 @@ type ImageNode = { type: "img"; url: string; alt: string };
 type EmNode = { type: "em"; children: InlineAstNode[] };
 type StrongNode = { type: "strong"; children: InlineAstNode[] };
 type DelNode = { type: "del"; children: InlineAstNode[] };
-type LinebreakNode = { type: "linebreak"; hard: boolean };
+type BrNode = { type: "br" };
 
 type InlineAstNode =
   | TextNode
@@ -933,7 +933,7 @@ type InlineAstNode =
   | EmNode
   | StrongNode
   | DelNode
-  | LinebreakNode;
+  | BrNode;
 
 type DelimiterToken = {
   type: "delimiter";
