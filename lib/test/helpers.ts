@@ -49,28 +49,29 @@ export function renderHtml(nodes: AstNode[]): string {
             .join("");
           return `<${tag}${startAttr}>${items}</${tag}>`;
         }
+        case "tr":
+          return `<tr>${renderHtml(node.children)}</tr>`;
+        case "th": {
+          const alignAttr = node.align ? ` align="${node.align}"` : "";
+          return `<th${alignAttr}>${renderHtml(node.children)}</th>`;
+        }
+        case "td": {
+          const alignAttr = node.align ? ` align="${node.align}"` : "";
+          return `<td${alignAttr}>${renderHtml(node.children)}</td>`;
+        }
         case "table": {
-          const headCells = node.head.row.cells
-            .map((cell) => {
-              const alignAttr = cell.align ? ` align="${cell.align}"` : "";
-              return `<th${alignAttr}>${renderHtml(cell.children)}</th>`;
-            })
+          const headRows = node.children
+            .filter((row) => row.section === "head")
+            .map((row) => renderHtml([row]))
             .join("");
-          const headRows = `<tr>${headCells}</tr>`;
-          const head = `<thead>${headRows}</thead>`;
+          const bodyRows = node.children
+            .filter((row) => row.section === "body")
+            .map((row) => renderHtml([row]))
+            .join("");
 
-          const bodyRows = node.body.rows
-            .map((row) => {
-              const cells = row.cells
-                .map((cell) => {
-                  const alignAttr = cell.align ? ` align="${cell.align}"` : "";
-                  return `<td${alignAttr}>${renderHtml(cell.children)}</td>`;
-                })
-                .join("");
-              return `<tr>${cells}</tr>`;
-            })
-            .join("");
-          return `<table>${head}<tbody>${bodyRows}</tbody></table>`;
+          const thead = headRows ? `<thead>${headRows}</thead>` : "";
+          const tbody = bodyRows ? `<tbody>${bodyRows}</tbody>` : "";
+          return `<table>${thead}${tbody}</table>`;
         }
         default: {
           throw new Error("should not get here");

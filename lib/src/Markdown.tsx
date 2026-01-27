@@ -212,49 +212,43 @@ function renderNode(
     return renderers.li({
       children: renderChildren(node.children, renderers, dropTags),
     });
-  if (type === "table") {
-    const headerCells = node.head.row.cells.map((cell, cellIndex) => {
-      if (dropTags?.has("th")) return null;
-      return (
-        <React.Fragment key={cellIndex}>
-          {renderers.th({
-            children: renderChildren(cell.children, renderers, dropTags),
-            align: cell.align,
-          })}
-        </React.Fragment>
-      );
+  if (type === "tr")
+    return renderers.tr({
+      children: renderChildren(node.children, renderers, dropTags),
     });
+  if (type === "th")
+    return renderers.th({
+      children: renderChildren(node.children, renderers, dropTags),
+      align: node.align,
+    });
+  if (type === "td")
+    return renderers.td({
+      children: renderChildren(node.children, renderers, dropTags),
+      align: node.align,
+    });
+  if (type === "table") {
+    const headRows: React.ReactNode[] = [];
+    const bodyRows: React.ReactNode[] = [];
 
-    const headerRow = dropTags?.has("tr")
-      ? null
-      : renderers.tr({ children: headerCells });
-
-    const bodyRows = node.body.rows.map((row, rowIndex) => {
-      if (dropTags?.has("tr")) return null;
-
-      const cells = row.cells.map((cell, cellIndex) => {
-        if (dropTags?.has("td")) return null;
-        return (
-          <React.Fragment key={cellIndex}>
-            {renderers.td({
-              children: renderChildren(cell.children, renderers, dropTags),
-              align: cell.align,
-            })}
-          </React.Fragment>
-        );
-      });
-
-      return (
-        <React.Fragment key={rowIndex}>
-          {renderers.tr({ children: cells })}
-        </React.Fragment>
-      );
+    node.children.forEach((row, index) => {
+      const rendered = renderNode(row, renderers, dropTags);
+      if (rendered !== null) {
+        if (row.section === "head") {
+          headRows.push(
+            <React.Fragment key={index}>{rendered}</React.Fragment>
+          );
+        } else {
+          bodyRows.push(
+            <React.Fragment key={index}>{rendered}</React.Fragment>
+          );
+        }
+      }
     });
 
     const tableChildren = [
-      headerRow && <thead key="thead">{headerRow}</thead>,
-      <tbody key="tbody">{bodyRows}</tbody>,
-    ];
+      headRows.length > 0 && <thead key="thead">{headRows}</thead>,
+      bodyRows.length > 0 && <tbody key="tbody">{bodyRows}</tbody>,
+    ].filter((child): child is React.ReactElement => child !== false);
 
     return renderers.table({ children: tableChildren });
   }

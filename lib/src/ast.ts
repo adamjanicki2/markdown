@@ -310,18 +310,20 @@ function buildTableNode(
   rows: string[][],
   alignments: Array<TableAlign | undefined>
 ): TableNode {
-  const headRow: TableRowNode<TableHeaderCellNode> = {
+  const headRow: TableRowNode = {
     type: "tr",
-    cells: header.map((cellValue, cellIndex) => ({
+    section: "head",
+    children: header.map((cellValue, cellIndex) => ({
       type: "th",
       align: alignments[cellIndex],
       children: parseInline(cellValue),
     })),
   };
 
-  const bodyRows: TableRowNode<TableBodyCellNode>[] = rows.map((row) => ({
+  const bodyRows: TableRowNode[] = rows.map((row) => ({
     type: "tr",
-    cells: row.map((cellValue, cellIndex) => ({
+    section: "body",
+    children: row.map((cellValue, cellIndex) => ({
       type: "td",
       align: alignments[cellIndex],
       children: parseInline(cellValue),
@@ -330,8 +332,7 @@ function buildTableNode(
 
   return {
     type: "table",
-    head: { type: "thead", row: headRow },
-    body: { type: "tbody", rows: bodyRows },
+    children: [headRow, ...bodyRows],
   };
 }
 
@@ -981,27 +982,15 @@ type TableBodyCellNode = {
   children: InlineAstNode[];
 };
 
-type TableRowNode<
-  TableCellNode extends TableHeaderCellNode | TableBodyCellNode,
-> = {
+type TableRowNode = {
   type: "tr";
-  cells: TableCellNode[];
-};
-
-type TableHeadNode = {
-  type: "thead";
-  row: TableRowNode<TableHeaderCellNode>;
-};
-
-type TableBodyNode = {
-  type: "tbody";
-  rows: TableRowNode<TableBodyCellNode>[];
+  section: "head" | "body";
+  children: Array<TableHeaderCellNode | TableBodyCellNode>;
 };
 
 type TableNode = {
   type: "table";
-  head: TableHeadNode;
-  body: TableBodyNode;
+  children: TableRowNode[];
 };
 
 type BlockAstNode =
@@ -1012,7 +1001,10 @@ type BlockAstNode =
   | BlockquoteNode
   | ListNode
   | ListItemNode
-  | TableNode;
+  | TableNode
+  | TableRowNode
+  | TableHeaderCellNode
+  | TableBodyCellNode;
 
 export type AstNode = InlineAstNode | BlockAstNode;
 
