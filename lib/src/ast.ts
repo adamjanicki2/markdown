@@ -164,11 +164,6 @@ function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
 const LITERAL_MAP: Record<string, string> = {
   newline: "\n",
   linebreak: "\n",
-  lbracket: "[",
-  rbracket: "]",
-  lparen: "(",
-  rparen: ")",
-  bang: "!",
   backslash: "\\",
   "escaped-backslash": "\\",
 };
@@ -176,7 +171,8 @@ const LITERAL_MAP: Record<string, string> = {
 function nodeToLiteral(node: IrNode): string {
   if (node.type === "text") return node.value;
   if (node.type in LITERAL_MAP) return LITERAL_MAP[node.type];
-  if (node.type === "delimiter") return node.ch.repeat(node.len);
+  if (node.type === "punct") return node.char;
+  if (node.type === "delimiter") return node.char.repeat(node.len);
   if (node.type === "backtick") return "`".repeat(node.len);
   if (node.type === "code") return "`" + node.value + "`";
   if (node.type === "em" || node.type === "strong" || node.type === "del")
@@ -583,36 +579,36 @@ function tokenize(str: string): InlineToken[] {
   for (let i = 0; i < str.length; i++) {
     const char = str[i];
 
-    const simple = SIMPLE_TOKENS[char];
-    if (simple) pushToken(simple);
-    else if (char === "`") {
-      let runIndex = i + 1;
-      while (runIndex < str.length && str[runIndex] === "`") runIndex++;
-      pushToken({ type: "backtick", len: runIndex - i });
-      i = runIndex - 1;
-    } else if (char === "_" && isAlphanum(str[i - 1]) && isAlphanum(str[i + 1]))
-      text += char;
-    else if ((DELIMITER_CHARS as readonly string[]).includes(char)) {
+    if (char === "\n") pushToken({ type: "newline" });
+    else if (char === "\\") pushToken({ type: "backslash" });
+    else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
+    else if (char === "`" || char in DELIMITER_CONFIGS) {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === char) runIndex++;
-      const prevChar: string | undefined = str[i - 1];
-      const nextChar: string | undefined = str[runIndex];
-      if (char === "_" && isAlphanum(prevChar) && isAlphanum(nextChar)) {
-        text += char.repeat(runIndex - i);
-        i = runIndex - 1;
-        continue;
+
+      if (char === "`") {
+        pushToken({ type: "backtick", len: runIndex - i });
+      } else {
+        const config = DELIMITER_CONFIGS[char];
+        const prevChar = str[i - 1];
+        const nextChar = str[runIndex];
+
+        if (
+          !config?.intraword &&
+          isAlphanum(prevChar) &&
+          isAlphanum(nextChar)
+        ) {
+          text += char.repeat(runIndex - i);
+        } else {
+          pushToken({
+            type: "delimiter",
+            char,
+            len: runIndex - i,
+            canOpen: !isSpace(nextChar),
+            canClose: !isSpace(prevChar),
+          });
+        }
       }
-      const canOpen = !isSpace(nextChar);
-      const canClose = !isSpace(prevChar);
-
-      pushToken({
-        type: "delimiter",
-        ch: char as DelimiterChar,
-        len: runIndex - i,
-        canOpen,
-        canClose,
-      });
-
       i = runIndex - 1;
     } else text += char;
   }
@@ -698,6 +694,10 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
   return mergeAdjacentText(nodes);
 }
 
+function isPunctChar(node: IrNode, char: string): node is PunctToken {
+  return isToken(node) && node.type === "punct" && node.char === char;
+}
+
 function parseLinkOrImage(
   nodes: IrNode[],
   startIndex: number
@@ -705,28 +705,20 @@ function parseLinkOrImage(
   const startNode = nodes[startIndex];
   if (!isToken(startNode)) return null;
 
-  const isBang = startNode.type === "bang";
+  const isBang = isPunctChar(startNode, "!");
   const leftBracketIndex = isBang ? startIndex + 1 : startIndex;
-  if (leftBracketIndex >= nodes.length) return null;
-
-  const leftBracketNode = nodes[leftBracketIndex];
-  if (!isToken(leftBracketNode) || leftBracketNode.type !== "lbracket")
+  if (
+    leftBracketIndex >= nodes.length ||
+    !isPunctChar(nodes[leftBracketIndex], "[")
+  )
     return null;
 
   let rightBracketIndex = leftBracketIndex + 1;
   let bracketDepth = 0;
   while (rightBracketIndex < nodes.length) {
     const candidate = nodes[rightBracketIndex];
-    if (!isToken(candidate)) {
-      rightBracketIndex++;
-      continue;
-    }
-    if (candidate.type === "lbracket") {
-      bracketDepth++;
-      rightBracketIndex++;
-      continue;
-    }
-    if (candidate.type === "rbracket") {
+    if (isPunctChar(candidate, "[")) bracketDepth++;
+    else if (isPunctChar(candidate, "]")) {
       if (bracketDepth === 0) break;
       bracketDepth--;
     }
@@ -735,19 +727,14 @@ function parseLinkOrImage(
   if (rightBracketIndex >= nodes.length) return null;
 
   const leftParenNode = nodes[rightBracketIndex + 1];
-  if (
-    !leftParenNode ||
-    !isToken(leftParenNode) ||
-    leftParenNode.type !== "lparen"
-  )
-    return null;
+  if (!leftParenNode || !isPunctChar(leftParenNode, "(")) return null;
 
   let rightParenIndex = rightBracketIndex + 2;
   let parenDepth = 0;
   while (rightParenIndex < nodes.length) {
     const candidate = nodes[rightParenIndex];
-    if (isToken(candidate) && candidate.type === "lparen") parenDepth++;
-    else if (isToken(candidate) && candidate.type === "rparen") {
+    if (isPunctChar(candidate, "(")) parenDepth++;
+    else if (isPunctChar(candidate, ")")) {
       if (parenDepth === 0) break;
       parenDepth--;
     }
@@ -790,8 +777,8 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
       while (lookaheadIndex < nodes.length) {
         const nextNode = nodes[lookaheadIndex];
         if (nextNode.type === "text") combinedText += nextNode.value;
-        else if (nextNode.type === "lparen" || nextNode.type === "rparen")
-          combinedText += nodeToLiteral(nextNode);
+        else if (isPunctChar(nextNode, "(") || isPunctChar(nextNode, ")"))
+          combinedText += nextNode.char;
         else break;
         lookaheadIndex++;
       }
@@ -854,46 +841,44 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
   const stack: Frame[] = [];
   let currentNodes: IrNode[] = [];
 
-  const open = (
-    delimiterChar: Frame["delimiterChar"],
-    delimiterLength: Frame["delimiterLength"]
-  ) => {
+  const open = (delimiterChar: string, delimiterLength: number) => {
     stack.push({ delimiterChar, delimiterLength, nodes: currentNodes });
     currentNodes = [];
   };
 
-  const close = (ch: Frame["delimiterChar"], len: Frame["delimiterLength"]) => {
+  const close = (char: string, len: number) => {
     const inner = currentNodes;
     const frame = stack.pop();
     if (!frame) return;
     currentNodes = frame.nodes;
     const children = finalizeInlineNodes(inner);
-    if (ch === "~") currentNodes.push({ type: "del", children });
-    else if (len === 2) currentNodes.push({ type: "strong", children });
-    else currentNodes.push({ type: "em", children });
+    const type = char === "~" ? "del" : len === 2 ? "strong" : "em";
+    currentNodes.push({ type, children });
   };
 
-  const emitText = (ch: string, len: number) =>
-    currentNodes.push({ type: "text", value: ch.repeat(len) });
+  const emitText = (char: string, len: number) =>
+    currentNodes.push({ type: "text", value: char.repeat(len) });
 
   function consumeDelimRun(delimiter: DelimiterToken) {
-    if (delimiter.ch === "~") {
+    const config = DELIMITER_CONFIGS[delimiter.char];
+
+    if (config?.pairs) {
       const odd = delimiter.len & 1;
       const pairs = (delimiter.len - odd) >> 1;
       const putOddBefore = odd && !(delimiter.canClose && !delimiter.canOpen);
-      if (putOddBefore) emitText("~", 1);
+      if (putOddBefore) emitText(delimiter.char, 1);
       for (let i = 0; i < pairs; i++) {
         const top = stack[stack.length - 1];
         if (
           delimiter.canClose &&
-          top?.delimiterChar === "~" &&
+          top?.delimiterChar === delimiter.char &&
           top.delimiterLength === 2
         )
-          close("~", 2);
-        else if (delimiter.canOpen) open("~", 2);
-        else emitText("~", 2);
+          close(delimiter.char, 2);
+        else if (delimiter.canOpen) open(delimiter.char, 2);
+        else emitText(delimiter.char, 2);
       }
-      if (odd && !putOddBefore) emitText("~", 1);
+      if (odd && !putOddBefore) emitText(delimiter.char, 1);
       return;
     }
 
@@ -908,7 +893,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
       const top = stack[stack.length - 1];
       if (
         delimiter.canOpen &&
-        !(delimiter.canClose && top?.delimiterChar === delimiter.ch)
+        !(delimiter.canClose && top?.delimiterChar === delimiter.char)
       )
         pieces.splice(0, 2, 1, 2);
     }
@@ -918,18 +903,18 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
         const top = stack[stack.length - 1];
         const canClose =
           delimiter.canClose &&
-          top?.delimiterChar === delimiter.ch &&
+          top?.delimiterChar === delimiter.char &&
           top.delimiterLength === pieceLen;
         if (canClose && !currentNodes.length) {
-          emitText(delimiter.ch, pieceLen);
+          emitText(delimiter.char, pieceLen);
           break;
         }
         if (canClose) {
-          close(delimiter.ch, pieceLen);
+          close(delimiter.char, pieceLen);
           break;
         }
         if (delimiter.canOpen) {
-          open(delimiter.ch, pieceLen);
+          open(delimiter.char, pieceLen);
           break;
         }
         if (!currentNodes.length && top) {
@@ -937,7 +922,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
           currentNodes = frame.nodes;
           emitText(frame.delimiterChar, frame.delimiterLength);
         } else {
-          emitText(delimiter.ch, pieceLen);
+          emitText(delimiter.char, pieceLen);
           break;
         }
       }
@@ -946,7 +931,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
 
   for (const node of nodes) {
     if (node.type === "delimiter") {
-      if (!node.canOpen && !node.canClose) emitText(node.ch, node.len);
+      if (!node.canOpen && !node.canClose) emitText(node.char, node.len);
       else consumeDelimRun(node);
     } else currentNodes.push(node);
   }
@@ -1021,15 +1006,13 @@ function parseInline(str: string): InlineAstNode[] {
 }
 
 // Constants
-const DELIMITER_CHARS = ["*", "_", "~"] as const;
-const SIMPLE_TOKENS: Record<string, InlineToken> = {
-  "\n": { type: "newline" },
-  "\\": { type: "backslash" },
-  "!": { type: "bang" },
-  "[": { type: "lbracket" },
-  "]": { type: "rbracket" },
-  "(": { type: "lparen" },
-  ")": { type: "rparen" },
+const DELIMITER_CONFIGS: Record<
+  string,
+  { intraword: boolean; pairs: boolean } | undefined
+> = {
+  "*": { intraword: true, pairs: false },
+  _: { intraword: false, pairs: false },
+  "~": { intraword: true, pairs: true },
 };
 
 const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
@@ -1064,17 +1047,12 @@ const TOKEN_TYPES = new Set<InlineToken["type"]>([
   "escaped-backslash",
   "backtick",
   "delimiter",
-  "lbracket",
-  "rbracket",
-  "lparen",
-  "rparen",
-  "bang",
+  "punct",
 ]);
 
 // Types
 type Level = 1 | 2 | 3 | 4 | 5 | 6;
 type TableAlign = "left" | "right" | "center";
-type DelimiterChar = (typeof DELIMITER_CHARS)[number];
 
 type TextNode = { type: "text"; value: string };
 type CodeNode = { type: "code"; value: string };
@@ -1097,24 +1075,22 @@ type InlineAstNode =
 
 type DelimiterToken = {
   type: "delimiter";
-  ch: DelimiterChar;
+  char: string;
   len: number;
   canOpen: boolean;
   canClose: boolean;
 };
 
+type PunctToken = { type: "punct"; char: string };
+
 type InlineToken =
   | TextNode
   | DelimiterToken
+  | PunctToken
   | { type: "newline" }
   | { type: "backslash" }
   | { type: "escaped-backslash" }
-  | { type: "backtick"; len: number }
-  | { type: "lbracket" }
-  | { type: "rbracket" }
-  | { type: "lparen" }
-  | { type: "rparen" }
-  | { type: "bang" };
+  | { type: "backtick"; len: number };
 
 type IrNode = InlineToken | InlineAstNode;
 
@@ -1195,7 +1171,7 @@ type ListMarker = {
 };
 
 type Frame = {
-  delimiterChar: DelimiterChar;
+  delimiterChar: string;
   delimiterLength: number;
   nodes: IrNode[];
 };
