@@ -25,24 +25,6 @@ export function buildAst(markdown: string): AstNode[] {
       continue;
     }
 
-    if (getIndent(line) >= 4) {
-      flushParagraph();
-      const pre: string[] = [];
-      while (lineIndex < lines.length) {
-        const currentLine = lines[lineIndex];
-        if (isBlank(currentLine)) {
-          pre.push("");
-          lineIndex++;
-          continue;
-        }
-        if (!RE_INDENTED_CODE.test(currentLine)) break;
-        pre.push(currentLine.slice(4));
-        lineIndex++;
-      }
-      nodes.push({ type: "pre", lang: undefined, raw: pre.join("\n") });
-      continue;
-    }
-
     const fence = parseFenceStart(line);
     if (fence) {
       flushParagraph();
@@ -771,70 +753,12 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
     if (parsed) {
       nodesOut.push(parsed.node);
       i = parsed.nextIndex;
-    } else if (node.type === "text") {
-      let combinedText = node.value;
-      let lookaheadIndex = i + 1;
-      while (lookaheadIndex < nodes.length) {
-        const nextNode = nodes[lookaheadIndex];
-        if (nextNode.type === "text") combinedText += nextNode.value;
-        else if (isPunctChar(nextNode, "(") || isPunctChar(nextNode, ")"))
-          combinedText += nextNode.char;
-        else break;
-        lookaheadIndex++;
-      }
-      nodesOut.push(...parseAutolinksFromText(combinedText));
-      i = lookaheadIndex - 1;
-    } else nodesOut.push(node);
+    } else {
+      nodesOut.push(node);
+    }
   }
 
   return mergeAdjacentText(nodesOut);
-}
-
-function parseAutolinksFromText(text: string): IrNode[] {
-  if (!text.includes("http://") && !text.includes("https://"))
-    return [{ type: "text", value: text }];
-
-  const nodes: IrNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  RE_AUTOLINK_URL.lastIndex = 0;
-  while ((match = RE_AUTOLINK_URL.exec(text))) {
-    if (match.index > lastIndex)
-      nodes.push({ type: "text", value: text.slice(lastIndex, match.index) });
-
-    const textPrefix = match[1] || "";
-    if (textPrefix) nodes.push({ type: "text", value: textPrefix });
-
-    const rawUrl = match[0].slice(textPrefix.length);
-    const { url, trailing } = trimUrl(rawUrl);
-    nodes.push({ type: "a", url });
-    if (trailing) nodes.push({ type: "text", value: trailing });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length)
-    nodes.push({ type: "text", value: text.slice(lastIndex) });
-
-  return nodes;
-}
-
-function trimUrl(url: string): { url: string; trailing: string } {
-  let trailing = "";
-
-  while (url.length) {
-    const lastChar = url[url.length - 1];
-    if (!RE_AUTOLINK_TRAILING_PUNCT.test(lastChar)) break;
-    if (lastChar === ")") {
-      const openCount = url.split("(").length - 1;
-      const closeCount = url.split(")").length - 1;
-      if (closeCount <= openCount) break;
-    }
-    url = url.slice(0, -1);
-    trailing = lastChar + trailing;
-  }
-
-  return { url, trailing };
 }
 
 function resolveDelimiters(nodes: IrNode[]): IrNode[] {
@@ -1023,7 +947,6 @@ const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
 const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
 const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
 const RE_FENCE_TICKS = /^`{3,}$/;
-const RE_INDENTED_CODE = /^ {4}/;
 const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
@@ -1035,8 +958,6 @@ const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
 const RE_COLON = /:/g;
 const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
-const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s]+/g;
-const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
 
@@ -1056,7 +977,7 @@ type TableAlign = "left" | "right" | "center";
 
 type TextNode = { type: "text"; value: string };
 type CodeNode = { type: "code"; value: string };
-type LinkNode = { type: "a"; url: string; children?: InlineAstNode[] };
+type LinkNode = { type: "a"; url: string; children: InlineAstNode[] };
 type ImageNode = { type: "img"; url: string; alt: string };
 type EmNode = { type: "em"; children: InlineAstNode[] };
 type StrongNode = { type: "strong"; children: InlineAstNode[] };

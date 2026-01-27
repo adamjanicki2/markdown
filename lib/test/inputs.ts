@@ -382,18 +382,6 @@ export const TEST_CASES = [
     output: "<p><code>[x](y)</code></p>",
   },
   {
-    name: "77 autolink plain url",
-    input: "Here's a link https://example.com",
-    output:
-      '<p>Here\'s a link <a href="https://example.com">https://example.com</a></p>',
-  },
-  {
-    name: "78 autolink trims trailing punctuation",
-    input: "Visit https://example.com.",
-    output:
-      '<p>Visit <a href="https://example.com">https://example.com</a>.</p>',
-  },
-  {
     name: "79 table inside blockquote",
     input: "> | a | b |\n> | - | - |\n> | c | d |",
     output:
@@ -523,106 +511,9 @@ export const TEST_CASES = [
     output: "<p><del><strong><em><code>x</code></em></strong></del></p>",
   },
   {
-    name: "103 autolink standalone url",
-    input: "https://example.com",
-    output: '<p><a href="https://example.com">https://example.com</a></p>',
-  },
-  {
-    name: "104 autolink with query and fragment",
-    input: "Go https://example.com/a?b=c#d now",
-    output:
-      '<p>Go <a href="https://example.com/a?b=c#d">https://example.com/a?b=c#d</a> now</p>',
-  },
-  {
-    name: "105 autolink multiple with punctuation",
-    input: "Links: https://a.com, https://b.com;",
-    output:
-      '<p>Links: <a href="https://a.com">https://a.com</a>, <a href="https://b.com">https://b.com</a>;</p>',
-  },
-  {
-    name: "106 autolink wrapped in parentheses",
-    input: "See (https://example.com/path)",
-    output:
-      '<p>See (<a href="https://example.com/path">https://example.com/path</a>)</p>',
-  },
-  {
-    name: "107 autolink with port",
-    input: "Use https://example.com:8080/a",
-    output:
-      '<p>Use <a href="https://example.com:8080/a">https://example.com:8080/a</a></p>',
-  },
-  {
-    name: "108 autolink inside emphasis",
-    input: "*https://example.com*",
-    output:
-      '<p><em><a href="https://example.com">https://example.com</a></em></p>',
-  },
-  {
-    name: "109 autolink inside blockquote",
-    input: "> see https://example.com",
-    output:
-      '<blockquote>\n<p>see <a href="https://example.com">https://example.com</a></p>\n</blockquote>',
-  },
-  {
-    name: "110 autolink inside list item",
-    input: "- see https://example.com",
-    output:
-      '<ul>\n<li>see <a href="https://example.com">https://example.com</a></li>\n</ul>',
-  },
-  {
-    name: "111 autolink inside table cell",
-    input: "| a | b |\n| - | - |\n| https://example.com | c |",
-    output:
-      '<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><a href="https://example.com">https://example.com</a></td>\n<td>c</td>\n</tr>\n</tbody>\n</table>',
-  },
-  {
-    name: "112 autolink in blockquote lazy continuation",
-    input: "> https://example.com\ncontinued",
-    output:
-      '<blockquote>\n<p><a href="https://example.com">https://example.com</a>\ncontinued</p>\n</blockquote>',
-  },
-  {
-    name: "113 autolink not in code span",
-    input: "`https://example.com`",
-    output: "<p><code>https://example.com</code></p>",
-  },
-  {
-    name: "114 autolink trims trailing exclamation",
-    input: "Wow https://example.com!",
-    output: '<p>Wow <a href="https://example.com">https://example.com</a>!</p>',
-  },
-  {
-    name: "115 autolink trims trailing colon",
-    input: "Go https://example.com:",
-    output: '<p>Go <a href="https://example.com">https://example.com</a>:</p>',
-  },
-  {
-    name: "116 list item blank line then autolink paragraph",
-    input: "- a\n\n  https://example.com",
-    output:
-      '<ul>\n<li>\n<p>a</p>\n<p><a href="https://example.com">https://example.com</a></p>\n</li>\n</ul>',
-  },
-  {
-    name: "117 list item table with autolink cell",
-    input: "- | a | b |\n  | - | - |\n  | https://example.com | c |",
-    output:
-      '<ul>\n<li>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><a href="https://example.com">https://example.com</a></td>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n</li>\n</ul>',
-  },
-  {
     name: "118 code fence with url literal",
     input: "```\nhttps://example.com\n```",
     output: "<pre><code>https://example.com\n</code></pre>",
-  },
-  {
-    name: "119 autolink inside heading",
-    input: "# https://example.com",
-    output: '<h1><a href="https://example.com">https://example.com</a></h1>',
-  },
-  {
-    name: "120 autolinks across newline",
-    input: "https://example.com\nand https://example.org",
-    output:
-      '<p><a href="https://example.com">https://example.com</a>\nand <a href="https://example.org">https://example.org</a></p>',
   },
   {
     name: "121 hardbreak with trailing backslash",
@@ -680,68 +571,6 @@ export const TEST_CASES = [
     output: "<pre><code>a\\\nb\n</code></pre>",
   },
   {
-    name: "132 autolink includes open parenthesis",
-    input: "See https://example.com/a(b)c",
-    output:
-      '<p>See <a href="https://example.com/a(b)c">https://example.com/a(b)c</a></p>',
-  },
-  {
-    name: "133 autolink includes closed parenthesis",
-    input: "See https://example.com/a)b",
-    output:
-      '<p>See <a href="https://example.com/a)b">https://example.com/a)b</a></p>',
-  },
-  {
-    name: "134 autolink followed by bracket",
-    input: "x https://example.com] y",
-    output: '<p>x <a href="https://example.com">https://example.com</a>] y</p>',
-  },
-  {
-    name: "135 autolink after punctuation with no space",
-    input: "x:https://example.com",
-    output: '<p>x:<a href="https://example.com">https://example.com</a></p>',
-  },
-  {
-    name: "136 autolink with fragment only",
-    input: "https://example.com/#hash",
-    output:
-      '<p><a href="https://example.com/#hash">https://example.com/#hash</a></p>',
-  },
-  {
-    name: "137 autolink followed by ellipsis",
-    input: "See https://example.com...",
-    output:
-      '<p>See <a href="https://example.com">https://example.com</a>...</p>',
-  },
-  {
-    name: "138 autolink in nested list item paragraph",
-    input: "- a\n  - see https://example.com",
-    output:
-      '<ul>\n<li>a\n<ul>\n<li>see <a href="https://example.com">https://example.com</a></li>\n</ul>\n</li>\n</ul>',
-  },
-  {
-    name: "139 table row with autolink and emphasis",
-    input: "| a | b |\n| - | - |\n| *https://e.com* | c |",
-    output:
-      '<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><em><a href="https://e.com">https://e.com</a></em></td>\n<td>c</td>\n</tr>\n</tbody>\n</table>',
-  },
-  {
-    name: "140 blockquote lazy continuation with autolink + hardbreak",
-    input: "> a\\\nhttps://example.com",
-    output:
-      '<blockquote>\n<p>a<br />\n<a href="https://example.com">https://example.com</a></p>\n</blockquote>',
-  },
-  {
-    name: "141 backslash escape before autolink should not hardbreak",
-    input: "a\\\\\nhttps://example.com",
-    output: '<p>a\\\n<a href="https://example.com">https://example.com</a></p>',
-  },
-  {
-    name: "142 autolink with trailing slash and punctuation",
-    input: "https://example.com/,",
-    output: '<p><a href="https://example.com/">https://example.com/</a>,</p>',
-  },
-  {
     name: "143 hardbreak backslash then emphasis continues",
     input: "a\\\n*bc*",
     output: "<p>a<br />\n<em>bc</em></p>",
@@ -750,36 +579,6 @@ export const TEST_CASES = [
     name: "144 hardbreak backslash with two spaces after",
     input: "a\\  \nb",
     output: "<p>a\\<br />\nb</p>",
-  },
-  {
-    name: "145 autolink near emphasis markers",
-    input: "_https://example.com_",
-    output:
-      '<p><em><a href="https://example.com">https://example.com</a></em></p>',
-  },
-  {
-    name: "146 autolink across paragraph boundary should not join",
-    input: "https://a.com\n\nhttps://b.com",
-    output:
-      '<p><a href="https://a.com">https://a.com</a></p>\n<p><a href="https://b.com">https://b.com</a></p>',
-  },
-  {
-    name: "147 heading followed by paragraph autolink",
-    input: "# Title\nhttps://example.com",
-    output:
-      '<h1>Title</h1>\n<p><a href="https://example.com">https://example.com</a></p>',
-  },
-  {
-    name: "148 blockquote with table and autolink cell",
-    input: "> | a | b |\n> | - | - |\n> | https://a.com | c |",
-    output:
-      '<blockquote>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><a href="https://a.com">https://a.com</a></td>\n<td>c</td>\n</tr>\n</tbody>\n</table>\n</blockquote>',
-  },
-  {
-    name: "149 list item with autolink and hardbreak backslash",
-    input: "- https://a.com \\\n  b",
-    output:
-      '<ul>\n<li><a href="https://a.com">https://a.com</a> <br />\nb</li>\n</ul>',
   },
   {
     name: "150 hardbreak backslash before blockquote",
@@ -830,11 +629,6 @@ export const TEST_CASES = [
     name: "158 thematic break with leading indentation 3 spaces still hr",
     input: "   ---",
     output: "<hr />",
-  },
-  {
-    name: "159 indented 4 spaces prevents hr (code block)",
-    input: "    ---",
-    output: "<pre><code>---\n</code></pre>",
   },
   {
     name: "160 code span with internal backtick via double fence",
@@ -921,24 +715,6 @@ export const TEST_CASES = [
     name: "177 image with punctuation in alt",
     input: "![a (b) [c]](img.png)",
     output: '<p><img src="img.png" alt="a (b) [c]" /></p>',
-  },
-  {
-    name: "178 autolink with query chars",
-    input: "https://example.com/a?b=(c)&d=e",
-    output:
-      '<p><a href="https://example.com/a?b=(c)&d=e">https://example.com/a?b=(c)&d=e</a></p>',
-  },
-  {
-    name: "179 autolink followed by close paren balanced should include",
-    input: "https://example.com/a(b)c",
-    output:
-      '<p><a href="https://example.com/a(b)c">https://example.com/a(b)c</a></p>',
-  },
-  {
-    name: "180 autolink trailing paren should be trimmed if unbalanced",
-    input: "https://example.com/a(b))",
-    output:
-      '<p><a href="https://example.com/a(b)">https://example.com/a(b)</a>)</p>',
   },
   {
     name: "181 literal angle brackets remain text",
