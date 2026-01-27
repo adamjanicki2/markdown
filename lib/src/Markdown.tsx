@@ -5,16 +5,31 @@ import { type AstNode, buildAst } from "./ast";
 type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** The Markdown source string to convert into a react component */
   children: string;
+  /** Custom renderers to use for each DOM Element */
   renderers?: Partial<Renderers>;
+  /**
+   * HTML elements to drop from output. Elements in this list will be omitted along with their entire subtree
+   * @example ["img", "a"] // will not render any images or links
+   */
+  dropTags?: readonly Tag[] | Tag[];
 };
 
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
-  ({ children, renderers, ...props }, ref) => {
+  ({ children, renderers, dropTags, ...props }, ref) => {
     const ast = React.useMemo(() => buildAst(children), [children]);
+    const dropTagsSet = React.useMemo(
+      () => (dropTags ? new Set(dropTags) : undefined),
+      [dropTags]
+    );
 
     return (
       <div {...props} ref={ref}>
-        <Tree renderers={{ ...DEFAULT_RENDERERS, ...renderers }}>{ast}</Tree>
+        <Tree
+          renderers={{ ...DEFAULT_RENDERERS, ...renderers }}
+          dropTags={dropTagsSet}
+        >
+          {ast}
+        </Tree>
       </div>
     );
   }
@@ -23,10 +38,19 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
 type TreeProps = {
   children: AstNode[];
   renderers: Renderers;
+  dropTags?: Set<Tag>;
 };
 
 function getNodeKey(node: AstNode) {
   const type = node.type;
+  if (type === "list") return node.ordered ? "ol" : "ul";
+  if (type === "h") return `h${node.level}`;
+  return type;
+}
+
+function getTagFromNode(node: AstNode): Tag | null {
+  const type = node.type;
+  if (type === "text") return null;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
   return type;
@@ -70,6 +94,8 @@ type Renderers = {
   td: (props: TableCellProps) => React.ReactNode;
 };
 
+type Tag = keyof Renderers;
+
 const DEFAULT_RENDERERS: Renderers = {
   code: ({ children }) => <code>{children}</code>,
   em: ({ children }) => <em>{children}</em>,
@@ -101,58 +127,104 @@ const DEFAULT_RENDERERS: Renderers = {
   td: ({ children, align }) => <td align={align}>{children}</td>,
 };
 
-function Tree({ children, renderers }: TreeProps) {
+function Tree({ children, renderers, dropTags }: TreeProps) {
   return children.map((node, index) => (
     <React.Fragment key={`${getNodeKey(node)}-${index}`}>
-      {renderNode(node, { ...DEFAULT_RENDERERS, ...renderers })}
+      {renderNode(node, renderers, dropTags)}
     </React.Fragment>
   ));
 }
 
-function renderNode(node: AstNode, renderers: Renderers): React.ReactNode {
+function renderNode(
+  node: AstNode,
+  renderers: Renderers,
+  dropTags?: Set<Tag>
+): React.ReactNode {
   const type = node.type;
   if (type === "text") return node.value;
+
+  if (dropTags) {
+    const tag = getTagFromNode(node);
+    if (tag && dropTags.has(tag)) {
+      return null;
+    }
+  }
+
   if (type === "code") return renderers.code({ children: node.value });
   if (type === "em")
     return renderers.em({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      children: (
+        <Tree renderers={renderers} dropTags={dropTags}>
+          {node.children}
+        </Tree>
+      ),
     });
   if (type === "strong")
     return renderers.strong({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      children: (
+        <Tree renderers={renderers} dropTags={dropTags}>
+          {node.children}
+        </Tree>
+      ),
     });
   if (type === "del")
     return renderers.del({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      children: (
+        <Tree renderers={renderers} dropTags={dropTags}>
+          {node.children}
+        </Tree>
+      ),
     });
   if (type === "a")
     return renderers.a({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      children: (
+        <Tree renderers={renderers} dropTags={dropTags}>
+          {node.children}
+        </Tree>
+      ),
       href: node.url,
     });
   if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
   if (type === "br") return renderers.br();
   if (type === "p")
     return renderers.p({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      children: (
+        <Tree renderers={renderers} dropTags={dropTags}>
+          {node.children}
+        </Tree>
+      ),
     });
   if (type === "h") {
     const Heading = renderers[`h${node.level}`];
     return Heading({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      children: (
+        <Tree renderers={renderers} dropTags={dropTags}>
+          {node.children}
+        </Tree>
+      ),
     });
   }
   if (type === "hr") return renderers.hr();
   if (type === "pre")
     return renderers.pre({ children: node.raw, lang: node.lang });
   if (type === "list") {
-    const items = node.items.map((item, itemIndex) => (
-      <React.Fragment key={itemIndex}>
-        {renderers.li({
-          children: <Tree renderers={renderers}>{item.children}</Tree>,
-        })}
-      </React.Fragment>
-    ));
+    const items = node.items
+      .map((item, itemIndex) => {
+        if (dropTags?.has("li")) return null;
+
+        return (
+          <React.Fragment key={itemIndex}>
+            {renderers.li({
+              children: (
+                <Tree renderers={renderers} dropTags={dropTags}>
+                  {item.children}
+                </Tree>
+              ),
+            })}
+          </React.Fragment>
+        );
+      })
+      .filter((item) => item !== null); // Remove null entries
 
     if (node.ordered) {
       const start =
@@ -163,44 +235,81 @@ function renderNode(node: AstNode, renderers: Renderers): React.ReactNode {
   }
   if (type === "li")
     return renderers.li({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      children: (
+        <Tree renderers={renderers} dropTags={dropTags}>
+          {node.children}
+        </Tree>
+      ),
     });
   if (type === "table") {
-    const headerCells = node.head.row.cells.map((cell, cellIndex) => (
-      <React.Fragment key={cellIndex}>
-        {renderers.th({
-          children: <Tree renderers={renderers}>{cell.children}</Tree>,
-          align: cell.align,
-        })}
-      </React.Fragment>
-    ));
-    const headerRow = renderers.tr({ children: headerCells });
+    const headerCells = node.head.row.cells
+      .map((cell, cellIndex) => {
+        // Check if th should be dropped
+        if (dropTags?.has("th")) return null;
 
-    const bodyRows = node.body.rows.map((row, rowIndex) => {
-      const cells = row.cells.map((cell, cellIndex) => (
-        <React.Fragment key={cellIndex}>
-          {renderers.td({
-            children: <Tree renderers={renderers}>{cell.children}</Tree>,
-            align: cell.align,
-          })}
-        </React.Fragment>
-      ));
-      return (
-        <React.Fragment key={rowIndex}>
-          {renderers.tr({ children: cells })}
-        </React.Fragment>
-      );
-    });
+        return (
+          <React.Fragment key={cellIndex}>
+            {renderers.th({
+              children: (
+                <Tree renderers={renderers} dropTags={dropTags}>
+                  {cell.children}
+                </Tree>
+              ),
+              align: cell.align,
+            })}
+          </React.Fragment>
+        );
+      })
+      .filter((cell) => cell !== null);
+
+    const headerRow = dropTags?.has("tr")
+      ? null
+      : renderers.tr({ children: headerCells });
+
+    const bodyRows = node.body.rows
+      .map((row, rowIndex) => {
+        if (dropTags?.has("tr")) return null;
+
+        const cells = row.cells
+          .map((cell, cellIndex) => {
+            if (dropTags?.has("td")) return null;
+
+            return (
+              <React.Fragment key={cellIndex}>
+                {renderers.td({
+                  children: (
+                    <Tree renderers={renderers} dropTags={dropTags}>
+                      {cell.children}
+                    </Tree>
+                  ),
+                  align: cell.align,
+                })}
+              </React.Fragment>
+            );
+          })
+          .filter((cell) => cell !== null);
+
+        return (
+          <React.Fragment key={rowIndex}>
+            {renderers.tr({ children: cells })}
+          </React.Fragment>
+        );
+      })
+      .filter((row) => row !== null);
 
     return renderers.table({
       children: [
-        <thead key="thead">{headerRow}</thead>,
+        headerRow ? <thead key="thead">{headerRow}</thead> : null,
         <tbody key="tbody">{bodyRows}</tbody>,
-      ],
+      ].filter((item) => item !== null),
     });
   }
   return renderers.blockquote({
-    children: <Tree renderers={renderers}>{node.children}</Tree>,
+    children: (
+      <Tree renderers={renderers} dropTags={dropTags}>
+        {node.children}
+      </Tree>
+    ),
   });
 }
 
