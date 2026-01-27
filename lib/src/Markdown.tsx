@@ -26,9 +26,10 @@ type TreeProps = {
 };
 
 function getNodeKey(node: AstNode) {
-  if (node.type === "list") return node.ordered ? "ol" : "ul";
-  if (node.type === "h") return `h${node.level}`;
-  return node.type;
+  const type = node.type;
+  if (type === "list") return node.ordered ? "ol" : "ul";
+  if (type === "h") return `h${node.level}`;
+  return type;
 }
 
 type ChildrenProps = { children: React.ReactNode };
@@ -108,53 +109,43 @@ function Tree({ children, renderers }: TreeProps) {
   ));
 }
 
-type NodeHandler<T extends AstNode> = (
-  node: T,
-  renderers: Renderers
-) => React.ReactNode;
-
-const NODE_HANDLERS: {
-  [K in AstNode["type"]]: NodeHandler<Extract<AstNode, { type: K }>>;
-} = {
-  text: (node) => node.value,
-  code: (node, renderers) => renderers.code({ children: node.value }),
-  em: (node, renderers) =>
-    renderers.em({
+function renderNode(node: AstNode, renderers: Renderers): React.ReactNode {
+  const type = node.type;
+  if (type === "text") return node.value;
+  if (type === "code") return renderers.code({ children: node.value });
+  if (type === "em")
+    return renderers.em({
       children: <Tree renderers={renderers}>{node.children}</Tree>,
-    }),
-  strong: (node, renderers) =>
-    renderers.strong({
+    });
+  if (type === "strong")
+    return renderers.strong({
       children: <Tree renderers={renderers}>{node.children}</Tree>,
-    }),
-  del: (node, renderers) =>
-    renderers.del({
+    });
+  if (type === "del")
+    return renderers.del({
       children: <Tree renderers={renderers}>{node.children}</Tree>,
-    }),
-  a: (node, renderers) =>
-    renderers.a({
+    });
+  if (type === "a")
+    return renderers.a({
       children: <Tree renderers={renderers}>{node.children}</Tree>,
       href: node.url,
-    }),
-  img: (node, renderers) => renderers.img({ src: node.url, alt: node.alt }),
-  br: (_node, renderers) => renderers.br(),
-  p: (node, renderers) =>
-    renderers.p({
+    });
+  if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
+  if (type === "br") return renderers.br();
+  if (type === "p")
+    return renderers.p({
       children: <Tree renderers={renderers}>{node.children}</Tree>,
-    }),
-  h: (node, renderers) => {
+    });
+  if (type === "h") {
     const Heading = renderers[`h${node.level}`];
     return Heading({
       children: <Tree renderers={renderers}>{node.children}</Tree>,
     });
-  },
-  hr: (_node, renderers) => renderers.hr(),
-  pre: (node, renderers) =>
-    renderers.pre({ children: node.raw, lang: node.lang }),
-  blockquote: (node, renderers) =>
-    renderers.blockquote({
-      children: <Tree renderers={renderers}>{node.children}</Tree>,
-    }),
-  list: (node, renderers) => {
+  }
+  if (type === "hr") return renderers.hr();
+  if (type === "pre")
+    return renderers.pre({ children: node.raw, lang: node.lang });
+  if (type === "list") {
     const items = node.items.map((item, itemIndex) => (
       <React.Fragment key={itemIndex}>
         {renderers.li({
@@ -169,12 +160,12 @@ const NODE_HANDLERS: {
       return renderers.ol({ children: items, start });
     }
     return renderers.ul({ children: items });
-  },
-  li: (node, renderers) =>
-    renderers.li({
+  }
+  if (type === "li")
+    return renderers.li({
       children: <Tree renderers={renderers}>{node.children}</Tree>,
-    }),
-  table: (node, renderers) => {
+    });
+  if (type === "table") {
     const headerCells = node.head.row.cells.map((cell, cellIndex) => (
       <React.Fragment key={cellIndex}>
         {renderers.th({
@@ -207,26 +198,10 @@ const NODE_HANDLERS: {
         <tbody key="tbody">{bodyRows}</tbody>,
       ],
     });
-  },
-};
-
-function renderNode(node: AstNode, renderers: Renderers): React.ReactNode {
-  if (node.type === "text") return NODE_HANDLERS.text(node, renderers);
-  if (node.type === "code") return NODE_HANDLERS.code(node, renderers);
-  if (node.type === "em") return NODE_HANDLERS.em(node, renderers);
-  if (node.type === "strong") return NODE_HANDLERS.strong(node, renderers);
-  if (node.type === "del") return NODE_HANDLERS.del(node, renderers);
-  if (node.type === "a") return NODE_HANDLERS.a(node, renderers);
-  if (node.type === "img") return NODE_HANDLERS.img(node, renderers);
-  if (node.type === "br") return NODE_HANDLERS.br(node, renderers);
-  if (node.type === "p") return NODE_HANDLERS.p(node, renderers);
-  if (node.type === "h") return NODE_HANDLERS.h(node, renderers);
-  if (node.type === "hr") return NODE_HANDLERS.hr(node, renderers);
-  if (node.type === "pre") return NODE_HANDLERS.pre(node, renderers);
-  if (node.type === "list") return NODE_HANDLERS.list(node, renderers);
-  if (node.type === "li") return NODE_HANDLERS.li(node, renderers);
-  if (node.type === "table") return NODE_HANDLERS.table(node, renderers);
-  return NODE_HANDLERS.blockquote(node, renderers);
+  }
+  return renderers.blockquote({
+    children: <Tree renderers={renderers}>{node.children}</Tree>,
+  });
 }
 
 export default Markdown;
