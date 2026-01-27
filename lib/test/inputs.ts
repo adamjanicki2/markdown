@@ -382,386 +382,393 @@ export const TEST_CASES = [
     output: "<p><code>[x](y)</code></p>",
   },
   {
-    name: "79 table inside blockquote",
+    name: "77 table inside blockquote",
     input: "> | a | b |\n> | - | - |\n> | c | d |",
     output:
       "<blockquote>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n<td>d</td>\n</tr>\n</tbody>\n</table>\n</blockquote>",
   },
   {
-    name: "80 table inside list item",
+    name: "78 table inside list item",
     input: "- | a | b |\n  | - | - |\n  | c | d |",
     output:
       "<ul>\n<li>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n<td>d</td>\n</tr>\n</tbody>\n</table>\n</li>\n</ul>",
   },
   {
-    name: "81 horizontal rule before list item",
+    name: "79 horizontal rule before list item",
     input: "- ---\n- a",
     output: "<hr />\n<ul>\n<li>a</li>\n</ul>",
   },
   {
-    name: "82 blockquote with list, blank line, then paragraph",
+    name: "80 blockquote with list, blank line, then paragraph",
     input: "> - a\n>   - b\n> \n> c",
     output:
       "<blockquote>\n<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n</li>\n</ul>\n<p>c</p>\n</blockquote>",
   },
   {
-    name: "83 ordered list with blockquote and nested list",
+    name: "81 ordered list with blockquote and nested list",
     input: "2. a\n   > b\n   > - c\n3. d",
     output:
       '<ol start="2">\n<li>a\n<blockquote>\n<p>b</p>\n<ul>\n<li>c</li>\n</ul>\n</blockquote>\n</li>\n<li>d</li>\n</ol>',
   },
   {
-    name: "84 loose list item with fenced code block",
+    name: "82 loose list item with fenced code block",
     input: "- a\n\n  ```\n  code\n  ```\n\n- b",
     output:
       "<ul>\n<li>\n<p>a</p>\n<pre><code>code\n</code></pre>\n</li>\n<li>\n<p>b</p>\n</li>\n</ul>",
   },
   {
-    name: "85 blockquote with fenced code and language",
+    name: "83 blockquote with fenced code and language",
     input: "> ```ts\n> const x = 1;\n> ```",
     output:
       '<blockquote>\n<pre><code class="language-ts">const x = 1;\n</code></pre>\n</blockquote>',
   },
   {
-    name: "86 heading with tab after marker",
+    name: "84 heading with tab after marker",
     input: "#\tTitle",
     output: "<h1>Title</h1>",
   },
   {
-    name: "87 code fence info only uses first token",
+    name: "85 code fence info only uses first token",
     input: "```js extra\nx\n```",
     output: '<pre><code class="language-js">x\n</code></pre>',
   },
   {
-    name: "88 unordered list with plus markers",
+    name: "86 unordered list with plus markers",
     input: "+ a\n+ b",
     output: "<ul>\n<li>a</li>\n<li>b</li>\n</ul>",
   },
   {
-    name: "89 unordered list makes separate list with mixed markers",
+    name: "87 unordered list makes separate list with mixed markers",
     input: "- a\n+ b",
     output: "<ul>\n<li>a</li>\n</ul>\n<ul>\n<li>b</li>\n</ul>",
   },
   {
-    name: "90 ordered list with paren markers",
+    name: "88 ordered list with paren markers",
     input: "1) a\n2) b",
     output: "<ol>\n<li>a</li>\n<li>b</li>\n</ol>",
   },
   {
-    name: "91 ordered list allows long numeric marker",
+    name: "89 ordered list allows long numeric marker",
     input: "123456789. a\n123456790. b",
     output: '<ol start="123456789">\n<li>a</li>\n<li>b</li>\n</ol>',
   },
   {
-    name: "92 list item continuation with extra indentation",
+    name: "90 list item continuation with extra indentation",
     input: "- a\n   b",
     output: "<ul>\n<li>a\nb</li>\n</ul>",
   },
   {
-    name: "93 nested list with deeper indentation",
+    name: "91 nested list with deeper indentation",
     input: "- a\n    - b",
     output: "<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n</li>\n</ul>",
   },
   {
-    name: "94 blockquote ends before heading",
+    name: "92 blockquote ends before heading",
     input: "> a\n# b",
     output: "<blockquote>\n<p>a</p>\n</blockquote>\n<h1>b</h1>",
   },
   {
-    name: "95 table delimiter rejects colons",
+    name: "93 table delimiter rejects colons",
     input: "| a | b |\n| :-- | --: |\n| c | d |",
     output:
       '<table>\n<thead>\n<tr>\n<th align="left">a</th>\n<th align="right">b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align="left">c</td>\n<td align="right">d</td>\n</tr>\n</tbody>\n</table>',
   },
   {
-    name: "96 table with spaced cells and no outer pipes",
+    name: "94 table with spaced cells and no outer pipes",
     input: " a | b \n --- | --- \n c | d ",
     output:
       "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n<td>d</td>\n</tr>\n</tbody>\n</table>",
   },
   {
-    name: "97 hardbreak inside link label",
+    name: "95 hardbreak inside link label",
     input: "[a  \nb](x)",
     output: '<p><a href="x">a<br />\nb</a></p>',
   },
   {
-    name: "98 emphasis across line break inside link label",
+    name: "96 emphasis across line break inside link label",
     input: "[*a\nb*](x)",
     output: '<p><a href="x"><em>a\nb</em></a></p>',
   },
   {
-    name: "99 image alt does not parse inline",
+    name: "97 image alt does not parse inline",
     input: "![**a**](x)",
     output: '<p><img src="x" alt="**a**" /></p>',
   },
   {
-    name: "100 unterminated code fence consumes rest of document",
+    name: "98 unterminated code fence consumes rest of document",
     input: "```\ncode",
     output: "<pre><code>code\n</code></pre>",
   },
   {
-    name: "101 deep nesting: blockquote > list > blockquote > list > code",
+    name: "99 deep nesting: blockquote > list > blockquote > list > code",
     input: "> - a\n>   > b\n>   > - `c`\n> - d",
     output:
       "<blockquote>\n<ul>\n<li>a\n<blockquote>\n<p>b</p>\n<ul>\n<li><code>c</code></li>\n</ul>\n</blockquote>\n</li>\n<li>d</li>\n</ul>\n</blockquote>",
   },
   {
-    name: "102 very deep inline nesting with code",
+    name: "100 very deep inline nesting with code",
     input: "~~**_`x`_**~~",
     output: "<p><del><strong><em><code>x</code></em></strong></del></p>",
   },
   {
-    name: "118 code fence with url literal",
+    name: "101 code fence with url literal",
     input: "```\nhttps://example.com\n```",
     output: "<pre><code>https://example.com\n</code></pre>",
   },
   {
-    name: "130 trailing backslash without newline is literal",
+    name: "102 trailing backslash without newline is literal",
     input: "a\\",
     output: "<p>a\\</p>",
   },
   {
-    name: "131 backslash before newline in code fence stays literal",
+    name: "103 backslash before newline in code fence stays literal",
     input: "```\na\\\nb\n```",
     output: "<pre><code>a\\\nb\n</code></pre>",
   },
   {
-    name: "151 list item contains table then paragraph continuation",
+    name: "104 list item contains table then paragraph continuation",
     input: "- intro\n  | a | b |\n  | - | - |\n  | c | d |\n  tail",
     output:
       "<ul>\n<li>intro\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n<td>d</td>\n</tr>\n<tr>\n<td>tail</td>\n<td></td>\n</tr>\n</tbody>\n</table>\n</li>\n</ul>",
   },
   {
-    name: "152 list > blockquote > list item contains table",
+    name: "105 list > blockquote > list item contains table",
     input:
       "- a\n  > - b\n  >   | h | i |\n  >   | - | - |\n  >   | x | y |\n- c",
     output:
       "<ul>\n<li>a\n<blockquote>\n<ul>\n<li>b\n<table>\n<thead>\n<tr>\n<th>h</th>\n<th>i</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x</td>\n<td>y</td>\n</tr>\n</tbody>\n</table>\n</li>\n</ul>\n</blockquote>\n</li>\n<li>c</li>\n</ul>",
   },
   {
-    name: "153 blockquote contains list whose item contains table and code fence",
+    name: "106 blockquote contains list whose item contains table and code fence",
     input:
       '> - item\n>   | a | b |\n>   | - | - |\n>   | `x|y` | ~~z~~ |\n>\n>   ```js\n>   const url = "https://example.com";\n>   ```',
     output:
       '<blockquote>\n<ul>\n<li>\n<p>item</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>`x</td>\n<td>y`</td>\n</tr>\n</tbody>\n</table>\n<pre><code class="language-js">const url = "https://example.com";\n</code></pre>\n</li>\n</ul>\n</blockquote>',
   },
   {
-    name: "154 heading requires space after # (should be paragraph)",
+    name: "107 heading requires space after # (should be paragraph)",
     input: "#Title",
     output: "<p>#Title</p>",
   },
   {
-    name: "155 heading with more than 6 hashes clamps/treated as heading 6-ish",
+    name: "108 heading with more than 6 hashes clamps/treated as heading 6-ish",
     input: "####### too many",
     output: "<p>####### too many</p>",
   },
   {
-    name: "156 thematic break not enough markers (should be paragraph)",
+    name: "109 thematic break not enough markers (should be paragraph)",
     input: "--",
     output: "<p>--</p>",
   },
   {
-    name: "157 thematic break with tabs between markers",
+    name: "110 thematic break with tabs between markers",
     input: "-\t-\t-",
     output: "<hr />",
   },
   {
-    name: "158 thematic break with leading indentation 3 spaces still hr",
+    name: "111 thematic break with leading indentation 3 spaces still hr",
     input: "   ---",
     output: "<hr />",
   },
   {
-    name: "160 code span with internal backtick via double fence",
+    name: "112 code span with internal backtick via double fence",
     input: "``a`b``",
     output: "<p><code>a`b</code></p>",
   },
   {
-    name: "161 table does not render when wrong divider count is used",
+    name: "113 table does not render when wrong divider count is used",
     input: "| a | b | c |\n| - | - |\n| d | e | f |",
     output: "<p>| a | b | c |\n| - | - |\n| d | e | f |</p>",
   },
-  { name: "162 code span empty", input: "``", output: "<p>``</p>" },
+  { name: "114 code span empty", input: "``", output: "<p>``</p>" },
   {
-    name: "163 backslash escapes punctuation literal",
+    name: "115 backslash escapes punctuation literal",
     input: "\\[brackets\\] and \\(parens\\)",
     output: "<p>[brackets] and (parens)</p>",
   },
   {
-    name: "164 backslash before space is literal",
+    name: "116 backslash before space is literal",
     input: "a\\ b",
     output: "<p>a\\ b</p>",
   },
   {
-    name: "165 emphasis with intraword underscores should not emphasize",
+    name: "117 emphasis with intraword underscores should not emphasize",
     input: "a__b__c",
     output: "<p>a__b__c</p>",
   },
   {
-    name: "166 emphasis with intraword asterisks should not emphasize",
+    name: "118 emphasis with intraword asterisks should not emphasize",
     input: "a**b**c",
     output: "<p>a<strong>b</strong>c</p>",
   },
   {
-    name: "167 mixed delimiter runs ambiguous",
+    name: "119 mixed delimiter runs ambiguous",
     input: "***x**",
     output: "<p>*<strong>x</strong></p>",
   },
   {
-    name: "168 nested empty emphasis nodes should not be emitted",
+    name: "120 nested empty emphasis nodes should not be emitted",
     input: "**__**",
     output: "<p><strong>__</strong></p>",
   },
   {
-    name: "169 emphasis around punctuation",
+    name: "121 emphasis around punctuation",
     input: "*!@#* **(x)**",
     output: "<p><em>!@#</em> <strong>(x)</strong></p>",
   },
   {
-    name: "170 link destination with parentheses balanced",
+    name: "122 link destination with parentheses balanced",
     input: "[link](http://example.com/a(b)c)",
     output: '<p><a href="http://example.com/a(b)c">link</a></p>',
   },
   {
-    name: "171 link destination with spaces must be trimmed",
+    name: "123 link destination with spaces must be trimmed",
     input: "[x](   http://example.com  )",
     output: '<p><a href="http://example.com">x</a></p>',
   },
   {
-    name: "172 link label supports emphasis and code",
+    name: "124 link label supports emphasis and code",
     input: "[a _b_ `c`](x)",
     output: '<p><a href="x">a <em>b</em> <code>c</code></a></p>',
   },
   {
-    name: "173 link label with nested brackets",
+    name: "125 link label with nested brackets",
     input: "[a [b] c](x)",
     output: '<p><a href="x">a [b] c</a></p>',
   },
   {
-    name: "174 link label with escaped closing bracket",
+    name: "126 link label with escaped closing bracket",
     input: "[a \\] b](x)",
     output: '<p><a href="x">a ] b</a></p>',
   },
   {
-    name: "175 link destination with balanced parentheses",
+    name: "127 link destination with balanced parentheses",
     input: "[x](http://example.com/a(b)c)",
     output: '<p><a href="http://example.com/a(b)c">x</a></p>',
   },
   {
-    name: "176 image alt with brackets and escapes",
+    name: "128 image alt with brackets and escapes",
     input: "![a \\] b [c]](x.png)",
     output: '<p><img src="x.png" alt="a ] b [c]" /></p>',
   },
   {
-    name: "177 image with punctuation in alt",
+    name: "129 image with punctuation in alt",
     input: "![a (b) [c]](img.png)",
     output: '<p><img src="img.png" alt="a (b) [c]" /></p>',
   },
   {
-    name: "181 literal angle brackets remain text",
+    name: "130 literal angle brackets remain text",
     input: "x < y > z",
     output: "<p>x < y > z</p>",
   },
   {
-    name: "182 ampersand is not entity",
+    name: "131 ampersand is not entity",
     input: "a & b",
     output: "<p>a & b</p>",
   },
   {
-    name: "183 blockquote lazy continuation with blank line ends quote",
+    name: "132 blockquote lazy continuation with blank line ends quote",
     input: "> a\n>\n b",
     output: "<blockquote>\n<p>a</p>\n</blockquote>\n<p> b</p>",
   },
   {
-    name: "184 blockquote with mixed starters",
+    name: "133 blockquote with mixed starters",
     input: "> # h\n> - a\n>   - b\n> \n> end",
     output:
       "<blockquote>\n<h1>h</h1>\n<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n</li>\n</ul>\n<p>end</p>\n</blockquote>",
   },
   {
-    name: "185 deep blockquote stack then paragraph",
+    name: "134 deep blockquote stack then paragraph",
     input: ">>> deep\n\nout",
     output:
       "<blockquote>\n<blockquote>\n<blockquote>\n<p>deep</p>\n</blockquote>\n</blockquote>\n</blockquote>\n<p>out</p>",
   },
   {
-    name: "186 ordered list marker 0 is allowed? (edge)",
+    name: "135 ordered list marker 0 is allowed? (edge)",
     input: "0. a\n1. b",
     output: '<ol start="0">\n<li>a</li>\n<li>b</li>\n</ol>',
   },
   {
-    name: "187 ordered list marker with huge indent nests",
+    name: "136 ordered list marker with huge indent nests",
     input: "1. a\n       2. b",
     output: "<ol>\n<li>a\n2. b</li>\n</ol>",
   },
   {
-    name: "188 list item with blank line but no sibling should not loosen outer",
+    name: "137 list item with blank line but no sibling should not loosen outer",
     input: "- a\n\nx",
     output: "<ul>\n<li>a</li>\n</ul>\n<p>x</p>",
   },
   {
-    name: "189 list item with heading child",
+    name: "138 list item with heading child",
     input: "- # a\n- b",
     output: "<ul>\n<li>\n<h1>a</h1>\n</li>\n<li>b</li>\n</ul>",
   },
   {
-    name: "190 list item with fenced code then paragraph continuation",
+    name: "139 list item with fenced code then paragraph continuation",
     input: "- a\n  ```\n  code\n  ```\n  b",
     output: "<ul>\n<li>a\n<pre><code>code\n</code></pre>\nb</li>\n</ul>",
   },
   {
-    name: "191 tight list with inline-only item should render fragment",
+    name: "140 tight list with inline-only item should render fragment",
     input: "- a\n- b\n- **c**",
     output: "<ul>\n<li>a</li>\n<li>b</li>\n<li><strong>c</strong></li>\n</ul>",
   },
   {
-    name: "192 loose list with multiple paragraphs and inline",
+    name: "141 loose list with multiple paragraphs and inline",
     input: "- a\n\n  b _c_",
     output: "<ul>\n<li>\n<p>a</p>\n<p>b <em>c</em></p>\n</li>\n</ul>",
   },
   {
-    name: "193 nested list mixed markers should keep same list",
+    name: "142 nested list mixed markers should keep same list",
     input: "- a\n  + b\n  * c",
     output:
       "<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n<ul>\n<li>c</li>\n</ul>\n</li>\n</ul>",
   },
   {
-    name: "194 nested list after long ordered marker",
+    name: "143 nested list after long ordered marker",
     input: "123. a\n     - b\n     - c",
     output:
       '<ol start="123">\n<li>a\n<ul>\n<li>b</li>\n<li>c</li>\n</ul>\n</li>\n</ol>',
   },
   {
-    name: "195 table with pipes inside code spans",
+    name: "144 table with pipes inside code spans",
     input: "| a | b |\n| - | - |\n| `x|y` | z |",
     output:
       "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>`x</td>\n<td>y`</td>\n</tr>\n</tbody>\n</table>",
   },
   {
-    name: "196 table with escaped pipe in cell",
+    name: "145 table with escaped pipe in cell",
     input: "| a | b |\n| - | - |\n| x \\| y | z |",
     output:
       "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x | y</td>\n<td>z</td>\n</tr>\n</tbody>\n</table>",
   },
   {
-    name: "197 table should not parse if separator row invalid",
+    name: "146 table should not parse if separator row invalid",
     input: "| a | b |\n| --- | -x- |\n| c | d |",
     output: "<p>| a | b |\n| --- | -x- |\n| c | d |</p>",
   },
   {
-    name: "198 table with leading/trailing spaces in cells",
+    name: "147 table with leading/trailing spaces in cells",
     input: "|  a  |  b  |\n| - | - |\n|  c  |  d  |",
     output:
       "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>c</td>\n<td>d</td>\n</tr>\n</tbody>\n</table>",
   },
   {
-    name: "199 fenced code in blockquote with lazy line",
+    name: "148 fenced code in blockquote with lazy line",
     input: "> ```\n> a\n> ```\n> b",
     output:
       "<blockquote>\n<pre><code>a\n</code></pre>\n<p>b</p>\n</blockquote>",
   },
   {
-    name: "200 fence closer must be >= opener length",
+    name: "149 fence closer must be >= opener length",
     input: "````\na\n```",
     output: "<pre><code>a\n```\n</code></pre>",
+  },
+  {
+    name: "150 complex mixed inline and block structure",
+    input:
+      "> # Title _x_\n> - a **b**\n> - c\n>\n> para  \n> line\n\nFinal `code`",
+    output:
+      "<blockquote>\n<h1>Title <em>x</em></h1>\n<ul>\n<li>a <strong>b</strong></li>\n<li>c</li>\n</ul>\n<p>para<br />\nline</p>\n</blockquote>\n<p>Final <code>code</code></p>",
   },
 ] as const;
