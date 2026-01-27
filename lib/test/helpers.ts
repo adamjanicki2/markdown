@@ -44,11 +44,15 @@ export function renderHtml(nodes: AstNode[]): string {
             node.ordered && node.start !== undefined && node.start !== 1
               ? ` start="${node.start}"`
               : "";
-          const items = node.items
-            .map((item) => `<li>${renderHtml(item.children)}</li>`)
+          const children = node.children
+            .map((child) => `<li>${renderHtml(child.children)}</li>`)
             .join("");
-          return `<${tag}${startAttr}>${items}</${tag}>`;
+          return `<${tag}${startAttr}>${children}</${tag}>`;
         }
+        case "thead":
+          return `<thead>${renderHtml([node.children])}</thead>`;
+        case "tbody":
+          return `<tbody>${renderHtml(node.children)}</tbody>`;
         case "tr":
           return `<tr>${renderHtml(node.children)}</tr>`;
         case "th": {
@@ -59,20 +63,8 @@ export function renderHtml(nodes: AstNode[]): string {
           const alignAttr = node.align ? ` align="${node.align}"` : "";
           return `<td${alignAttr}>${renderHtml(node.children)}</td>`;
         }
-        case "table": {
-          const headRows = node.children
-            .filter((row) => row.section === "head")
-            .map((row) => renderHtml([row]))
-            .join("");
-          const bodyRows = node.children
-            .filter((row) => row.section === "body")
-            .map((row) => renderHtml([row]))
-            .join("");
-
-          const thead = headRows ? `<thead>${headRows}</thead>` : "";
-          const tbody = bodyRows ? `<tbody>${bodyRows}</tbody>` : "";
-          return `<table>${thead}${tbody}</table>`;
-        }
+        case "table":
+          return `<table>${renderHtml(node.children)}</table>`;
         default: {
           throw new Error("should not get here");
         }

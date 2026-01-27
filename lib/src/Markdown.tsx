@@ -46,6 +46,11 @@ function getTagFromNode(node: AstNode): Tag | null {
   if (type === "text") return null;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
+  if (type === "thead") return "thead";
+  if (type === "tbody") return "tbody";
+  if (type === "tr") return "tr";
+  if (type === "th") return "th";
+  if (type === "td") return "td";
   return type;
 }
 
@@ -103,6 +108,8 @@ type Renderers = {
   ul: (props: ChildrenProps) => React.ReactNode;
   li: (props: ChildrenProps) => React.ReactNode;
   table: (props: ChildrenProps) => React.ReactNode;
+  thead: (props: ChildrenProps) => React.ReactNode;
+  tbody: (props: ChildrenProps) => React.ReactNode;
   tr: (props: ChildrenProps) => React.ReactNode;
   th: (props: TableCellProps) => React.ReactNode;
   td: (props: TableCellProps) => React.ReactNode;
@@ -136,6 +143,8 @@ const DEFAULT_RENDERERS: Renderers = {
   ul: ({ children }) => <ul>{children}</ul>,
   li: ({ children }) => <li>{children}</li>,
   table: ({ children }) => <table>{children}</table>,
+  thead: ({ children }) => <thead>{children}</thead>,
+  tbody: ({ children }) => <tbody>{children}</tbody>,
   tr: ({ children }) => <tr>{children}</tr>,
   th: ({ children, align }) => <th align={align}>{children}</th>,
   td: ({ children, align }) => <td align={align}>{children}</td>,
@@ -190,12 +199,12 @@ function renderNode(
   if (type === "pre")
     return renderers.pre({ children: node.raw, lang: node.lang });
   if (type === "list") {
-    const items = node.items.map((item, itemIndex) => {
+    const children = node.children.map((child, childIndex) => {
       if (dropTags?.has("li")) return null;
       return (
-        <React.Fragment key={itemIndex}>
+        <React.Fragment key={childIndex}>
           {renderers.li({
-            children: renderChildren(item.children, renderers, dropTags),
+            children: renderChildren(child.children, renderers, dropTags),
           })}
         </React.Fragment>
       );
@@ -204,12 +213,20 @@ function renderNode(
     if (node.ordered) {
       const start =
         node.start !== undefined && node.start !== 1 ? node.start : undefined;
-      return renderers.ol({ children: items, start });
+      return renderers.ol({ children, start });
     }
-    return renderers.ul({ children: items });
+    return renderers.ul({ children });
   }
   if (type === "li")
     return renderers.li({
+      children: renderChildren(node.children, renderers, dropTags),
+    });
+  if (type === "thead")
+    return renderers.thead({
+      children: renderChildren([node.children], renderers, dropTags),
+    });
+  if (type === "tbody")
+    return renderers.tbody({
       children: renderChildren(node.children, renderers, dropTags),
     });
   if (type === "tr")
@@ -226,32 +243,10 @@ function renderNode(
       children: renderChildren(node.children, renderers, dropTags),
       align: node.align,
     });
-  if (type === "table") {
-    const headRows: React.ReactNode[] = [];
-    const bodyRows: React.ReactNode[] = [];
-
-    node.children.forEach((row, index) => {
-      const rendered = renderNode(row, renderers, dropTags);
-      if (rendered !== null) {
-        if (row.section === "head") {
-          headRows.push(
-            <React.Fragment key={index}>{rendered}</React.Fragment>
-          );
-        } else {
-          bodyRows.push(
-            <React.Fragment key={index}>{rendered}</React.Fragment>
-          );
-        }
-      }
+  if (type === "table")
+    return renderers.table({
+      children: renderChildren(node.children, renderers, dropTags),
     });
-
-    const tableChildren = [
-      headRows.length > 0 && <thead key="thead">{headRows}</thead>,
-      bodyRows.length > 0 && <tbody key="tbody">{bodyRows}</tbody>,
-    ].filter((child): child is React.ReactElement => child !== false);
-
-    return renderers.table({ children: tableChildren });
-  }
   return renderers.blockquote({
     children: renderChildren(node.children, renderers, dropTags),
   });

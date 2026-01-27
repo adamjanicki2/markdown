@@ -310,29 +310,33 @@ function buildTableNode(
   rows: string[][],
   alignments: Array<TableAlign | undefined>
 ): TableNode {
-  const headRow: TableRowNode = {
-    type: "tr",
-    section: "head",
-    children: header.map((cellValue, cellIndex) => ({
-      type: "th",
-      align: alignments[cellIndex],
-      children: parseInline(cellValue),
+  const thead: TableHeadNode = {
+    type: "thead",
+    children: {
+      type: "tr",
+      children: header.map((cellValue, cellIndex) => ({
+        type: "th",
+        align: alignments[cellIndex],
+        children: parseInline(cellValue),
+      })),
+    },
+  };
+
+  const tbody: TableBodyNode = {
+    type: "tbody",
+    children: rows.map((row) => ({
+      type: "tr",
+      children: row.map((cellValue, cellIndex) => ({
+        type: "td",
+        align: alignments[cellIndex],
+        children: parseInline(cellValue),
+      })),
     })),
   };
 
-  const bodyRows: TableRowNode[] = rows.map((row) => ({
-    type: "tr",
-    section: "body",
-    children: row.map((cellValue, cellIndex) => ({
-      type: "td",
-      align: alignments[cellIndex],
-      children: parseInline(cellValue),
-    })),
-  }));
-
   return {
     type: "table",
-    children: [headRow, ...bodyRows],
+    children: [thead, tbody],
   };
 }
 
@@ -386,7 +390,7 @@ function parseListNode(
   if (shouldDisallowListStart(firstLine, firstMarker)) return null;
 
   const { ordered, start, indent } = firstMarker;
-  const items: ListItemNode[] = [];
+  const children: ListItemNode[] = [];
   let tight = true;
 
   const getSameListMarker = (line: string): ListMarker | null => {
@@ -470,20 +474,20 @@ function parseListNode(
       lineIndex++;
     }
 
-    items.push({ type: "li", children: buildAst(listItem.join("\n")) });
+    children.push({ type: "li", children: buildAst(listItem.join("\n")) });
     if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
   }
 
   if (tight) {
-    for (const item of items) {
-      item.children = item.children.flatMap((child) =>
-        child.type === "p" ? child.children : child
+    for (const child of children) {
+      child.children = child.children.flatMap((grandchild) =>
+        grandchild.type === "p" ? grandchild.children : grandchild
       );
     }
   }
 
   return {
-    node: { type: "list", ordered, start, tight, items },
+    node: { type: "list", ordered, start, tight, children },
     nextIndex: lineIndex,
   };
 }
@@ -967,10 +971,10 @@ type ListNode = {
   ordered: boolean;
   start?: number;
   tight: boolean;
-  items: ListItemNode[];
+  children: ListItemNode[];
 };
 
-type TableHeaderCellNode = {
+type TableHeadCellNode = {
   type: "th";
   align?: TableAlign;
   children: InlineAstNode[];
@@ -984,13 +988,22 @@ type TableBodyCellNode = {
 
 type TableRowNode = {
   type: "tr";
-  section: "head" | "body";
-  children: Array<TableHeaderCellNode | TableBodyCellNode>;
+  children: Array<TableHeadCellNode | TableBodyCellNode>;
+};
+
+type TableHeadNode = {
+  type: "thead";
+  children: TableRowNode;
+};
+
+type TableBodyNode = {
+  type: "tbody";
+  children: TableRowNode[];
 };
 
 type TableNode = {
   type: "table";
-  children: TableRowNode[];
+  children: [TableHeadNode, TableBodyNode];
 };
 
 type BlockAstNode =
@@ -1002,8 +1015,10 @@ type BlockAstNode =
   | ListNode
   | ListItemNode
   | TableNode
+  | TableHeadNode
+  | TableBodyNode
   | TableRowNode
-  | TableHeaderCellNode
+  | TableHeadCellNode
   | TableBodyCellNode;
 
 export type AstNode = InlineAstNode | BlockAstNode;
