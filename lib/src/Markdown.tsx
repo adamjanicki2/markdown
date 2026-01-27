@@ -5,15 +5,16 @@ import { type AstNode, buildAst } from "./ast";
 type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** The Markdown source string to convert into a react component */
   children: string;
+  renderers?: Partial<Renderers>;
 };
 
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
-  ({ children, ...props }, ref) => {
+  ({ children, renderers, ...props }, ref) => {
     const ast = React.useMemo(() => buildAst(children), [children]);
 
     return (
       <div {...props} ref={ref}>
-        <Tree>{ast}</Tree>
+        <Tree renderers={{ ...DEFAULT_RENDERERS, ...renderers }}>{ast}</Tree>
       </div>
     );
   }
@@ -21,18 +22,17 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
 
 type TreeProps = {
   children: AstNode[];
-  renderers?: Partial<Renderers>;
+  renderers: Renderers;
 };
 
-const getNodeKey = (node: AstNode): string => {
+function getNodeKey(node: AstNode) {
   if (node.type === "list") return node.ordered ? "ol" : "ul";
   if (node.type === "h") return `h${node.level}`;
   return node.type;
-};
+}
 
-// Renderer prop types
 type ChildrenProps = { children: React.ReactNode };
-type ImgProps = React.ComponentPropsWithoutRef<"img">;
+type ImgProps = { src: string; alt: string };
 type LinkProps = { children: React.ReactNode; href: string };
 type TableCellProps = {
   children: React.ReactNode;
@@ -42,7 +42,6 @@ type OlProps = { children: React.ReactNode; start?: number };
 type PreProps = { children: string; lang?: string };
 type CodeProps = { children: string };
 
-// Renderer types for each DomKey
 type Renderers = {
   code: (props: CodeProps) => React.ReactNode;
   em: (props: ChildrenProps) => React.ReactNode;
@@ -86,8 +85,8 @@ const DEFAULT_RENDERERS: Renderers = {
   h5: ({ children }) => <h5>{children}</h5>,
   h6: ({ children }) => <h6>{children}</h6>,
   hr: () => <hr />,
-  pre: ({ children, lang }) => (
-    <pre data-lang={lang}>
+  pre: ({ children }) => (
+    <pre>
       <code>{children}</code>
     </pre>
   ),
@@ -109,112 +108,125 @@ function Tree({ children, renderers }: TreeProps) {
   ));
 }
 
-function renderNode(node: AstNode, renderers: Renderers): React.ReactNode {
-  switch (node.type) {
-    case "text":
-      return node.value;
-    case "code":
-      return renderers.code({ children: node.value });
-    case "em":
-      return renderers.em({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-      });
-    case "strong":
-      return renderers.strong({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-      });
-    case "del":
-      return renderers.del({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-      });
-    case "a":
-      return renderers.a({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-        href: node.url,
-      });
-    case "img":
-      return renderers.img({ src: node.url, alt: node.alt });
-    case "br":
-      return renderers.br();
-    case "p":
-      return renderers.p({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-      });
-    case "h":
-      const Heading = renderers[`h${node.level}`];
-      return Heading({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-      });
-    case "hr":
-      return renderers.hr();
-    case "pre":
-      return renderers.pre({ children: node.raw, lang: node.lang });
-    case "blockquote":
-      return renderers.blockquote({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-      });
-    case "list":
-      if (node.ordered) {
-        const items = node.items.map((item, itemIndex) => (
-          <React.Fragment key={itemIndex}>
-            {renderers.li({
-              children: <Tree renderers={renderers}>{item.children}</Tree>,
-            })}
-          </React.Fragment>
-        ));
-        const start =
-          node.start !== undefined && node.start !== 1 ? node.start : undefined;
-        return renderers.ol({ children: items, start });
-      } else {
-        const items = node.items.map((item, itemIndex) => (
-          <React.Fragment key={itemIndex}>
-            {renderers.li({
-              children: <Tree renderers={renderers}>{item.children}</Tree>,
-            })}
-          </React.Fragment>
-        ));
-        return renderers.ul({ children: items });
-      }
-    case "li":
-      return renderers.li({
-        children: <Tree renderers={renderers}>{node.children}</Tree>,
-      });
-    case "table":
-      const headerCells = node.head.row.cells.map((cell, cellIndex) => (
+type NodeHandler<T extends AstNode> = (
+  node: T,
+  renderers: Renderers
+) => React.ReactNode;
+
+const NODE_HANDLERS: {
+  [K in AstNode["type"]]: NodeHandler<Extract<AstNode, { type: K }>>;
+} = {
+  text: (node) => node.value,
+  code: (node, renderers) => renderers.code({ children: node.value }),
+  em: (node, renderers) =>
+    renderers.em({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+    }),
+  strong: (node, renderers) =>
+    renderers.strong({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+    }),
+  del: (node, renderers) =>
+    renderers.del({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+    }),
+  a: (node, renderers) =>
+    renderers.a({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+      href: node.url,
+    }),
+  img: (node, renderers) => renderers.img({ src: node.url, alt: node.alt }),
+  br: (_node, renderers) => renderers.br(),
+  p: (node, renderers) =>
+    renderers.p({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+    }),
+  h: (node, renderers) => {
+    const Heading = renderers[`h${node.level}`];
+    return Heading({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+    });
+  },
+  hr: (_node, renderers) => renderers.hr(),
+  pre: (node, renderers) =>
+    renderers.pre({ children: node.raw, lang: node.lang }),
+  blockquote: (node, renderers) =>
+    renderers.blockquote({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+    }),
+  list: (node, renderers) => {
+    const items = node.items.map((item, itemIndex) => (
+      <React.Fragment key={itemIndex}>
+        {renderers.li({
+          children: <Tree renderers={renderers}>{item.children}</Tree>,
+        })}
+      </React.Fragment>
+    ));
+
+    if (node.ordered) {
+      const start =
+        node.start !== undefined && node.start !== 1 ? node.start : undefined;
+      return renderers.ol({ children: items, start });
+    }
+    return renderers.ul({ children: items });
+  },
+  li: (node, renderers) =>
+    renderers.li({
+      children: <Tree renderers={renderers}>{node.children}</Tree>,
+    }),
+  table: (node, renderers) => {
+    const headerCells = node.head.row.cells.map((cell, cellIndex) => (
+      <React.Fragment key={cellIndex}>
+        {renderers.th({
+          children: <Tree renderers={renderers}>{cell.children}</Tree>,
+          align: cell.align,
+        })}
+      </React.Fragment>
+    ));
+    const headerRow = renderers.tr({ children: headerCells });
+
+    const bodyRows = node.body.rows.map((row, rowIndex) => {
+      const cells = row.cells.map((cell, cellIndex) => (
         <React.Fragment key={cellIndex}>
-          {renderers.th({
+          {renderers.td({
             children: <Tree renderers={renderers}>{cell.children}</Tree>,
             align: cell.align,
           })}
         </React.Fragment>
       ));
-      const headerRow = renderers.tr({ children: headerCells });
+      return (
+        <React.Fragment key={rowIndex}>
+          {renderers.tr({ children: cells })}
+        </React.Fragment>
+      );
+    });
 
-      const bodyRows = node.body.rows.map((row, rowIndex) => {
-        const cells = row.cells.map((cell, cellIndex) => (
-          <React.Fragment key={cellIndex}>
-            {renderers.td({
-              children: <Tree renderers={renderers}>{cell.children}</Tree>,
-              align: cell.align,
-            })}
-          </React.Fragment>
-        ));
-        return (
-          <React.Fragment key={rowIndex}>
-            {renderers.tr({ children: cells })}
-          </React.Fragment>
-        );
-      });
+    return renderers.table({
+      children: [
+        <thead key="thead">{headerRow}</thead>,
+        <tbody key="tbody">{bodyRows}</tbody>,
+      ],
+    });
+  },
+};
 
-      return renderers.table({
-        children: [
-          <thead key="thead">{headerRow}</thead>,
-          <tbody key="tbody">{bodyRows}</tbody>,
-        ],
-      });
-    default:
-      return null;
-  }
+function renderNode(node: AstNode, renderers: Renderers): React.ReactNode {
+  if (node.type === "text") return NODE_HANDLERS.text(node, renderers);
+  if (node.type === "code") return NODE_HANDLERS.code(node, renderers);
+  if (node.type === "em") return NODE_HANDLERS.em(node, renderers);
+  if (node.type === "strong") return NODE_HANDLERS.strong(node, renderers);
+  if (node.type === "del") return NODE_HANDLERS.del(node, renderers);
+  if (node.type === "a") return NODE_HANDLERS.a(node, renderers);
+  if (node.type === "img") return NODE_HANDLERS.img(node, renderers);
+  if (node.type === "br") return NODE_HANDLERS.br(node, renderers);
+  if (node.type === "p") return NODE_HANDLERS.p(node, renderers);
+  if (node.type === "h") return NODE_HANDLERS.h(node, renderers);
+  if (node.type === "hr") return NODE_HANDLERS.hr(node, renderers);
+  if (node.type === "pre") return NODE_HANDLERS.pre(node, renderers);
+  if (node.type === "list") return NODE_HANDLERS.list(node, renderers);
+  if (node.type === "li") return NODE_HANDLERS.li(node, renderers);
+  if (node.type === "table") return NODE_HANDLERS.table(node, renderers);
+  return NODE_HANDLERS.blockquote(node, renderers);
 }
 
 export default Markdown;
