@@ -143,20 +143,13 @@ function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
   return merged;
 }
 
-const LITERAL_MAP: Record<string, string> = {
-  newline: "\n",
-  linebreak: "\n",
-  backslash: "\\",
-  "escaped-backslash": "\\",
-};
-
 function nodeToLiteral(node: IrNode): string {
   if (node.type === "text") return node.value;
-  if (node.type in LITERAL_MAP) return LITERAL_MAP[node.type];
   if (node.type === "punct") return node.char;
   if (node.type === "delimiter") return node.char.repeat(node.len);
   if (node.type === "backtick") return "`".repeat(node.len);
   if (node.type === "code") return "`" + node.value + "`";
+  if (node.type === "linebreak" || node.type === "newline") return "\n";
   if (node.type === "em" || node.type === "strong" || node.type === "del")
     return nodesToLiteral(node.children);
   return "";
@@ -562,8 +555,15 @@ function tokenize(str: string): InlineToken[] {
     const char = str[i];
 
     if (char === "\n") pushToken({ type: "newline" });
-    else if (char === "\\") pushToken({ type: "backslash" });
-    else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
+    else if (char === "\\") {
+      const nextChar = str[i + 1];
+      if (nextChar && ESCAPABLE.has(nextChar)) {
+        text += nextChar;
+        i++;
+      } else {
+        text += "\\";
+      }
+    } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
     else if (char === "`" || char in DELIMITER_CONFIGS) {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === char) runIndex++;
@@ -597,45 +597,6 @@ function tokenize(str: string): InlineToken[] {
 
   flushText();
   return tokens;
-}
-
-function applyBackslashEscapes(tokens: InlineToken[]): InlineToken[] {
-  const transformed: InlineToken[] = [];
-
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token.type !== "backslash") transformed.push(token);
-    else {
-      const nextToken = tokens[i + 1];
-      if (!nextToken) appendText(transformed, "\\");
-      else {
-        const literal = nodeToLiteral(nextToken);
-        const escapedChar = literal[0];
-
-        if (ESCAPABLE.has(escapedChar)) {
-          if (nextToken.type === "backslash")
-            transformed.push({ type: "escaped-backslash" });
-          else appendText(transformed, escapedChar);
-
-          if (nextToken.type === "delimiter" && nextToken.len > 1)
-            transformed.push({
-              ...nextToken,
-              len: nextToken.len - 1,
-              canOpen: true,
-              canClose: true,
-            });
-          else if (nextToken.type === "backtick" && nextToken.len > 1)
-            transformed.push({ ...nextToken, len: nextToken.len - 1 });
-          else if (nextToken.type === "text" && nextToken.value.length > 1)
-            appendText(transformed, nextToken.value.slice(1));
-
-          i++;
-        } else appendText(transformed, "\\");
-      }
-    }
-  }
-
-  return mergeAdjacentText(transformed);
 }
 
 function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
@@ -875,43 +836,26 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
 function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
   const last = inlineNodes[inlineNodes.length - 1];
   let hard = false;
-  if (last && last.type === "text") {
-    if (last.value.endsWith("  ")) {
-      last.value = last.value.slice(0, -2);
-      hard = true;
-    } else if (last.value.endsWith("\\")) {
-      last.value = last.value.slice(0, -1);
-      hard = true;
-    }
-    if (hard && !last.value) inlineNodes.pop();
+  if (last && last.type === "text" && last.value.endsWith("  ")) {
+    last.value = last.value.slice(0, -2);
+    hard = true;
+    if (!last.value) inlineNodes.pop();
   }
   inlineNodes.push({ type: "linebreak", hard });
 }
 
 function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
   const inlineNodes: InlineAstNode[] = [];
-  let lastEscapedBackslash = false;
 
   for (const node of nodesList) {
     if (node.type === "text") {
       appendText(inlineNodes, node.value);
-      lastEscapedBackslash = false;
-    } else if (node.type === "escaped-backslash") {
-      appendText(inlineNodes, "\\");
-      lastEscapedBackslash = true;
     } else if (node.type === "newline") {
-      if (lastEscapedBackslash) {
-        inlineNodes.push({ type: "linebreak", hard: false });
-        lastEscapedBackslash = false;
-      } else {
-        handleInlineNewline(inlineNodes);
-      }
+      handleInlineNewline(inlineNodes);
     } else if (isToken(node)) {
       appendText(inlineNodes, nodeToLiteral(node));
-      lastEscapedBackslash = false;
     } else {
       inlineNodes.push(node);
-      lastEscapedBackslash = false;
     }
   }
 
@@ -919,8 +863,7 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
 }
 
 function parseInline(str: string): InlineAstNode[] {
-  let tokens = tokenize(str);
-  tokens = applyBackslashEscapes(tokens);
+  const tokens = tokenize(str);
 
   let nodes: IrNode[] = resolveCodeSpans(tokens);
   nodes = resolveLinksAndImages(nodes);
@@ -964,8 +907,6 @@ const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
 const TOKEN_TYPES = new Set<InlineToken["type"]>([
   "text",
   "newline",
-  "backslash",
-  "escaped-backslash",
   "backtick",
   "delimiter",
   "punct",
@@ -1009,8 +950,6 @@ type InlineToken =
   | DelimiterToken
   | PunctToken
   | { type: "newline" }
-  | { type: "backslash" }
-  | { type: "escaped-backslash" }
   | { type: "backtick"; len: number };
 
 type IrNode = InlineToken | InlineAstNode;

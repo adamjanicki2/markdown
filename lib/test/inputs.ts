@@ -516,51 +516,6 @@ export const TEST_CASES = [
     output: "<pre><code>https://example.com\n</code></pre>",
   },
   {
-    name: "121 hardbreak with trailing backslash",
-    input: "a\\\nb",
-    output: "<p>a<br />\nb</p>",
-  },
-  {
-    name: "122 trailing backslash before blank line is literal",
-    input: "a\\\n\nb",
-    output: "<p>a\\</p>\n<p>b</p>",
-  },
-  {
-    name: "123 hardbreak backslash inside emphasis",
-    input: "*a\\\nb*",
-    output: "<p><em>a<br />\nb</em></p>",
-  },
-  {
-    name: "124 hardbreak backslash inside strong",
-    input: "**a\\\nb**",
-    output: "<p><strong>a<br />\nb</strong></p>",
-  },
-  {
-    name: "125 hardbreak backslash inside del",
-    input: "~~a\\\nb~~",
-    output: "<p><del>a<br />\nb</del></p>",
-  },
-  {
-    name: "126 hardbreak backslash inside link label",
-    input: "[a\\\nb](x)",
-    output: '<p><a href="x">a<br />\nb</a></p>',
-  },
-  {
-    name: "127 hardbreak backslash inside blockquote",
-    input: "> a\\\n> b",
-    output: "<blockquote>\n<p>a<br />\nb</p>\n</blockquote>",
-  },
-  {
-    name: "128 hardbreak backslash inside list item",
-    input: "- a\\\n  b",
-    output: "<ul>\n<li>a<br />\nb</li>\n</ul>",
-  },
-  {
-    name: "129 hardbreak backslash inside heading",
-    input: "# a\\\nb",
-    output: "<h1>a\\</h1>\n<p>b</p>",
-  },
-  {
     name: "130 trailing backslash without newline is literal",
     input: "a\\",
     output: "<p>a\\</p>",
@@ -569,21 +524,6 @@ export const TEST_CASES = [
     name: "131 backslash before newline in code fence stays literal",
     input: "```\na\\\nb\n```",
     output: "<pre><code>a\\\nb\n</code></pre>",
-  },
-  {
-    name: "143 hardbreak backslash then emphasis continues",
-    input: "a\\\n*bc*",
-    output: "<p>a<br />\n<em>bc</em></p>",
-  },
-  {
-    name: "144 hardbreak backslash with two spaces after",
-    input: "a\\  \nb",
-    output: "<p>a\\<br />\nb</p>",
-  },
-  {
-    name: "150 hardbreak backslash before blockquote",
-    input: "a\\\n> b",
-    output: "<p>a\\</p>\n<blockquote>\n<p>b</p>\n</blockquote>",
   },
   {
     name: "151 list item contains table then paragraph continuation",
