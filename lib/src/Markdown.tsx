@@ -8,21 +8,25 @@ type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** Custom renderers to use for each DOM Element */
   renderers?: Partial<Renderers>;
   /**
-   * HTML elements to drop from output. Elements in this list will be omitted along with their entire subtree
-   * @example ["img", "a"] // will not render any images or links
+   * HTML elements to unwrap from output. Elements in this list will have their wrapper removed but children preserved.
+   * Elements without children (img, br, hr) will be completely removed.
+   * @example ["img", "a"] // images removed entirely, link text preserved without <a> wrapper
    */
-  dropTags?: readonly Tag[] | Tag[];
+  unwrapTags?: readonly Tag[] | Tag[];
 };
 
 /** Component to render a Markdown source string into React */
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
-  ({ children, renderers, dropTags = [], ...props }, ref) => {
+  ({ children, renderers, unwrapTags = [], ...props }, ref) => {
     const ast = React.useMemo(() => buildAst(children), [children]);
-    const dropTagsSet = React.useMemo(() => new Set(dropTags), [dropTags]);
+    const unwrapTagsSet = React.useMemo(
+      () => new Set(unwrapTags),
+      [unwrapTags]
+    );
 
     return (
       <div {...props} ref={ref}>
-        {render(ast, { ...DEFAULT_RENDERERS, ...renderers }, dropTagsSet)}
+        {render(ast, { ...DEFAULT_RENDERERS, ...renderers }, unwrapTagsSet)}
       </div>
     );
   }
@@ -45,13 +49,13 @@ function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag {
 function render(
   nodes: AstNode | AstNode[],
   renderers: Renderers,
-  dropTags: Set<Tag>
+  unwrapTags: Set<Tag>
 ): React.ReactNode {
   if (Array.isArray(nodes)) {
     return (
       <>
         {nodes.map((node, index) => {
-          const child = render(node, renderers, dropTags);
+          const child = render(node, renderers, unwrapTags);
           return child ? (
             <React.Fragment key={`${getNodeKey(node)}-${index}`}>
               {child}
@@ -67,44 +71,51 @@ function render(
 
   if (type === "text") return node.value;
 
-  // drop any nodes
-  if (dropTags.has(getTagFromNode(node))) return null;
+  // unwrap nodes in unwrapTags (render children without wrapper)
+  if (unwrapTags.has(getTagFromNode(node))) {
+    // unwrap and return children
+    if ("children" in node) return render(node.children, renderers, unwrapTags);
+    // return raw code strings
+    if (node.type === "code" || node.type === "pre") return node.value;
+    // fully drop remaining nodes without meaningful children (img, hr, etc)
+    return null;
+  }
 
   if (type === "code") return renderers.code({ children: node.value });
   if (type === "em")
     return renderers.em({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "strong")
     return renderers.strong({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "del")
     return renderers.del({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "a")
     return renderers.a({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
       href: node.url,
     });
   if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
   if (type === "br") return renderers.br();
   if (type === "p")
     return renderers.p({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "h") {
     const Heading = renderers[`h${node.level}`];
     return Heading({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   }
   if (type === "hr") return renderers.hr();
   if (type === "pre")
-    return renderers.pre({ children: node.raw, lang: node.lang });
+    return renderers.pre({ children: node.value, lang: node.lang });
   if (type === "list") {
-    const children = render(node.children, renderers, dropTags);
+    const children = render(node.children, renderers, unwrapTags);
     if (node.ordered) {
       const start =
         node.start !== undefined && node.start !== 1 ? node.start : undefined;
@@ -114,36 +125,36 @@ function render(
   }
   if (type === "li")
     return renderers.li({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "thead")
     return renderers.thead({
-      children: render([node.children], renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "tbody")
     return renderers.tbody({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "tr")
     return renderers.tr({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   if (type === "th")
     return renderers.th({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
       align: node.align,
     });
   if (type === "td")
     return renderers.td({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
       align: node.align,
     });
   if (type === "table")
     return renderers.table({
-      children: render(node.children, renderers, dropTags),
+      children: render(node.children, renderers, unwrapTags),
     });
   return renderers.blockquote({
-    children: render(node.children, renderers, dropTags),
+    children: render(node.children, renderers, unwrapTags),
   });
 }
 

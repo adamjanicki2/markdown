@@ -111,9 +111,9 @@ describe("Markdown", () => {
     expect(screen.getByText("Two")).toBeInTheDocument();
   });
 
-  it("drops images when img is in dropTags", () => {
+  it("drops images completely", () => {
     const { container } = render(
-      <Markdown dropTags={["img"]}>
+      <Markdown unwrapTags={["img"]}>
         {"Here's an image: ![alt](url.png)\n\nAnd some text."}
       </Markdown>
     );
@@ -123,43 +123,47 @@ describe("Markdown", () => {
     expect(screen.getByText("And some text.")).toBeInTheDocument();
   });
 
-  it("drops links and their content when a is in dropTags", () => {
+  it("unwraps links but preserves text", () => {
     const { container } = render(
-      <Markdown dropTags={["a"]}>
+      <Markdown unwrapTags={["a"]}>
         {"Visit [example.com](https://example.com) for more info."}
       </Markdown>
     );
 
     expect(container.querySelector("a")).not.toBeInTheDocument();
-    expect(screen.getByText(/Visit.*for more info/)).toBeInTheDocument();
-    expect(screen.queryByText("example.com")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("Visit");
+    expect(container.textContent).toContain("example.com");
+    expect(container.textContent).toContain("for more info");
   });
 
-  it("drops multiple tag types", () => {
+  it("unwraps multiple tag types while preserving their content", () => {
     const { container } = render(
-      <Markdown dropTags={["strong", "a"]}>
+      <Markdown unwrapTags={["strong", "a"]}>
         {"**bold** _italic_ [link](url) ![img](img.png)"}
       </Markdown>
     );
 
     expect(container.querySelector("strong")).not.toBeInTheDocument();
     expect(container.querySelector("a")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("bold");
+    expect(container.textContent).toContain("link");
     expect(container.querySelector("em")).toBeInTheDocument();
     expect(container.querySelector("img")).toBeInTheDocument();
   });
 
-  it("drops entire subtree when parent tag is dropped", () => {
+  it("unwraps parent but preserves nested children", () => {
     const { container } = render(
-      <Markdown dropTags={["a"]}>{"Visit [**bold link**](url)"}</Markdown>
+      <Markdown unwrapTags={["a"]}>{"Visit [**bold link**](url)"}</Markdown>
     );
 
     expect(container.querySelector("a")).not.toBeInTheDocument();
-    expect(screen.queryByText("bold link")).not.toBeInTheDocument();
+    expect(screen.getByText("bold link")).toBeInTheDocument();
+    expect(container.querySelector("strong")).toBeInTheDocument();
   });
 
-  it("drops specific heading levels", () => {
+  it("unwraps specific heading levels", () => {
     render(
-      <Markdown dropTags={["h1", "h3"]}>
+      <Markdown unwrapTags={["h1", "h3"]}>
         {"# H1\n\n## H2\n\n### H3\n\nContent"}
       </Markdown>
     );
@@ -172,77 +176,93 @@ describe("Markdown", () => {
     expect(screen.getByText("Content")).toBeInTheDocument();
   });
 
-  it("drops ordered lists when ol is in dropTags", () => {
+  it("unwraps ordered lists but preserves list items", () => {
     const { container } = render(
-      <Markdown dropTags={["ol"]}>{"1. Item 1\n2. Item 2"}</Markdown>
+      <Markdown unwrapTags={["ol"]}>{"1. Item 1\n2. Item 2"}</Markdown>
     );
 
     expect(container.querySelector("ol")).not.toBeInTheDocument();
-    expect(container.querySelector("li")).not.toBeInTheDocument();
+    expect(container.querySelector("li")).toBeInTheDocument();
+    expect(container.textContent).toContain("Item 1");
+    expect(container.textContent).toContain("Item 2");
   });
 
-  it("drops unordered lists when ul is in dropTags", () => {
+  it("unwraps unordered lists but preserves list items", () => {
     const { container } = render(
-      <Markdown dropTags={["ul"]}>{"- Item 1\n- Item 2"}</Markdown>
+      <Markdown unwrapTags={["ul"]}>{"- Item 1\n- Item 2"}</Markdown>
     );
 
     expect(container.querySelector("ul")).not.toBeInTheDocument();
-    expect(container.querySelector("li")).not.toBeInTheDocument();
+    expect(container.querySelector("li")).toBeInTheDocument();
+    expect(container.textContent).toContain("Item 1");
+    expect(container.textContent).toContain("Item 2");
   });
 
-  it("drops list items but keeps list container when li is in dropTags", () => {
+  it("unwraps list items but keeps list container", () => {
     const { container } = render(
-      <Markdown dropTags={["li"]}>{"- Item 1\n- Item 2"}</Markdown>
+      <Markdown unwrapTags={["li"]}>{"- Item 1\n- Item 2"}</Markdown>
     );
 
     expect(container.querySelector("ul")).toBeInTheDocument();
     expect(container.querySelector("li")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("Item 1");
+    expect(container.textContent).toContain("Item 2");
   });
 
-  it("drops table when table is in dropTags", () => {
+  it("unwraps table but preserves table structure", () => {
     const { container } = render(
-      <Markdown dropTags={["table"]}>
+      <Markdown unwrapTags={["table"]}>
         {"| a | b |\n| - | - |\n| x | y |"}
       </Markdown>
     );
 
     expect(container.querySelector("table")).not.toBeInTheDocument();
-    expect(container.querySelector("th")).not.toBeInTheDocument();
-    expect(container.querySelector("td")).not.toBeInTheDocument();
+    expect(container.querySelector("th")).toBeInTheDocument();
+    expect(container.querySelector("td")).toBeInTheDocument();
   });
 
-  it("drops table rows when tr is in dropTags", () => {
+  it("unwraps table rows but preserves cells", () => {
     const { container } = render(
-      <Markdown dropTags={["tr"]}>{"| a | b |\n| - | - |\n| x | y |"}</Markdown>
+      <Markdown unwrapTags={["tr"]}>
+        {"| a | b |\n| - | - |\n| x | y |"}
+      </Markdown>
     );
 
     expect(container.querySelector("table")).toBeInTheDocument();
     expect(container.querySelector("tr")).not.toBeInTheDocument();
-    expect(container.querySelector("th")).not.toBeInTheDocument();
-    expect(container.querySelector("td")).not.toBeInTheDocument();
+    expect(container.querySelector("th")).toBeInTheDocument();
+    expect(container.querySelector("td")).toBeInTheDocument();
   });
 
-  it("drops table header cells when th is in dropTags", () => {
+  it("unwraps table header cells but preserves content", () => {
     const { container } = render(
-      <Markdown dropTags={["th"]}>{"| a | b |\n| - | - |\n| x | y |"}</Markdown>
+      <Markdown unwrapTags={["th"]}>
+        {"| a | b |\n| - | - |\n| x | y |"}
+      </Markdown>
     );
 
     expect(container.querySelector("table")).toBeInTheDocument();
     expect(container.querySelector("th")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("a");
+    expect(container.textContent).toContain("b");
     expect(container.querySelector("td")).toBeInTheDocument();
   });
 
-  it("drops table data cells when td is in dropTags", () => {
+  it("unwraps table data cells but preserves content", () => {
     const { container } = render(
-      <Markdown dropTags={["td"]}>{"| a | b |\n| - | - |\n| x | y |"}</Markdown>
+      <Markdown unwrapTags={["td"]}>
+        {"| a | b |\n| - | - |\n| x | y |"}
+      </Markdown>
     );
 
     expect(container.querySelector("table")).toBeInTheDocument();
     expect(container.querySelector("th")).toBeInTheDocument();
     expect(container.querySelector("td")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("x");
+    expect(container.textContent).toContain("y");
   });
 
-  it("renders all content when dropTags is undefined", () => {
+  it("renders all content when unwrapTags is undefined", () => {
     const { container } = render(
       <Markdown>{"**bold** _italic_ [link](url)"}</Markdown>
     );
@@ -252,9 +272,9 @@ describe("Markdown", () => {
     expect(container.querySelector("a")).toBeInTheDocument();
   });
 
-  it("renders all content when dropTags is empty array", () => {
+  it("renders all content when unwrapTags is empty array", () => {
     const { container } = render(
-      <Markdown dropTags={[]}>{"**bold** _italic_ [link](url)"}</Markdown>
+      <Markdown unwrapTags={[]}>{"**bold** _italic_ [link](url)"}</Markdown>
     );
 
     expect(container.querySelector("strong")).toBeInTheDocument();
@@ -282,37 +302,39 @@ describe("Markdown", () => {
     expect(ol).not.toHaveAttribute("start");
   });
 
-  it("drops inline code when code is in dropTags", () => {
+  it("unwraps inline code", () => {
     const { container } = render(
-      <Markdown dropTags={["code"]}>{"Hello `code` world"}</Markdown>
+      <Markdown unwrapTags={["code"]}>{"Hello `code` world"}</Markdown>
     );
 
     expect(container.querySelector("code")).not.toBeInTheDocument();
-    expect(container).toHaveTextContent("Hello world");
+    expect(container).toHaveTextContent("Hello code world");
   });
 
-  it("drops fenced code blocks when pre is in dropTags", () => {
+  it("unwraps fenced code blocks", () => {
     const { container } = render(
-      <Markdown dropTags={["pre"]}>{"```js\nconst x = 1;\n```\n\nAfter"}</Markdown>
+      <Markdown unwrapTags={["pre"]}>
+        {"```js\nconst x = 1;\n```\n\nAfter"}
+      </Markdown>
     );
 
     expect(container.querySelector("pre")).not.toBeInTheDocument();
     expect(screen.getByText("After")).toBeInTheDocument();
   });
 
-  it("drops blockquote subtree when blockquote is in dropTags", () => {
+  it("unwraps blockquote but preserves content", () => {
     const { container } = render(
-      <Markdown dropTags={["blockquote"]}>{"> quote\n\nAfter"}</Markdown>
+      <Markdown unwrapTags={["blockquote"]}>{"> quote\n\nAfter"}</Markdown>
     );
 
     expect(container.querySelector("blockquote")).not.toBeInTheDocument();
-    expect(screen.queryByText("quote")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("quote");
     expect(screen.getByText("After")).toBeInTheDocument();
   });
 
-  it("drops horizontal rules when hr is in dropTags", () => {
+  it("drops horizontal rules", () => {
     const { container } = render(
-      <Markdown dropTags={["hr"]}>{"# Title\n\n---\n\nAfter"}</Markdown>
+      <Markdown unwrapTags={["hr"]}>{"# Title\n\n---\n\nAfter"}</Markdown>
     );
 
     expect(container.querySelector("hr")).not.toBeInTheDocument();
@@ -322,77 +344,96 @@ describe("Markdown", () => {
     expect(screen.getByText("After")).toBeInTheDocument();
   });
 
-  it("drops hard line breaks when br is in dropTags", () => {
-    const { container } = render(<Markdown dropTags={["br"]}>{"a  \nb"}</Markdown>);
+  it("drops hard line breaks completely", () => {
+    const { container } = render(
+      <Markdown unwrapTags={["br"]}>{"a  \nb"}</Markdown>
+    );
     expect(container.querySelector("br")).not.toBeInTheDocument();
     expect(container.textContent).toBe("ab");
   });
 
-  it("drops paragraph subtree when p is in dropTags", () => {
-    const { container } = render(<Markdown dropTags={["p"]}>{"Hello\n\nWorld"}</Markdown>);
+  it("unwraps paragraph but preserves content", () => {
+    const { container } = render(
+      <Markdown unwrapTags={["p"]}>{"Hello\n\nWorld"}</Markdown>
+    );
     expect(container.querySelector("p")).not.toBeInTheDocument();
-    expect(container.textContent).toBe("");
+    expect(container.textContent).toContain("Hello");
+    expect(container.textContent).toContain("World");
   });
 
-  it("drops em subtree when em is in dropTags", () => {
+  it("unwraps em but preserves text", () => {
     const { container } = render(
-      <Markdown dropTags={["em"]}>{"Hello _em_ world"}</Markdown>
+      <Markdown unwrapTags={["em"]}>{"Hello _em_ world"}</Markdown>
     );
-    expect(screen.queryByText("em")).not.toBeInTheDocument();
-    expect(container).toHaveTextContent("Hello world");
+    expect(container.querySelector("em")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("em");
+    expect(container).toHaveTextContent("Hello em world");
   });
 
-  it("drops strong subtree when strong is in dropTags", () => {
+  it("unwraps strong but preserves text", () => {
     const { container } = render(
-      <Markdown dropTags={["strong"]}>{"Hello **bold** world"}</Markdown>
+      <Markdown unwrapTags={["strong"]}>{"Hello **bold** world"}</Markdown>
     );
-    expect(screen.queryByText("bold")).not.toBeInTheDocument();
-    expect(container).toHaveTextContent("Hello world");
+    expect(container.querySelector("strong")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("bold");
+    expect(container).toHaveTextContent("Hello bold world");
   });
 
-  it("drops del subtree when del is in dropTags", () => {
+  it("unwraps del but preserves text", () => {
     const { container } = render(
-      <Markdown dropTags={["del"]}>{"Hello ~~gone~~ world"}</Markdown>
+      <Markdown unwrapTags={["del"]}>{"Hello ~~gone~~ world"}</Markdown>
     );
-    expect(screen.queryByText("gone")).not.toBeInTheDocument();
-    expect(container).toHaveTextContent("Hello world");
+    expect(container.querySelector("del")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("gone");
+    expect(container).toHaveTextContent("Hello gone world");
   });
 
-  it("drops h4 headings when h4 is in dropTags", () => {
-    render(
-      <Markdown dropTags={["h4"]}>{"### H3\n\n#### H4\n\n##### H5"}</Markdown>
-    );
-    expect(screen.getByRole("heading", { level: 3, name: "H3" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 4, name: "H4" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 5, name: "H5" })).toBeInTheDocument();
-  });
-
-  it("drops ordered list items when li is in dropTags", () => {
+  it("unwraps h4 headings but preserves content", () => {
     const { container } = render(
-      <Markdown dropTags={["li"]}>{"1. Item 1\n2. Item 2"}</Markdown>
+      <Markdown unwrapTags={["h4"]}>{"### H3\n\n#### H4\n\n##### H5"}</Markdown>
+    );
+    expect(
+      screen.getByRole("heading", { level: 3, name: "H3" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 4 })).not.toBeInTheDocument();
+    expect(container.textContent).toContain("H4");
+    expect(
+      screen.getByRole("heading", { level: 5, name: "H5" })
+    ).toBeInTheDocument();
+  });
+
+  it("unwraps ordered list items", () => {
+    const { container } = render(
+      <Markdown unwrapTags={["li"]}>{"1. Item 1\n2. Item 2"}</Markdown>
     );
     expect(container.querySelector("ol")).toBeInTheDocument();
     expect(container.querySelector("li")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("Item 1");
+    expect(container.textContent).toContain("Item 2");
   });
 
-  it("drops thead when thead is in dropTags", () => {
+  it("unwraps thead but preserves header", () => {
     const { container } = render(
-      <Markdown dropTags={["thead"]}>{"| a | b |\n| - | - |\n| x | y |"}</Markdown>
+      <Markdown unwrapTags={["thead"]}>
+        {"| a | b |\n| - | - |\n| x | y |"}
+      </Markdown>
     );
 
     expect(container.querySelector("thead")).not.toBeInTheDocument();
-    expect(container.querySelector("th")).not.toBeInTheDocument();
+    expect(container.querySelector("th")).toBeInTheDocument();
     expect(container.querySelector("tbody")).toBeInTheDocument();
     expect(container.querySelector("td")).toBeInTheDocument();
   });
 
-  it("drops tbody when tbody is in dropTags", () => {
+  it("unwraps tbody but preserves body rows", () => {
     const { container } = render(
-      <Markdown dropTags={["tbody"]}>{"| a | b |\n| - | - |\n| x | y |"}</Markdown>
+      <Markdown unwrapTags={["tbody"]}>
+        {"| a | b |\n| - | - |\n| x | y |"}
+      </Markdown>
     );
 
     expect(container.querySelector("tbody")).not.toBeInTheDocument();
-    expect(container.querySelector("td")).not.toBeInTheDocument();
+    expect(container.querySelector("td")).toBeInTheDocument();
     expect(container.querySelector("thead")).toBeInTheDocument();
     expect(container.querySelector("th")).toBeInTheDocument();
   });
@@ -415,7 +456,9 @@ describe("Markdown", () => {
     render(
       <Markdown
         renderers={{
-          code: ({ children }) => <code data-testid="custom-code">{children}</code>,
+          code: ({ children }) => (
+            <code data-testid="custom-code">{children}</code>
+          ),
         }}
       >
         {"Inline `code`"}
@@ -479,7 +522,10 @@ describe("Markdown", () => {
       </Markdown>
     );
 
-    expect(screen.getByTestId("custom-img")).toHaveAttribute("src", "image.png");
+    expect(screen.getByTestId("custom-img")).toHaveAttribute(
+      "src",
+      "image.png"
+    );
   });
 
   it("uses a custom heading renderer", () => {
@@ -522,9 +568,15 @@ describe("Markdown", () => {
     render(
       <Markdown
         renderers={{
-          table: ({ children }) => <table data-testid="custom-table">{children}</table>,
-          thead: ({ children }) => <thead data-testid="custom-thead">{children}</thead>,
-          tbody: ({ children }) => <tbody data-testid="custom-tbody">{children}</tbody>,
+          table: ({ children }) => (
+            <table data-testid="custom-table">{children}</table>
+          ),
+          thead: ({ children }) => (
+            <thead data-testid="custom-thead">{children}</thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody data-testid="custom-tbody">{children}</tbody>
+          ),
           tr: ({ children }) => <tr data-testid="custom-tr">{children}</tr>,
           th: ({ children }) => <th data-testid="custom-th">{children}</th>,
           td: ({ children }) => <td data-testid="custom-td">{children}</td>,
@@ -565,7 +617,9 @@ describe("Markdown", () => {
       </Markdown>
     );
 
-    expect(container.querySelector("[data-testid=\"custom-hr\"]")).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-testid="custom-hr"]')
+    ).toBeInTheDocument();
   });
 
   it("uses a custom br renderer", () => {
@@ -575,6 +629,8 @@ describe("Markdown", () => {
       </Markdown>
     );
 
-    expect(container.querySelector("[data-testid=\"custom-br\"]")).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-testid="custom-br"]')
+    ).toBeInTheDocument();
   });
 });

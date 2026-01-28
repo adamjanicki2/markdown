@@ -554,7 +554,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "ts",
-        raw: "const x = 1;",
+        value: "const x = 1;",
       },
     ],
   },
@@ -565,7 +565,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "html",
-        raw: "<div>x</div>",
+        value: "<div>x</div>",
       },
     ],
   },
@@ -576,7 +576,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "",
-        raw: "<x>",
+        value: "<x>",
       },
     ],
   },
@@ -587,7 +587,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "js",
-        raw: "x",
+        value: "x",
       },
     ],
   },
@@ -598,7 +598,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "",
-        raw: "hi",
+        value: "hi",
       },
     ],
   },
@@ -1620,7 +1620,7 @@ export const TEST_CASES: readonly TestCase[] = [
               {
                 type: "pre",
                 lang: "",
-                raw: "x",
+                value: "x",
               },
             ],
           },
@@ -1647,7 +1647,7 @@ export const TEST_CASES: readonly TestCase[] = [
           {
             type: "pre",
             lang: "",
-            raw: "x",
+            value: "x",
           },
         ],
       },
@@ -1675,7 +1675,7 @@ export const TEST_CASES: readonly TestCase[] = [
                   {
                     type: "pre",
                     lang: "",
-                    raw: "x",
+                    value: "x",
                   },
                 ],
               },
@@ -1821,29 +1821,31 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -1886,29 +1888,31 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -1956,29 +1960,31 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -2144,7 +2150,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "",
-        raw: "`nested code`",
+        value: "`nested code`",
       },
     ],
   },
@@ -2363,29 +2369,31 @@ export const TEST_CASES: readonly TestCase[] = [
             children: [
               {
                 type: "thead",
-                children: {
-                  type: "tr",
-                  children: [
-                    {
-                      type: "th",
-                      children: [
-                        {
-                          type: "text",
-                          value: "a",
-                        },
-                      ],
-                    },
-                    {
-                      type: "th",
-                      children: [
-                        {
-                          type: "text",
-                          value: "b",
-                        },
-                      ],
-                    },
-                  ],
-                },
+                children: [
+                  {
+                    type: "tr",
+                    children: [
+                      {
+                        type: "th",
+                        children: [
+                          {
+                            type: "text",
+                            value: "a",
+                          },
+                        ],
+                      },
+                      {
+                        type: "th",
+                        children: [
+                          {
+                            type: "text",
+                            value: "b",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
               },
               {
                 type: "tbody",
@@ -2438,29 +2446,31 @@ export const TEST_CASES: readonly TestCase[] = [
                 children: [
                   {
                     type: "thead",
-                    children: {
-                      type: "tr",
-                      children: [
-                        {
-                          type: "th",
-                          children: [
-                            {
-                              type: "text",
-                              value: "a",
-                            },
-                          ],
-                        },
-                        {
-                          type: "th",
-                          children: [
-                            {
-                              type: "text",
-                              value: "b",
-                            },
-                          ],
-                        },
-                      ],
-                    },
+                    children: [
+                      {
+                        type: "tr",
+                        children: [
+                          {
+                            type: "th",
+                            children: [
+                              {
+                                type: "text",
+                                value: "a",
+                              },
+                            ],
+                          },
+                          {
+                            type: "th",
+                            children: [
+                              {
+                                type: "text",
+                                value: "b",
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
                   },
                   {
                     type: "tbody",
@@ -2661,7 +2671,7 @@ export const TEST_CASES: readonly TestCase[] = [
               {
                 type: "pre",
                 lang: "",
-                raw: "code",
+                value: "code",
               },
             ],
           },
@@ -2693,7 +2703,7 @@ export const TEST_CASES: readonly TestCase[] = [
           {
             type: "pre",
             lang: "ts",
-            raw: "const x = 1;",
+            value: "const x = 1;",
           },
         ],
       },
@@ -2722,7 +2732,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "js",
-        raw: "x",
+        value: "x",
       },
     ],
   },
@@ -2962,31 +2972,33 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  align: "left",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  align: "right",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    align: "left",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    align: "right",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -3031,29 +3043,31 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -3168,7 +3182,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "",
-        raw: "code",
+        value: "code",
       },
     ],
   },
@@ -3275,7 +3289,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "",
-        raw: "https://example.com",
+        value: "https://example.com",
       },
     ],
   },
@@ -3301,7 +3315,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "",
-        raw: "a\\\nb",
+        value: "a\\\nb",
       },
     ],
   },
@@ -3326,29 +3340,31 @@ export const TEST_CASES: readonly TestCase[] = [
                 children: [
                   {
                     type: "thead",
-                    children: {
-                      type: "tr",
-                      children: [
-                        {
-                          type: "th",
-                          children: [
-                            {
-                              type: "text",
-                              value: "a",
-                            },
-                          ],
-                        },
-                        {
-                          type: "th",
-                          children: [
-                            {
-                              type: "text",
-                              value: "b",
-                            },
-                          ],
-                        },
-                      ],
-                    },
+                    children: [
+                      {
+                        type: "tr",
+                        children: [
+                          {
+                            type: "th",
+                            children: [
+                              {
+                                type: "text",
+                                value: "a",
+                              },
+                            ],
+                          },
+                          {
+                            type: "th",
+                            children: [
+                              {
+                                type: "text",
+                                value: "b",
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
                   },
                   {
                     type: "tbody",
@@ -3441,29 +3457,31 @@ export const TEST_CASES: readonly TestCase[] = [
                             children: [
                               {
                                 type: "thead",
-                                children: {
-                                  type: "tr",
-                                  children: [
-                                    {
-                                      type: "th",
-                                      children: [
-                                        {
-                                          type: "text",
-                                          value: "h",
-                                        },
-                                      ],
-                                    },
-                                    {
-                                      type: "th",
-                                      children: [
-                                        {
-                                          type: "text",
-                                          value: "i",
-                                        },
-                                      ],
-                                    },
-                                  ],
-                                },
+                                children: [
+                                  {
+                                    type: "tr",
+                                    children: [
+                                      {
+                                        type: "th",
+                                        children: [
+                                          {
+                                            type: "text",
+                                            value: "h",
+                                          },
+                                        ],
+                                      },
+                                      {
+                                        type: "th",
+                                        children: [
+                                          {
+                                            type: "text",
+                                            value: "i",
+                                          },
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                ],
                               },
                               {
                                 type: "tbody",
@@ -4264,7 +4282,7 @@ export const TEST_CASES: readonly TestCase[] = [
               {
                 type: "pre",
                 lang: "",
-                raw: "code",
+                value: "code",
               },
               {
                 type: "text",
@@ -4477,29 +4495,31 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -4542,29 +4562,31 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -4630,29 +4652,31 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "thead",
-            children: {
-              type: "tr",
-              children: [
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "a",
-                    },
-                  ],
-                },
-                {
-                  type: "th",
-                  children: [
-                    {
-                      type: "text",
-                      value: "b",
-                    },
-                  ],
-                },
-              ],
-            },
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
           {
             type: "tbody",
@@ -4696,7 +4720,7 @@ export const TEST_CASES: readonly TestCase[] = [
           {
             type: "pre",
             lang: "",
-            raw: "a",
+            value: "a",
           },
           {
             type: "p",
@@ -4718,7 +4742,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "pre",
         lang: "",
-        raw: "a\n```",
+        value: "a\n```",
       },
     ],
   },

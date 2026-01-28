@@ -41,7 +41,7 @@ export function buildAst(markdown: string): AstNode[] {
       }
       if (lineIndex < lines.length) lineIndex++;
 
-      nodes.push({ type: "pre", lang, raw: pre.join("\n") });
+      nodes.push({ type: "pre", lang, value: pre.join("\n") });
       continue;
     }
 
@@ -312,14 +312,16 @@ function buildTableNode(
 ): TableNode {
   const thead: TableHeadNode = {
     type: "thead",
-    children: {
-      type: "tr",
-      children: header.map((cellValue, cellIndex) => ({
-        type: "th",
-        align: alignments[cellIndex],
-        children: parseInline(cellValue),
-      })),
-    },
+    children: [
+      {
+        type: "tr",
+        children: header.map((cellValue, cellIndex) => ({
+          type: "th",
+          align: alignments[cellIndex],
+          children: parseInline(cellValue),
+        })),
+      },
+    ],
   };
 
   const tbody: TableBodyNode = {
@@ -962,7 +964,7 @@ type IrNode = InlineToken | InlineAstNode;
 type ParagraphNode = { type: "p"; children: InlineAstNode[] };
 type HeadingNode = { type: "h"; level: Level; children: InlineAstNode[] };
 type HorizontalRuleNode = { type: "hr" };
-type PreNode = { type: "pre"; lang?: string; raw: string };
+type PreNode = { type: "pre"; lang?: string; value: string };
 type BlockquoteNode = { type: "blockquote"; children: AstNode[] };
 
 type ListItemNode = { type: "li"; children: AstNode[] };
@@ -993,7 +995,7 @@ type TableRowNode = {
 
 type TableHeadNode = {
   type: "thead";
-  children: TableRowNode;
+  children: [TableRowNode];
 };
 
 type TableBodyNode = {
