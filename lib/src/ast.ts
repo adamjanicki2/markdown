@@ -579,14 +579,14 @@ function tokenize(str: string): InlineToken[] {
         text += "\\";
       }
     } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
-    else if (char === "`" || DELIMITER_CHARS.has(char)) {
+    else if (char === "`" || char in MODIFIER_CONFIGS) {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === char) runIndex++;
 
       if (char === "`") {
         pushToken({ type: "backtick", len: runIndex - i });
       } else {
-        const intraword = getIntrawordForChar(char);
+        const intraword = MODIFIER_CONFIGS[char]?.intraword;
         const prevChar = str[i - 1];
         const nextChar = str[runIndex];
 
@@ -765,8 +765,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     // Find the longest marker length that both support and has a config
     const maxPossible = Math.min(opener.length, closer.length);
     for (let len = maxPossible; len >= 1; len--) {
-      const marker = opener.char.repeat(len);
-      if (DELIMITER_CONFIGS[marker]) {
+      if (MODIFIER_CONFIGS[opener.char]?.lengths.includes(len)) {
         return true;
       }
     }
@@ -777,8 +776,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     // Find the longest marker length that both support and has a config
     const maxPossible = Math.min(opener.length, closer.length);
     for (let len = maxPossible; len >= 1; len--) {
-      const marker = opener.char.repeat(len);
-      if (DELIMITER_CONFIGS[marker]) {
+      if (MODIFIER_CONFIGS[opener.char]?.lengths.includes(len)) {
         return len;
       }
     }
@@ -822,10 +820,10 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     );
 
     const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
-    const marker = getMarker(closer.value.char, used);
+    const delimiter = closer.value.char.repeat(used);
     const emphasisNode: IrNode = {
       type: "modifier",
-      marker,
+      delimiter,
       children,
     };
 
@@ -911,31 +909,14 @@ function parseInline(str: string): InlineAstNode[] {
   return finalizeInlineNodes(nodes);
 }
 
-// Constants
-const DELIMITER_CONFIGS: Record<
-  string,
-  { intraword: boolean; pairs: boolean } | undefined
-> = {
-  "*": { intraword: true, pairs: false },
-  "**": { intraword: true, pairs: false },
-  _: { intraword: false, pairs: false },
-  __: { intraword: false, pairs: false },
-  "~~": { intraword: true, pairs: true },
+type ModifierConfig = {
+  intraword: boolean;
+  lengths: number[];
 };
-
-// Extract unique delimiter characters for tokenization
-const DELIMITER_CHARS = new Set(
-  Object.keys(DELIMITER_CONFIGS).map((marker) => marker[0])
-);
-
-// Helper to get intraword setting for a character during tokenization
-const getIntrawordForChar = (char: string): boolean => {
-  for (const marker in DELIMITER_CONFIGS) {
-    if (marker[0] === char) {
-      return DELIMITER_CONFIGS[marker]?.intraword ?? false;
-    }
-  }
-  return false;
+const MODIFIER_CONFIGS: Record<string, ModifierConfig | undefined> = {
+  "*": { intraword: true, lengths: [1, 2] },
+  _: { intraword: false, lengths: [1, 2] },
+  "~": { intraword: true, lengths: [2] },
 };
 
 const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
@@ -976,9 +957,9 @@ type TextNode = { type: "text"; value: string };
 type CodeNode = { type: "code"; value: string };
 type LinkNode = { type: "a"; url: string; children: InlineAstNode[] };
 type ImageNode = { type: "img"; url: string; alt: string };
-type ModifierNode = {
+type InlineModifierNode = {
   type: "modifier";
-  marker: string;
+  delimiter: string;
   children: InlineAstNode[];
 };
 type BrNode = { type: "br" };
@@ -988,13 +969,8 @@ type InlineAstNode =
   | CodeNode
   | LinkNode
   | ImageNode
-  | ModifierNode
+  | InlineModifierNode
   | BrNode;
-
-// Helper to get marker from delimiter char and length
-function getMarker(char: string, length: number): string {
-  return char.repeat(length);
-}
 
 type DelimiterToken = {
   type: "delimiter";

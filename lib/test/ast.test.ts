@@ -54,7 +54,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -68,7 +68,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "_",
+            delimiter: "_",
             children: [
               {
                 type: "text",
@@ -119,7 +119,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -127,7 +127,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "_",
+                delimiter: "_",
                 children: [
                   {
                     type: "text",
@@ -154,15 +154,15 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
               {
                 type: "modifier",
-                marker: "*",
+                delimiter: "*",
                 children: [
                   {
                     type: "modifier",
-                    marker: "**",
+                    delimiter: "**",
                     children: [
                       {
                         type: "text",
@@ -187,7 +187,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -195,7 +195,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -203,7 +203,7 @@ export const TEST_CASES: readonly TestCase[] = [
                   },
                   {
                     type: "modifier",
-                    marker: "~~",
+                    delimiter: "~~",
                     children: [
                       {
                         type: "text",
@@ -281,7 +281,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -377,7 +377,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "_",
+            delimiter: "_",
             children: [
               {
                 type: "text",
@@ -399,7 +399,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
               {
                 type: "text",
@@ -443,7 +443,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -471,7 +471,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -517,7 +517,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -1534,7 +1534,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -1548,7 +1548,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "_",
+                delimiter: "_",
                 children: [
                   {
                     type: "text",
@@ -1588,7 +1588,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "**",
+                        delimiter: "**",
                         children: [
                           {
                             type: "text",
@@ -1603,7 +1603,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "_",
+                        delimiter: "_",
                         children: [
                           {
                             type: "text",
@@ -1945,7 +1945,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "**",
+                        delimiter: "**",
                         children: [
                           {
                             type: "text",
@@ -2027,7 +2027,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "_",
+                        delimiter: "_",
                         children: [
                           {
                             type: "text",
@@ -2056,7 +2056,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "~~",
+                        delimiter: "~~",
                         children: [
                           {
                             type: "text",
@@ -2289,7 +2289,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -2297,7 +2297,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -2305,7 +2305,7 @@ export const TEST_CASES: readonly TestCase[] = [
                   },
                   {
                     type: "modifier",
-                    marker: "~~",
+                    delimiter: "~~",
                     children: [
                       {
                         type: "text",
@@ -2313,7 +2313,7 @@ export const TEST_CASES: readonly TestCase[] = [
                       },
                       {
                         type: "modifier",
-                        marker: "_",
+                        delimiter: "_",
                         children: [
                           {
                             type: "text",
@@ -2348,7 +2348,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -3170,7 +3170,7 @@ export const TEST_CASES: readonly TestCase[] = [
             children: [
               {
                 type: "modifier",
-                marker: "*",
+                delimiter: "*",
                 children: [
                   {
                     type: "text",
@@ -3290,15 +3290,15 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "modifier",
-                    marker: "_",
+                    delimiter: "_",
                     children: [
                       {
                         type: "code",
@@ -3745,7 +3745,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -3774,7 +3774,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -3795,7 +3795,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -3816,7 +3816,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -3830,7 +3830,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -3901,7 +3901,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "_",
+                delimiter: "_",
                 children: [
                   {
                     type: "text",
@@ -4364,7 +4364,7 @@ export const TEST_CASES: readonly TestCase[] = [
             children: [
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -4408,7 +4408,7 @@ export const TEST_CASES: readonly TestCase[] = [
                   },
                   {
                     type: "modifier",
-                    marker: "_",
+                    delimiter: "_",
                     children: [
                       {
                         type: "text",
@@ -4804,7 +4804,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "_",
+                delimiter: "_",
                 children: [
                   {
                     type: "text",
@@ -4828,7 +4828,7 @@ export const TEST_CASES: readonly TestCase[] = [
                   },
                   {
                     type: "modifier",
-                    marker: "**",
+                    delimiter: "**",
                     children: [
                       {
                         type: "text",
@@ -5153,11 +5153,11 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -5180,7 +5180,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -5188,7 +5188,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -5215,7 +5215,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -5240,7 +5240,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -5265,7 +5265,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -5290,7 +5290,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "_",
+            delimiter: "_",
             children: [
               {
                 type: "text",
@@ -5311,7 +5311,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -5332,7 +5332,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -5357,7 +5357,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -5382,7 +5382,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -5407,7 +5407,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "_",
+            delimiter: "_",
             children: [
               {
                 type: "text",
@@ -5432,7 +5432,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
               {
                 type: "text",
@@ -5440,7 +5440,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -5592,7 +5592,7 @@ export const TEST_CASES: readonly TestCase[] = [
             children: [
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "text",
@@ -5606,7 +5606,7 @@ export const TEST_CASES: readonly TestCase[] = [
               },
               {
                 type: "modifier",
-                marker: "_",
+                delimiter: "_",
                 children: [
                   {
                     type: "text",
@@ -5658,7 +5658,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -5672,7 +5672,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "__",
+            delimiter: "__",
             children: [
               {
                 type: "text",
@@ -5712,7 +5712,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",
@@ -5767,15 +5767,15 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
                   {
                     type: "modifier",
-                    marker: "**",
+                    delimiter: "**",
                     children: [
                       {
                         type: "text",
@@ -5857,7 +5857,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -5869,7 +5869,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "**", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "**", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -5883,9 +5883,9 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
-              { type: "modifier", marker: "**", children: [{ type: "text", value: "a" }] },
+              { type: "modifier", delimiter: "**", children: [{ type: "text", value: "a" }] },
             ],
           },
         ],
@@ -5901,9 +5901,9 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
-              { type: "modifier", marker: "**", children: [{ type: "text", value: "a" }] },
+              { type: "modifier", delimiter: "**", children: [{ type: "text", value: "a" }] },
             ],
           },
         ],
@@ -5919,13 +5919,13 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "modifier",
-                marker: "**",
+                delimiter: "**",
                 children: [
-                  { type: "modifier", marker: "**", children: [{ type: "text", value: "a" }] },
+                  { type: "modifier", delimiter: "**", children: [{ type: "text", value: "a" }] },
                 ],
               },
             ],
@@ -5941,7 +5941,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "a" }] },
           { type: "text", value: "*" },
         ],
       },
@@ -5955,7 +5955,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "*" },
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -5967,7 +5967,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "a" }] },
           { type: "text", value: "**" },
         ],
       },
@@ -5981,7 +5981,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "**" },
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -5993,7 +5993,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "_", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "_", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -6005,7 +6005,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "__", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "__", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -6019,9 +6019,9 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "_",
+            delimiter: "_",
             children: [
-              { type: "modifier", marker: "__", children: [{ type: "text", value: "a" }] },
+              { type: "modifier", delimiter: "__", children: [{ type: "text", value: "a" }] },
             ],
           },
         ],
@@ -6056,7 +6056,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "a " },
-          { type: "modifier", marker: "_", children: [{ type: "text", value: "b" }] },
+          { type: "modifier", delimiter: "_", children: [{ type: "text", value: "b" }] },
           { type: "text", value: " c" },
         ],
       },
@@ -6070,7 +6070,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "a " },
-          { type: "modifier", marker: "__", children: [{ type: "text", value: "b" }] },
+          { type: "modifier", delimiter: "__", children: [{ type: "text", value: "b" }] },
           { type: "text", value: " c" },
         ],
       },
@@ -6086,9 +6086,9 @@ export const TEST_CASES: readonly TestCase[] = [
           { type: "text", value: "a " },
           {
             type: "modifier",
-            marker: "_",
+            delimiter: "_",
             children: [
-              { type: "modifier", marker: "__", children: [{ type: "text", value: "b" }] },
+              { type: "modifier", delimiter: "__", children: [{ type: "text", value: "b" }] },
             ],
           },
           { type: "text", value: " c" },
@@ -6103,7 +6103,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -6116,7 +6116,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "~" },
-          { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
           { type: "text", value: "~" },
         ],
       },
@@ -6131,9 +6131,9 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
-              { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+              { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
             ],
           },
         ],
@@ -6147,7 +6147,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
           { type: "text", value: "~" },
         ],
       },
@@ -6161,7 +6161,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "~" },
-          { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
         ],
       },
     ],
@@ -6173,7 +6173,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
           { type: "text", value: "b" },
         ],
       },
@@ -6188,10 +6188,10 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               { type: "text", value: "a " },
-              { type: "modifier", marker: "_", children: [{ type: "text", value: "b" }] },
+              { type: "modifier", delimiter: "_", children: [{ type: "text", value: "b" }] },
             ],
           },
         ],
@@ -6207,10 +6207,10 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               { type: "text", value: "a " },
-              { type: "modifier", marker: "**", children: [{ type: "text", value: "b" }] },
+              { type: "modifier", delimiter: "**", children: [{ type: "text", value: "b" }] },
               { type: "text", value: " c" },
             ],
           },
@@ -6227,10 +6227,10 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               { type: "text", value: "a " },
-              { type: "modifier", marker: "*", children: [{ type: "text", value: "b" }] },
+              { type: "modifier", delimiter: "*", children: [{ type: "text", value: "b" }] },
               { type: "text", value: " c" },
             ],
           },
@@ -6247,10 +6247,10 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               { type: "text", value: "a " },
-              { type: "modifier", marker: "~~", children: [{ type: "text", value: "b" }] },
+              { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "b" }] },
               { type: "text", value: " c" },
             ],
           },
@@ -6267,10 +6267,10 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
               { type: "text", value: "a " },
-              { type: "modifier", marker: "**", children: [{ type: "text", value: "b" }] },
+              { type: "modifier", delimiter: "**", children: [{ type: "text", value: "b" }] },
             ],
           },
         ],
@@ -6286,10 +6286,10 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
               { type: "text", value: "a " },
-              { type: "modifier", marker: "*", children: [{ type: "text", value: "b" }] },
+              { type: "modifier", delimiter: "*", children: [{ type: "text", value: "b" }] },
             ],
           },
         ],
@@ -6315,7 +6315,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               { type: "text", value: "a " },
               { type: "code", value: "b" },
@@ -6335,7 +6335,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               { type: "text", value: "a " },
               { type: "code", value: "b" },
@@ -6354,9 +6354,9 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "a " },
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "b" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "b" }] },
           { type: "text", value: " " },
-          { type: "modifier", marker: "_", children: [{ type: "text", value: "c" }] },
+          { type: "modifier", delimiter: "_", children: [{ type: "text", value: "c" }] },
         ],
       },
     ],
@@ -6368,9 +6368,9 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "a" }] },
           { type: "text", value: " " },
-          { type: "modifier", marker: "**", children: [{ type: "text", value: "b" }] },
+          { type: "modifier", delimiter: "**", children: [{ type: "text", value: "b" }] },
         ],
       },
     ],
@@ -6383,7 +6383,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "(" },
-          { type: "modifier", marker: "*", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "*", children: [{ type: "text", value: "a" }] },
           { type: "text", value: ")" },
         ],
       },
@@ -6397,7 +6397,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "[" },
-          { type: "modifier", marker: "**", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "**", children: [{ type: "text", value: "a" }] },
           { type: "text", value: "]" },
         ],
       },
@@ -6411,7 +6411,7 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           { type: "text", value: "(" },
-          { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
           { type: "text", value: ")" },
         ],
       },
@@ -6424,7 +6424,7 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [
-          { type: "modifier", marker: "~~", children: [{ type: "text", value: "a" }] },
+          { type: "modifier", delimiter: "~~", children: [{ type: "text", value: "a" }] },
           { type: "text", value: "b" },
         ],
       },
@@ -6673,7 +6673,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "**",
+                        delimiter: "**",
                         children: [
                           {
                             type: "text",
@@ -6689,7 +6689,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "_",
+                        delimiter: "_",
                         children: [
                           {
                             type: "text",
@@ -6725,7 +6725,7 @@ export const TEST_CASES: readonly TestCase[] = [
                     children: [
                       {
                         type: "modifier",
-                        marker: "~~",
+                        delimiter: "~~",
                         children: [
                           {
                             type: "text",
@@ -6921,7 +6921,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "**",
+            delimiter: "**",
             children: [
               {
                 type: "text",
@@ -7055,7 +7055,7 @@ export const TEST_CASES: readonly TestCase[] = [
         children: [
           {
             type: "modifier",
-            marker: "~~",
+            delimiter: "~~",
             children: [
               {
                 type: "text",
@@ -7080,7 +7080,7 @@ export const TEST_CASES: readonly TestCase[] = [
           },
           {
             type: "modifier",
-            marker: "*",
+            delimiter: "*",
             children: [
               {
                 type: "text",

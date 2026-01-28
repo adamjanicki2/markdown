@@ -36,7 +36,7 @@ function getNodeKey(node: AstNode) {
   const type = node.type;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
-  if (type === "modifier") return `modifier-${node.marker}`;
+  if (type === "modifier") return `modifier-${node.delimiter}`;
   return type;
 }
 
@@ -45,7 +45,7 @@ function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag {
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
   if (type === "modifier") {
-    const config = MARKER_CONFIG[node.marker];
+    const config = MARKER_CONFIG[node.delimiter];
     return (config?.renderer as Tag) ?? "em"; // fallback
   }
   return type;
@@ -88,9 +88,9 @@ function render(
 
   if (type === "code") return renderers.code({ children: node.value });
   if (type === "modifier") {
-    const config = MARKER_CONFIG[node.marker];
+    const config = MARKER_CONFIG[node.delimiter];
     if (!config) {
-      // Unknown marker - render children without wrapper
+      // Unknown delimiter - render children without wrapper
       return render(node.children, renderers, unwrapTags);
     }
 
