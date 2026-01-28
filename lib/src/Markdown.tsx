@@ -36,6 +36,7 @@ function getNodeKey(node: AstNode) {
   const type = node.type;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
+  if (type === "modifier") return `modifier-${node.marker}`;
   return type;
 }
 
@@ -43,6 +44,10 @@ function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag {
   const type = node.type;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
+  if (type === "modifier") {
+    const config = MARKER_CONFIG[node.marker];
+    return (config?.renderer as Tag) ?? "em"; // fallback
+  }
   return type;
 }
 
@@ -82,18 +87,25 @@ function render(
   }
 
   if (type === "code") return renderers.code({ children: node.value });
-  if (type === "em")
-    return renderers.em({
+  if (type === "modifier") {
+    const config = MARKER_CONFIG[node.marker];
+    if (!config) {
+      // Unknown marker - render children without wrapper
+      return render(node.children, renderers, unwrapTags);
+    }
+
+    const rendererKey = config.renderer as keyof Renderers;
+    const rendererFn = renderers[rendererKey];
+
+    if (!rendererFn) {
+      // Renderer not found - fallback to children
+      return render(node.children, renderers, unwrapTags);
+    }
+
+    return (rendererFn as (props: ChildrenProps) => React.ReactNode)({
       children: render(node.children, renderers, unwrapTags),
     });
-  if (type === "strong")
-    return renderers.strong({
-      children: render(node.children, renderers, unwrapTags),
-    });
-  if (type === "del")
-    return renderers.del({
-      children: render(node.children, renderers, unwrapTags),
-    });
+  }
   if (type === "a")
     return renderers.a({
       children: render(node.children, renderers, unwrapTags),
@@ -231,6 +243,19 @@ const DEFAULT_RENDERERS: Renderers = {
   tr: ({ children }) => <tr>{children}</tr>,
   th: ({ children, align }) => <th align={align}>{children}</th>,
   td: ({ children, align }) => <td align={align}>{children}</td>,
+};
+
+type MarkerConfig = {
+  tag: string;
+  renderer: string;
+};
+
+const MARKER_CONFIG: Record<string, MarkerConfig> = {
+  "**": { tag: "strong", renderer: "strong" },
+  __: { tag: "strong", renderer: "strong" },
+  "*": { tag: "em", renderer: "em" },
+  _: { tag: "em", renderer: "em" },
+  "~~": { tag: "del", renderer: "del" },
 };
 
 export default Markdown;

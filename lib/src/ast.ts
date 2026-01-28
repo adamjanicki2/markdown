@@ -1,10 +1,10 @@
 import {
   appendNode,
   insertNode,
-  mapWhile,
-  removeNode,
   type LinkedList,
   type LinkedListNode,
+  mapWhile,
+  removeNode,
 } from "./list";
 
 /**
@@ -159,8 +159,7 @@ function nodeToLiteral(node: IrNode): string {
   if (node.type === "backtick") return "`".repeat(node.len);
   if (node.type === "code") return "`" + node.value + "`";
   if (node.type === "br" || node.type === "newline") return "\n";
-  if (node.type === "em" || node.type === "strong" || node.type === "del")
-    return nodesToLiteral(node.children);
+  if (node.type === "modifier") return nodesToLiteral(node.children);
   return "";
 }
 
@@ -766,12 +765,14 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
   const canMatch = (opener: Delimiter, closer: Delimiter) => {
     if (opener.char !== closer.char) return false;
     if (opener.length === 0 || closer.length === 0) return false;
-    if (opener.char === "~") return opener.length >= 2 && closer.length >= 2;
+    const config = DELIMITER_CONFIGS[opener.char];
+    if (config?.pairs) return opener.length >= 2 && closer.length >= 2;
     return true;
   };
 
-  const useLength = (opener: Delimiter, closer: Delimiter) => {
-    if (opener.char === "~") return 2;
+  const getDelimiterLength = (opener: Delimiter, closer: Delimiter) => {
+    const config = DELIMITER_CONFIGS[opener.char];
+    if (config?.pairs) return 2;
     return opener.length >= 2 && closer.length >= 2 ? 2 : 1;
   };
 
@@ -801,7 +802,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
       continue;
     }
 
-    const used = useLength(opener.value, closer.value);
+    const used = getDelimiterLength(opener.value, closer.value);
     const openerNode = opener.value.node;
     const closerNode = closer.value.node;
 
@@ -812,9 +813,12 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     );
 
     const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
-    const type =
-      closer.value.char === "~" ? "del" : used === 2 ? "strong" : "em";
-    const emphasisNode: IrNode = { type, children };
+    const marker = getMarker(closer.value.char, used);
+    const emphasisNode: IrNode = {
+      type: "modifier",
+      marker,
+      children,
+    };
 
     for (const item of innerNodes) removeNode(list, item);
 
@@ -946,9 +950,11 @@ type TextNode = { type: "text"; value: string };
 type CodeNode = { type: "code"; value: string };
 type LinkNode = { type: "a"; url: string; children: InlineAstNode[] };
 type ImageNode = { type: "img"; url: string; alt: string };
-type EmNode = { type: "em"; children: InlineAstNode[] };
-type StrongNode = { type: "strong"; children: InlineAstNode[] };
-type DelNode = { type: "del"; children: InlineAstNode[] };
+type ModifierNode = {
+  type: "modifier";
+  marker: string;
+  children: InlineAstNode[];
+};
 type BrNode = { type: "br" };
 
 type InlineAstNode =
@@ -956,10 +962,15 @@ type InlineAstNode =
   | CodeNode
   | LinkNode
   | ImageNode
-  | EmNode
-  | StrongNode
-  | DelNode
+  | ModifierNode
   | BrNode;
+
+// Helper to get marker from delimiter char and length
+function getMarker(char: string, length: number): string {
+  const config = DELIMITER_CONFIGS[char];
+  if (config?.pairs) return char.repeat(2);
+  return char.repeat(length);
+}
 
 type DelimiterToken = {
   type: "delimiter";
