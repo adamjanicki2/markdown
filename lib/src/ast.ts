@@ -579,22 +579,18 @@ function tokenize(str: string): InlineToken[] {
         text += "\\";
       }
     } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
-    else if (char === "`" || char in DELIMITER_CONFIGS) {
+    else if (char === "`" || DELIMITER_CHARS.has(char)) {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === char) runIndex++;
 
       if (char === "`") {
         pushToken({ type: "backtick", len: runIndex - i });
       } else {
-        const config = DELIMITER_CONFIGS[char];
+        const intraword = getIntrawordForChar(char);
         const prevChar = str[i - 1];
         const nextChar = str[runIndex];
 
-        if (
-          !config?.intraword &&
-          isAlphanum(prevChar) &&
-          isAlphanum(nextChar)
-        ) {
+        if (!intraword && isAlphanum(prevChar) && isAlphanum(nextChar)) {
           text += char.repeat(runIndex - i);
         } else {
           pushToken({
@@ -765,15 +761,28 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
   const canMatch = (opener: Delimiter, closer: Delimiter) => {
     if (opener.char !== closer.char) return false;
     if (opener.length === 0 || closer.length === 0) return false;
-    const config = DELIMITER_CONFIGS[opener.char];
-    if (config?.pairs) return opener.length >= 2 && closer.length >= 2;
-    return true;
+
+    // Find the longest marker length that both support and has a config
+    const maxPossible = Math.min(opener.length, closer.length);
+    for (let len = maxPossible; len >= 1; len--) {
+      const marker = opener.char.repeat(len);
+      if (DELIMITER_CONFIGS[marker]) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const getDelimiterLength = (opener: Delimiter, closer: Delimiter) => {
-    const config = DELIMITER_CONFIGS[opener.char];
-    if (config?.pairs) return 2;
-    return opener.length >= 2 && closer.length >= 2 ? 2 : 1;
+    // Find the longest marker length that both support and has a config
+    const maxPossible = Math.min(opener.length, closer.length);
+    for (let len = maxPossible; len >= 1; len--) {
+      const marker = opener.char.repeat(len);
+      if (DELIMITER_CONFIGS[marker]) {
+        return len;
+      }
+    }
+    return 1; // Fallback
   };
 
   const openersBottom = new Map<
@@ -908,8 +917,25 @@ const DELIMITER_CONFIGS: Record<
   { intraword: boolean; pairs: boolean } | undefined
 > = {
   "*": { intraword: true, pairs: false },
+  "**": { intraword: true, pairs: false },
   _: { intraword: false, pairs: false },
-  "~": { intraword: true, pairs: true },
+  __: { intraword: false, pairs: false },
+  "~~": { intraword: true, pairs: true },
+};
+
+// Extract unique delimiter characters for tokenization
+const DELIMITER_CHARS = new Set(
+  Object.keys(DELIMITER_CONFIGS).map((marker) => marker[0])
+);
+
+// Helper to get intraword setting for a character during tokenization
+const getIntrawordForChar = (char: string): boolean => {
+  for (const marker in DELIMITER_CONFIGS) {
+    if (marker[0] === char) {
+      return DELIMITER_CONFIGS[marker]?.intraword ?? false;
+    }
+  }
+  return false;
 };
 
 const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
@@ -967,8 +993,6 @@ type InlineAstNode =
 
 // Helper to get marker from delimiter char and length
 function getMarker(char: string, length: number): string {
-  const config = DELIMITER_CONFIGS[char];
-  if (config?.pairs) return char.repeat(2);
   return char.repeat(length);
 }
 

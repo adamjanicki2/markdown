@@ -6109,7 +6109,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "triple tildes leaves single tildes around del",
+    name: "triple tildes uses double-tilde marker with extras",
     input: "~~~a~~~",
     ast: [
       {
