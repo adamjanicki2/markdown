@@ -7,6 +7,36 @@ type TestCase = {
   readonly options?: BuildAstOptions;
 };
 
+const HIGHLIGHT_OPTIONS: BuildAstOptions = {
+  modifierConfigs: {
+    "=": { intraword: true, lengths: [2] },
+  },
+};
+
+const STRICT_HIGHLIGHT_OPTIONS: BuildAstOptions = {
+  modifierConfigs: {
+    "=": { intraword: false, lengths: [2] },
+  },
+};
+
+const HASH_OPTIONS: BuildAstOptions = {
+  modifierConfigs: {
+    "#": { intraword: true, lengths: [1] },
+  },
+};
+
+const OVERRIDE_STAR_OPTIONS: BuildAstOptions = {
+  modifierConfigs: {
+    "*": { intraword: true, lengths: [1] },
+  },
+};
+
+const OVERRIDE_TILDE_OPTIONS: BuildAstOptions = {
+  modifierConfigs: {
+    "~": { intraword: true, lengths: [1] },
+  },
+};
+
 export const TEST_CASES: readonly TestCase[] = [
   {
     name: "paragraph",
@@ -5763,6 +5793,557 @@ export const TEST_CASES: readonly TestCase[] = [
       {
         type: "p",
         children: [{ type: "text", value: "a * b" }],
+      },
+    ],
+  },
+  {
+    name: "custom modifier parses ==highlight==",
+    input: "==highlight==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "highlight" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier in sentence",
+    input: "a ==b== c",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "a " },
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "b" }],
+          },
+          { type: "text", value: " c" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier repeated with space",
+    input: "==a== ==b==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "a" }],
+          },
+          { type: "text", value: " " },
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "b" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier with triple run leaves extra",
+    input: "===a===",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "=" },
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "a" }],
+          },
+          { type: "text", value: "=" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier with quadruple run nests",
+    input: "====a====",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "==",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier wraps strong",
+    input: "==**a**==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "**",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strong wraps custom modifier",
+    input: "**==a==**",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "**",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "==",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier wraps em",
+    input: "==*a*==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "*",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "em wraps custom modifier",
+    input: "*==a==*",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "*",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "==",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier wraps del",
+    input: "==~~a~~==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "~~",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "del wraps custom modifier",
+    input: "~~==a==~~",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "~~",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "==",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier can span newline",
+    input: "==a\nb==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [
+              { type: "text", value: "a" },
+              { type: "text", value: "\nb" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier inside link label",
+    input: "[==a==](url)",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "a",
+            url: "url",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "==",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier does not parse image alt",
+    input: "![==a==](url)",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [{ type: "img", url: "url", alt: "==a==" }],
+      },
+    ],
+  },
+  {
+    name: "custom modifier with punctuation",
+    input: "(==a==)",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "(" },
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "a" }],
+          },
+          { type: "text", value: ")" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier intraword true",
+    input: "a==b==c",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "a" },
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "b" }],
+          },
+          { type: "text", value: "c" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier intraword false",
+    input: "a==b==c",
+    options: STRICT_HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [{ type: "text", value: "a==b==c" }],
+      },
+    ],
+  },
+  {
+    name: "custom hash modifier parses #a#",
+    input: "#a#",
+    options: HASH_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "#",
+            children: [{ type: "text", value: "a" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom hash modifier 2x",
+    input: "##a##",
+    options: HASH_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "#",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "#",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "defaults override custom star lengths",
+    input: "**a**",
+    options: OVERRIDE_STAR_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "**",
+            children: [{ type: "text", value: "a" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "defaults override custom tilde lengths",
+    input: "~~a~~",
+    options: OVERRIDE_TILDE_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "~~",
+            children: [{ type: "text", value: "a" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier with trailing text",
+    input: "==a==b",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "a" }],
+          },
+          { type: "text", value: "b" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier with leading text",
+    input: "b==a==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "b" },
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "a" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier in heading",
+    input: "# ==a==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "h",
+        level: 1,
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "a" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier alongside del",
+    input: "==a== ~~b~~",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "modifier",
+            delimiter: "==",
+            children: [{ type: "text", value: "a" }],
+          },
+          { type: "text", value: " " },
+          {
+            type: "modifier",
+            delimiter: "~~",
+            children: [{ type: "text", value: "b" }],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier inside blockquote",
+    input: "> ==a==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "blockquote",
+        children: [
+          {
+            type: "p",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "==",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier inside list item",
+    input: "- ==a==",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "list",
+        ordered: false,
+        start: undefined,
+        tight: true,
+        children: [
+          {
+            type: "li",
+            children: [
+              {
+                type: "modifier",
+                delimiter: "==",
+                children: [{ type: "text", value: "a" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "custom modifier inside code span is literal",
+    input: "`==a==`",
+    options: HIGHLIGHT_OPTIONS,
+    ast: [
+      {
+        type: "p",
+        children: [{ type: "code", value: "==a==" }],
       },
     ],
   },
