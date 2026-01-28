@@ -7,12 +7,40 @@ import {
   removeNode,
 } from "./list";
 
+type ModifierConfig = {
+  intraword: boolean;
+  lengths: number[];
+};
+
+export type BuildAstOptions = {
+  modifierConfigs?: Partial<Record<string, ModifierConfig>>;
+};
+
+type ModifierConfigs = Record<string, ModifierConfig | undefined>;
+
 /**
  * Construct an AST given a markdown source string.
  * @param markdown the source to parse
  * @returns an AST representing the markdown source
  */
-export function buildAst(markdown: string): AstNode[] {
+export function buildAst(
+  markdown: string,
+  options: BuildAstOptions = {}
+): AstNode[] {
+  const modifierConfigs: ModifierConfigs = {
+    ...options.modifierConfigs,
+    // Don't override the defaults
+    "*": { intraword: true, lengths: [1, 2] },
+    _: { intraword: false, lengths: [1, 2] },
+    "~": { intraword: true, lengths: [2] },
+  };
+  return walkAndBuildAst(markdown, modifierConfigs);
+}
+
+function walkAndBuildAst(
+  markdown: string,
+  modifierConfigs: ModifierConfigs
+): AstNode[] {
   const lines = splitLines(markdown);
   const nodes: AstNode[] = [];
 
@@ -21,7 +49,10 @@ export function buildAst(markdown: string): AstNode[] {
 
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
-    nodes.push({ type: "p", children: parseInline(paragraph.join("\n")) });
+    nodes.push({
+      type: "p",
+      children: parseInline(paragraph.join("\n"), modifierConfigs),
+    });
     paragraph = [];
   };
 
@@ -54,7 +85,7 @@ export function buildAst(markdown: string): AstNode[] {
       continue;
     }
 
-    const list = parseListNode(lines, lineIndex, isTopLevelNodeStarter);
+    const list = parseListNode(lines, lineIndex, modifierConfigs);
     if (list) {
       flushParagraph();
       nodes.push(list.node);
@@ -75,13 +106,13 @@ export function buildAst(markdown: string): AstNode[] {
       nodes.push({
         type: "h",
         level: heading.level,
-        children: parseInline(heading.raw),
+        children: parseInline(heading.raw, modifierConfigs),
       });
       lineIndex++;
       continue;
     }
 
-    const table = parseTableNode(lines, lineIndex);
+    const table = parseTableNode(lines, lineIndex, modifierConfigs);
     if (table) {
       flushParagraph();
       nodes.push(table.node);
@@ -89,11 +120,7 @@ export function buildAst(markdown: string): AstNode[] {
       continue;
     }
 
-    const blockquote = parseBlockquoteNode(
-      lines,
-      lineIndex,
-      isTopLevelNodeStarter
-    );
+    const blockquote = parseBlockquoteNode(lines, lineIndex, modifierConfigs);
     if (blockquote) {
       flushParagraph();
       nodes.push(blockquote.node);
@@ -316,7 +343,8 @@ function parseTableAlignments(
 function buildTableNode(
   header: string[],
   rows: string[][],
-  alignments: Array<TableAlign | undefined>
+  alignments: Array<TableAlign | undefined>,
+  modifierConfigs: ModifierConfigs
 ): TableNode {
   const thead: TableHeadNode = {
     type: "thead",
@@ -326,7 +354,7 @@ function buildTableNode(
         children: header.map((cellValue, cellIndex) => ({
           type: "th",
           align: alignments[cellIndex],
-          children: parseInline(cellValue),
+          children: parseInline(cellValue, modifierConfigs),
         })),
       },
     ],
@@ -339,7 +367,7 @@ function buildTableNode(
       children: row.map((cellValue, cellIndex) => ({
         type: "td",
         align: alignments[cellIndex],
-        children: parseInline(cellValue),
+        children: parseInline(cellValue, modifierConfigs),
       })),
     })),
   };
@@ -352,7 +380,8 @@ function buildTableNode(
 
 function parseTableNode(
   lines: string[],
-  lineIndex: number
+  lineIndex: number,
+  modifierConfigs: ModifierConfigs
 ): NodeParseResult<TableNode> | null {
   const line = lines[lineIndex];
   const header = splitTableRow(line);
@@ -384,7 +413,7 @@ function parseTableNode(
   }
 
   return {
-    node: buildTableNode(header, rows, alignments),
+    node: buildTableNode(header, rows, alignments, modifierConfigs),
     nextIndex: currentIndex,
   };
 }
@@ -392,7 +421,7 @@ function parseTableNode(
 function parseListNode(
   lines: string[],
   startIndex: number,
-  isTopLevelNodeStarter: (line: string) => boolean
+  modifierConfigs: ModifierConfigs
 ): NodeParseResult<ListNode> | null {
   const firstLine = lines[startIndex];
   const firstMarker = parseListMarker(firstLine);
@@ -484,7 +513,10 @@ function parseListNode(
       lineIndex++;
     }
 
-    children.push({ type: "li", children: buildAst(listItem.join("\n")) });
+    children.push({
+      type: "li",
+      children: walkAndBuildAst(listItem.join("\n"), modifierConfigs),
+    });
     if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
   }
 
@@ -505,7 +537,7 @@ function parseListNode(
 function parseBlockquoteNode(
   lines: string[],
   startIndex: number,
-  isTopLevelNodeStarter: (line: string) => boolean
+  modifierConfigs: ModifierConfigs
 ): NodeParseResult<BlockquoteNode> | null {
   const firstLine = lines[startIndex];
   const firstMarker = stripBlockquoteMarker(firstLine);
@@ -544,12 +576,18 @@ function parseBlockquoteNode(
   }
 
   return {
-    node: { type: "blockquote", children: buildAst(blockquote.join("\n")) },
+    node: {
+      type: "blockquote",
+      children: walkAndBuildAst(blockquote.join("\n"), modifierConfigs),
+    },
     nextIndex: lineIndex,
   };
 }
 
-function tokenize(str: string): InlineToken[] {
+function tokenize(
+  str: string,
+  modifierConfigs: ModifierConfigs
+): InlineToken[] {
   const tokens: InlineToken[] = [];
   let text = "";
 
@@ -579,14 +617,14 @@ function tokenize(str: string): InlineToken[] {
         text += "\\";
       }
     } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
-    else if (char === "`" || char in MODIFIER_CONFIGS) {
+    else if (char === "`" || char in modifierConfigs) {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === char) runIndex++;
 
       if (char === "`") {
         pushToken({ type: "backtick", len: runIndex - i });
       } else {
-        const intraword = MODIFIER_CONFIGS[char]?.intraword;
+        const intraword = modifierConfigs[char]?.intraword;
         const prevChar = str[i - 1];
         const nextChar = str[runIndex];
 
@@ -654,7 +692,8 @@ function isPunctChar(node: IrNode, char: string): node is PunctToken {
 
 function parseLinkOrImage(
   nodes: IrNode[],
-  startIndex: number
+  startIndex: number,
+  modifierConfigs: ModifierConfigs
 ): { node: IrNode; nextIndex: number } | null {
   const startNode = nodes[startIndex];
   if (!isToken(startNode)) return null;
@@ -709,18 +748,21 @@ function parseLinkOrImage(
     };
   }
 
-  const children = parseInline(label);
+  const children = parseInline(label, modifierConfigs);
   return {
     node: { type: "a", url, children },
     nextIndex: rightParenIndex,
   };
 }
 
-function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
+function resolveLinksAndImages(
+  nodes: IrNode[],
+  modifierConfigs: ModifierConfigs
+): IrNode[] {
   const nodesOut: IrNode[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
-    const parsed = parseLinkOrImage(nodes, i);
+    const parsed = parseLinkOrImage(nodes, i, modifierConfigs);
     const node = nodes[i];
     if (parsed) {
       nodesOut.push(parsed.node);
@@ -733,7 +775,10 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
   return mergeAdjacentText(nodesOut);
 }
 
-function resolveDelimiters(nodes: IrNode[]): IrNode[] {
+function resolveDelimiters(
+  nodes: IrNode[],
+  modifierConfigs: ModifierConfigs
+): IrNode[] {
   const list: LinkedList<IrNode> = {};
   const delimiterList: LinkedList<Delimiter> = {};
 
@@ -765,7 +810,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     // Find the longest marker length that both support and has a config
     const maxPossible = Math.min(opener.length, closer.length);
     for (let len = maxPossible; len >= 1; len--) {
-      if (MODIFIER_CONFIGS[opener.char]?.lengths.includes(len)) {
+      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
         return true;
       }
     }
@@ -776,7 +821,7 @@ function resolveDelimiters(nodes: IrNode[]): IrNode[] {
     // Find the longest marker length that both support and has a config
     const maxPossible = Math.min(opener.length, closer.length);
     for (let len = maxPossible; len >= 1; len--) {
-      if (MODIFIER_CONFIGS[opener.char]?.lengths.includes(len)) {
+      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
         return len;
       }
     }
@@ -899,25 +944,18 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
   return inlineNodes;
 }
 
-function parseInline(str: string): InlineAstNode[] {
-  const tokens = tokenize(str);
+function parseInline(
+  str: string,
+  modifierConfigs: ModifierConfigs
+): InlineAstNode[] {
+  const tokens = tokenize(str, modifierConfigs);
 
   let nodes: IrNode[] = resolveCodeSpans(tokens);
-  nodes = resolveLinksAndImages(nodes);
-  nodes = resolveDelimiters(nodes);
+  nodes = resolveLinksAndImages(nodes, modifierConfigs);
+  nodes = resolveDelimiters(nodes, modifierConfigs);
 
   return finalizeInlineNodes(nodes);
 }
-
-type ModifierConfig = {
-  intraword: boolean;
-  lengths: number[];
-};
-const MODIFIER_CONFIGS: Record<string, ModifierConfig | undefined> = {
-  "*": { intraword: true, lengths: [1, 2] },
-  _: { intraword: false, lengths: [1, 2] },
-  "~": { intraword: true, lengths: [2] },
-};
 
 const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
 const RE_NEWLINES = /\r\n?/g;
