@@ -319,6 +319,8 @@ describe("Markdown", () => {
     );
 
     expect(container.querySelector("pre")).not.toBeInTheDocument();
+    expect(container.querySelector("code")).not.toBeInTheDocument();
+    expect(screen.getByText("const x = 1;")).toBeInTheDocument();
     expect(screen.getByText("After")).toBeInTheDocument();
   });
 

@@ -8,7 +8,7 @@ type TestCase = {
 
 export const TEST_CASES: readonly TestCase[] = [
   {
-    name: "1 paragraph",
+    name: "paragraph",
     input: "Hello world",
     ast: [
       {
@@ -23,7 +23,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "2 paragraph does not hardbreak on single newline",
+    name: "paragraph does not hardbreak on single newline",
     input: "Hello\nworld",
     ast: [
       {
@@ -42,7 +42,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "3 paragraph supports inline formatting",
+    name: "paragraph supports inline formatting",
     input: "Hello **bold** _em_ `x`",
     ast: [
       {
@@ -87,7 +87,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "4 paragraph hardbreak renders as <br />",
+    name: "paragraph hardbreak renders as <br />",
     input: "Hello  \nworld",
     ast: [
       {
@@ -109,7 +109,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "5 nested emphasis/strong",
+    name: "nested emphasis/strong",
     input: "**a _b_ c**",
     ast: [
       {
@@ -142,7 +142,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "6 triple nesting combo: del > strong > em",
+    name: "triple nesting combo: del > strong > em",
     input: "~~***combo***~~",
     ast: [
       {
@@ -172,7 +172,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "7 deeply nested mix",
+    name: "deeply nested mix",
     input: "*a **b ~~c~~ d** e*",
     ast: [
       {
@@ -218,7 +218,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "8 unmatched delimiters left as text",
+    name: "unmatched delimiters left as text",
     input: "Unmatched *stars and ~~tildes",
     ast: [
       {
@@ -233,7 +233,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "9 underscores inside words do not emphasize",
+    name: "underscores inside words do not emphasize",
     input: "snake_case foo_bar baz_qux",
     ast: [
       {
@@ -248,7 +248,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "10 backslash escapes prevent emphasis",
+    name: "backslash escapes prevent emphasis",
     input: "\\*not italic\\*",
     ast: [
       {
@@ -263,7 +263,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "11 code spans block delimiter parsing",
+    name: "code spans block delimiter parsing",
     input: "**a `*b*` c**",
     ast: [
       {
@@ -291,7 +291,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "12 link with inline label",
+    name: "link with inline label",
     input: "See [docs `v1`](https://example.com)",
     ast: [
       {
@@ -320,7 +320,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "13 image renders with escaped attrs",
+    name: "image renders with escaped attrs",
     input: "<div>x</div>",
     ast: [
       {
@@ -335,12 +335,12 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "14 html is left alone",
+    name: "html is left alone",
     input: "<div>x</div>",
     ast: [{ type: "p", children: [{ type: "text", value: "<div>x</div>" }] }],
   },
   {
-    name: "15 mixed: link + em + code + del",
+    name: "mixed: link + em + code + del",
     input: "a [b](x) _c_ `d` ~~e~~",
     ast: [
       {
@@ -399,7 +399,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "16 multiple single lines",
+    name: "multiple single lines",
     input: "a\nb\nc",
     ast: [
       {
@@ -422,7 +422,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "17 hardbreak inside emphasis",
+    name: "hardbreak inside emphasis",
     input: "*a  \nb*",
     ast: [
       {
@@ -449,7 +449,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "18 single newline inside emphasis",
+    name: "single newline inside emphasis",
     input: "*a\nb*",
     ast: [
       {
@@ -473,7 +473,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "19 heading",
+    name: "heading",
     input: "# Title",
     ast: [
       {
@@ -489,7 +489,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "20 heading supports inline formatting",
+    name: "heading supports inline formatting",
     input: "# Title **Bold**",
     ast: [
       {
@@ -514,7 +514,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "21 heading strips trailing hashes",
+    name: "heading strips trailing hashes",
     input: "## Hi ###",
     ast: [
       {
@@ -530,7 +530,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "22 thematic break",
+    name: "thematic break",
     input: "---",
     ast: [
       {
@@ -539,7 +539,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "23 thematic break with spaces",
+    name: "thematic break with spaces",
     input: "- - -",
     ast: [
       {
@@ -548,7 +548,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "24 fenced code block with language",
+    name: "fenced code block with language",
     input: "```ts\nconst x = 1;\n```\n",
     ast: [
       {
@@ -559,7 +559,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "25 fenced code block escapes HTML",
+    name: "fenced code block escapes HTML",
     input: "```html\n<div>x</div>\n```",
     ast: [
       {
@@ -570,7 +570,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "26 fenced code without language",
+    name: "fenced code without language",
     input: "```\n<x>\n```",
     ast: [
       {
@@ -581,7 +581,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "27 code fence end can be longer than start",
+    name: "code fence end can be longer than start",
     input: "```js\nx\n````",
     ast: [
       {
@@ -592,7 +592,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "28 code fence can start after up to 3 spaces",
+    name: "code fence can start after up to 3 spaces",
     input: "   ```\nhi\n   ```",
     ast: [
       {
@@ -603,7 +603,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "29 blockquote (simple)",
+    name: "blockquote (simple)",
     input: "> Hello",
     ast: [
       {
@@ -623,7 +623,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "30 blockquote supports lazy continuation lines",
+    name: "blockquote supports lazy continuation lines",
     input: "> a\nb",
     ast: [
       {
@@ -647,7 +647,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "31 nested blockquotes (>>)",
+    name: "nested blockquotes (>>)",
     input: ">> a",
     ast: [
       {
@@ -672,7 +672,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "32 nested blockquotes with spaced markers",
+    name: "nested blockquotes with spaced markers",
     input: "> > a",
     ast: [
       {
@@ -697,7 +697,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "33 blockquote marker allowed after indentation",
+    name: "blockquote marker allowed after indentation",
     input: "  > a",
     ast: [
       {
@@ -717,7 +717,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "34 blockquote contains heading + paragraph",
+    name: "blockquote contains heading + paragraph",
     input: "> # H\n> x",
     ast: [
       {
@@ -747,7 +747,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "35 blockquote contains thematic break",
+    name: "blockquote contains thematic break",
     input: "> ---",
     ast: [
       {
@@ -761,7 +761,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "36 blockquote contains nested quote + list",
+    name: "blockquote contains nested quote + list",
     input: "> > - a\n> > - b",
     ast: [
       {
@@ -802,7 +802,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "37 unordered list (simple)",
+    name: "unordered list (simple)",
     input: "- a\n- b",
     ast: [
       {
@@ -833,7 +833,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "38 ordered list (simple)",
+    name: "ordered list (simple)",
     input: "1. a\n2. b",
     ast: [
       {
@@ -865,7 +865,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "39 ordered list with start != 1",
+    name: "ordered list with start != 1",
     input: "3. a\n4. b",
     ast: [
       {
@@ -897,7 +897,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "40 list item lazy continuation",
+    name: "list item lazy continuation",
     input: "- a\nb\n- c",
     ast: [
       {
@@ -932,7 +932,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "41 list item continuation stops before heading",
+    name: "list item continuation stops before heading",
     input: "- a\n# h",
     ast: [
       {
@@ -964,7 +964,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "42 blank line makes list loose (still same HTML)",
+    name: "blank line makes list loose (still same HTML)",
     input: "- a\n\n- b",
     ast: [
       {
@@ -1005,7 +1005,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "43 nested unordered list",
+    name: "nested unordered list",
     input: "- a\n  - b\n  - c\n- d",
     ast: [
       {
@@ -1061,7 +1061,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "44 nested ordered inside unordered",
+    name: "nested ordered inside unordered",
     input: "- a\n  1. b\n  2. c\n- d",
     ast: [
       {
@@ -1118,7 +1118,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "45 nested list under list item using content indentation",
+    name: "nested list under list item using content indentation",
     input: "- a\n  - b\n    - c\n- d",
     ast: [
       {
@@ -1181,7 +1181,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "46 ordered list with multi-digit marker supports nesting",
+    name: "ordered list with multi-digit marker supports nesting",
     input: "10. a\n    - b",
     ast: [
       {
@@ -1220,7 +1220,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "47 list item contains multiple paragraphs",
+    name: "list item contains multiple paragraphs",
     input: "- a\n\n  b",
     ast: [
       {
@@ -1256,7 +1256,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "48 list item contains heading + paragraph continuation stops correctly",
+    name: "list item contains heading + paragraph continuation stops correctly",
     input: "- a\n  # h\n  b",
     ast: [
       {
@@ -1292,7 +1292,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "49 list item can contain a blockquote that contains a list",
+    name: "list item can contain a blockquote that contains a list",
     input: "- a\n  > - b\n  > - c\n- d",
     ast: [
       {
@@ -1353,7 +1353,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "50 blockquote can contain a list",
+    name: "blockquote can contain a list",
     input: "> - a\n> - b",
     ast: [
       {
@@ -1389,7 +1389,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "51 nested list inside blockquote with lazy continuation",
+    name: "nested list inside blockquote with lazy continuation",
     input: "> - a\n> b\n> - c",
     ast: [
       {
@@ -1429,7 +1429,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "52 list contains nested blockquote then paragraph (lazy continuation stays in quote)",
+    name: "list contains nested blockquote then paragraph (lazy continuation stays in quote)",
     input: "- a\n  > x\ny",
     ast: [
       {
@@ -1469,7 +1469,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "53 ordered list siblings must align by indent (indented ordered marker nests)",
+    name: "ordered list siblings must align by indent (indented ordered marker nests)",
     input: "1. a\n  2. b",
     ast: [
       {
@@ -1501,7 +1501,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "54 list item inline formatting",
+    name: "list item inline formatting",
     input: "- a **b** _c_",
     ast: [
       {
@@ -1545,7 +1545,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "55 nested list item inline formatting",
+    name: "nested list item inline formatting",
     input: "- a\n  - **b**\n  - _c_",
     ast: [
       {
@@ -1602,7 +1602,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "56 fenced code inside list item",
+    name: "fenced code inside list item",
     input: "- a\n  ```\n  x\n  ```\n- b",
     ast: [
       {
@@ -1638,7 +1638,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "57 fenced code inside blockquote",
+    name: "fenced code inside blockquote",
     input: "> ```\n> x\n> ```",
     ast: [
       {
@@ -1654,7 +1654,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "58 fenced code inside blockquote inside list item",
+    name: "fenced code inside blockquote inside list item",
     input: "- a\n  > ```\n  > x\n  > ```\n- b",
     ast: [
       {
@@ -1695,7 +1695,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "59 list in blockquote in list in blockquote (deep structure)",
+    name: "list in blockquote in list in blockquote (deep structure)",
     input: "> - a\n>   > - b\n>   >   - c\n> - d",
     ast: [
       {
@@ -1768,7 +1768,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "60 paragraph after complex structures",
+    name: "paragraph after complex structures",
     input: "- a\n  > x\n\nz",
     ast: [
       {
@@ -1813,7 +1813,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "61 basic table",
+    name: "basic table",
     input: "| a | b |\n| - | - |\n| c | d |",
     ast: [
       {
@@ -1880,7 +1880,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "62 table supports inline in cells",
+    name: "table supports inline in cells",
     input: "| a | b |\n| - | - |\n| **c** | d |",
     ast: [
       {
@@ -1952,7 +1952,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "63 table supports multiple body rows + inline",
+    name: "table supports multiple body rows + inline",
     input: "| a | b |\n| - | - |\n| c | _d_ |\n| `x` | ~~y~~ |",
     ast: [
       {
@@ -2052,7 +2052,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "64 table without outer pipes",
+    name: "table without outer pipes",
     input: "a | b\n- | -\nc | d",
     ast: [
       {
@@ -2087,7 +2087,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "65 heading with leading spaces",
+    name: "heading with leading spaces",
     input: "  # not heading",
     ast: [
       {
@@ -2103,7 +2103,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "66 weird nested list syntax",
+    name: "weird nested list syntax",
     input: "* - *",
     ast: [
       {
@@ -2144,7 +2144,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "67 fence allows internal backticks",
+    name: "fence allows internal backticks",
     input: "```\n`nested code`\n```",
     ast: [
       {
@@ -2155,7 +2155,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "68 double backtick code span",
+    name: "double backtick code span",
     input: "``code``",
     ast: [
       {
@@ -2170,7 +2170,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "69 code span preserves leading and trailing spaces",
+    name: "code span preserves leading and trailing spaces",
     input: "` code `",
     ast: [
       {
@@ -2185,7 +2185,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "70 trailing backslash is literal",
+    name: "trailing backslash is literal",
     input: "foo\\",
     ast: [
       {
@@ -2200,7 +2200,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "71 empty link url should still create link",
+    name: "empty link url should still create link",
     input: "[x]()",
     ast: [
       {
@@ -2221,7 +2221,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "72 empty image url should still create image",
+    name: "empty image url should still create image",
     input: "![x]()",
     ast: [
       {
@@ -2237,7 +2237,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "73 link url trims whitespace",
+    name: "link url trims whitespace",
     input: "[x](  https://a.com  )",
     ast: [
       {
@@ -2258,7 +2258,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "74 deep inline nesting with del/strong/em",
+    name: "deep inline nesting with del/strong/em",
     input: "*a **b ~~c _d_~~ e** f*",
     ast: [
       {
@@ -2313,7 +2313,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "75 emphasis wraps a link",
+    name: "emphasis wraps a link",
     input: "*see [x](y)*",
     ast: [
       {
@@ -2343,7 +2343,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "76 code span blocks link parsing",
+    name: "code span blocks link parsing",
     input: "`[x](y)`",
     ast: [
       {
@@ -2358,7 +2358,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "77 table inside blockquote",
+    name: "table inside blockquote",
     input: "> | a | b |\n> | - | - |\n> | c | d |",
     ast: [
       {
@@ -2430,7 +2430,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "78 table inside list item",
+    name: "table inside list item",
     input: "- | a | b |\n  | - | - |\n  | c | d |",
     ast: [
       {
@@ -2509,7 +2509,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "79 horizontal rule before list item",
+    name: "horizontal rule before list item",
     input: "- ---\n- a",
     ast: [
       {
@@ -2534,7 +2534,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "80 blockquote with list, blank line, then paragraph",
+    name: "blockquote with list, blank line, then paragraph",
     input: "> - a\n>   - b\n> \n> c",
     ast: [
       {
@@ -2586,7 +2586,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "81 ordered list with blockquote and nested list",
+    name: "ordered list with blockquote and nested list",
     input: "2. a\n   > b\n   > - c\n3. d",
     ast: [
       {
@@ -2648,7 +2648,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "82 loose list item with fenced code block",
+    name: "loose list item with fenced code block",
     input: "- a\n\n  ```\n  code\n  ```\n\n- b",
     ast: [
       {
@@ -2694,7 +2694,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "83 blockquote with fenced code and language",
+    name: "blockquote with fenced code and language",
     input: "> ```ts\n> const x = 1;\n> ```",
     ast: [
       {
@@ -2710,7 +2710,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "84 heading with tab after marker",
+    name: "heading with tab after marker",
     input: "#\tTitle",
     ast: [
       {
@@ -2726,7 +2726,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "85 code fence info only uses first token",
+    name: "code fence info only uses first token",
     input: "```js extra\nx\n```",
     ast: [
       {
@@ -2737,7 +2737,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "86 unordered list with plus markers",
+    name: "unordered list with plus markers",
     input: "+ a\n+ b",
     ast: [
       {
@@ -2768,7 +2768,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "87 unordered list makes separate list with mixed markers",
+    name: "unordered list makes separate list with mixed markers",
     input: "- a\n+ b",
     ast: [
       {
@@ -2806,7 +2806,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "88 ordered list with paren markers",
+    name: "ordered list with paren markers",
     input: "1) a\n2) b",
     ast: [
       {
@@ -2838,7 +2838,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "89 ordered list allows long numeric marker",
+    name: "ordered list allows long numeric marker",
     input: "123456789. a\n123456790. b",
     ast: [
       {
@@ -2870,7 +2870,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "90 list item continuation with extra indentation",
+    name: "list item continuation with extra indentation",
     input: "- a\n   b",
     ast: [
       {
@@ -2896,7 +2896,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "91 nested list with deeper indentation",
+    name: "nested list with deeper indentation",
     input: "- a\n    - b",
     ast: [
       {
@@ -2934,7 +2934,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "92 blockquote ends before heading",
+    name: "blockquote ends before heading",
     input: "> a\n# b",
     ast: [
       {
@@ -2964,7 +2964,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "93 table delimiter rejects colons",
+    name: "table delimiter rejects colons",
     input: "| a | b |\n| :-- | --: |\n| c | d |",
     ast: [
       {
@@ -3035,7 +3035,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "94 table with spaced cells and no outer pipes",
+    name: "table with spaced cells and no outer pipes",
     input: " a | b \n --- | --- \n c | d ",
     ast: [
       {
@@ -3102,7 +3102,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "95 hardbreak inside link label",
+    name: "hardbreak inside link label",
     input: "[a  \nb](x)",
     ast: [
       {
@@ -3130,7 +3130,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "96 emphasis across line break inside link label",
+    name: "emphasis across line break inside link label",
     input: "[*a\nb*](x)",
     ast: [
       {
@@ -3160,7 +3160,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "97 image alt does not parse inline",
+    name: "image alt does not parse inline",
     input: "![**a**](x)",
     ast: [
       {
@@ -3176,7 +3176,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "98 unterminated code fence consumes rest of document",
+    name: "unterminated code fence consumes rest of document",
     input: "```\ncode",
     ast: [
       {
@@ -3187,7 +3187,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "99 deep nesting: blockquote > list > blockquote > list > code",
+    name: "deep nesting: blockquote > list > blockquote > list > code",
     input: "> - a\n>   > b\n>   > - `c`\n> - d",
     ast: [
       {
@@ -3253,7 +3253,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "100 very deep inline nesting with code",
+    name: "very deep inline nesting with code",
     input: "~~**_`x`_**~~",
     ast: [
       {
@@ -3283,7 +3283,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "101 code fence with url literal",
+    name: "code fence with url literal",
     input: "```\nhttps://example.com\n```",
     ast: [
       {
@@ -3294,7 +3294,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "102 trailing backslash without newline is literal",
+    name: "trailing backslash without newline is literal",
     input: "a\\",
     ast: [
       {
@@ -3309,7 +3309,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "103 backslash before newline in code fence stays literal",
+    name: "backslash before newline in code fence stays literal",
     input: "```\na\\\nb\n```",
     ast: [
       {
@@ -3320,7 +3320,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "104 list item contains table then paragraph continuation",
+    name: "list item contains table then paragraph continuation",
     input: "- intro\n  | a | b |\n  | - | - |\n  | c | d |\n  tail",
     ast: [
       {
@@ -3421,7 +3421,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "105 list > blockquote > list item contains table",
+    name: "list > blockquote > list item contains table",
     input:
       "- a\n  > - b\n  >   | h | i |\n  >   | - | - |\n  >   | x | y |\n- c",
     ast: [
@@ -3535,7 +3535,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "106 blockquote contains list whose item contains table and code fence",
+    name: "blockquote contains list whose item contains table and code fence",
     input: "#Title",
     ast: [
       {
@@ -3550,12 +3550,12 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "107 heading requires space after # (should be paragraph)",
+    name: "heading requires space after # (should be paragraph)",
     input: "#Title",
     ast: [{ type: "p", children: [{ type: "text", value: "#Title" }] }],
   },
   {
-    name: "108 heading with more than 6 hashes clamps/treated as heading 6-ish",
+    name: "heading with more than 6 hashes clamps/treated as heading 6-ish",
     input: "####### too many",
     ast: [
       {
@@ -3570,7 +3570,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "109 thematic break not enough markers (should be paragraph)",
+    name: "thematic break not enough markers (should be paragraph)",
     input: "--",
     ast: [
       {
@@ -3585,7 +3585,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "110 thematic break with tabs between markers",
+    name: "thematic break with tabs between markers",
     input: "-\t-\t-",
     ast: [
       {
@@ -3594,7 +3594,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "111 thematic break with leading indentation 3 spaces still hr",
+    name: "thematic break with leading indentation 3 spaces still hr",
     input: "   ---",
     ast: [
       {
@@ -3603,7 +3603,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "112 code span with internal backtick via double fence",
+    name: "code span with internal backtick via double fence",
     input: "``a`b``",
     ast: [
       {
@@ -3618,7 +3618,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "113 table does not render when wrong divider count is used",
+    name: "table does not render when wrong divider count is used",
     input: "| a | b | c |\n| - | - |\n| d | e | f |",
     ast: [
       {
@@ -3641,7 +3641,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "114 code span empty",
+    name: "code span empty",
     input: "``",
     ast: [
       {
@@ -3656,7 +3656,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "115 backslash escapes punctuation literal",
+    name: "backslash escapes punctuation literal",
     input: "\\[brackets\\] and \\(parens\\)",
     ast: [
       {
@@ -3671,7 +3671,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "116 backslash before space is literal",
+    name: "backslash before space is literal",
     input: "a\\ b",
     ast: [
       {
@@ -3686,7 +3686,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "117 emphasis with intraword underscores should not emphasize",
+    name: "emphasis with intraword underscores should not emphasize",
     input: "a__b__c",
     ast: [
       {
@@ -3701,7 +3701,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "118 emphasis with intraword asterisks should not emphasize",
+    name: "emphasis with intraword asterisks should not emphasize",
     input: "a**b**c",
     ast: [
       {
@@ -3729,7 +3729,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "119 mixed delimiter runs ambiguous",
+    name: "mixed delimiter runs ambiguous",
     input: "***x**",
     ast: [
       {
@@ -3753,7 +3753,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "120 nested empty emphasis nodes should not be emitted",
+    name: "nested empty emphasis nodes should not be emitted",
     input: "**__**",
     ast: [
       {
@@ -3773,7 +3773,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "121 emphasis around punctuation",
+    name: "emphasis around punctuation",
     input: "*!@#* **(x)**",
     ast: [
       {
@@ -3806,7 +3806,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "122 link destination with parentheses balanced",
+    name: "link destination with parentheses balanced",
     input: "[link](http://example.com/a(b)c)",
     ast: [
       {
@@ -3827,7 +3827,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "123 link destination with spaces must be trimmed",
+    name: "link destination with spaces must be trimmed",
     input: "[x](   http://example.com  )",
     ast: [
       {
@@ -3848,7 +3848,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "124 link label supports emphasis and code",
+    name: "link label supports emphasis and code",
     input: "[a _b_ `c`](x)",
     ast: [
       {
@@ -3886,7 +3886,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "125 link label with nested brackets",
+    name: "link label with nested brackets",
     input: "[a [b] c](x)",
     ast: [
       {
@@ -3907,7 +3907,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "126 link label with escaped closing bracket",
+    name: "link label with escaped closing bracket",
     input: "[a \\] b](x)",
     ast: [
       {
@@ -3928,7 +3928,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "127 link destination with balanced parentheses",
+    name: "link destination with balanced parentheses",
     input: "[x](http://example.com/a(b)c)",
     ast: [
       {
@@ -3949,7 +3949,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "128 image alt with brackets and escapes",
+    name: "image alt with brackets and escapes",
     input: "![a \\] b [c]](x.png)",
     ast: [
       {
@@ -3965,7 +3965,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "129 image with punctuation in alt",
+    name: "image with punctuation in alt",
     input: "![a (b) [c]](img.png)",
     ast: [
       {
@@ -3981,7 +3981,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "130 literal angle brackets remain text",
+    name: "literal angle brackets remain text",
     input: "x < y > z",
     ast: [
       {
@@ -3996,7 +3996,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "131 ampersand is not entity",
+    name: "ampersand is not entity",
     input: "a & b",
     ast: [
       {
@@ -4011,7 +4011,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "132 blockquote lazy continuation with blank line ends quote",
+    name: "blockquote lazy continuation with blank line ends quote",
     input: "> a\n>\n b",
     ast: [
       {
@@ -4040,7 +4040,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "133 blockquote with mixed starters",
+    name: "blockquote with mixed starters",
     input: "> # h\n> - a\n>   - b\n> \n> end",
     ast: [
       {
@@ -4102,7 +4102,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "134 deep blockquote stack then paragraph",
+    name: "deep blockquote stack then paragraph",
     input: ">>> deep\n\nout",
     ast: [
       {
@@ -4141,7 +4141,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "135 ordered list marker 0 is allowed? (edge)",
+    name: "ordered list marker 0 is allowed? (edge)",
     input: "0. a\n1. b",
     ast: [
       {
@@ -4173,7 +4173,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "136 ordered list marker with huge indent nests",
+    name: "ordered list marker with huge indent nests",
     input: "1. a\n       2. b",
     ast: [
       {
@@ -4196,7 +4196,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "137 list item with blank line but no sibling should not loosen outer",
+    name: "list item with blank line but no sibling should not loosen outer",
     input: "- a\n\nx",
     ast: [
       {
@@ -4227,7 +4227,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "138 list item with heading child",
+    name: "list item with heading child",
     input: "- # a\n- b",
     ast: [
       {
@@ -4264,7 +4264,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "139 list item with fenced code then paragraph continuation",
+    name: "list item with fenced code then paragraph continuation",
     input: "- a\n  ```\n  code\n  ```\n  b",
     ast: [
       {
@@ -4295,7 +4295,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "140 tight list with inline-only item should render fragment",
+    name: "tight list with inline-only item should render fragment",
     input: "- a\n- b\n- **c**",
     ast: [
       {
@@ -4340,7 +4340,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "141 loose list with multiple paragraphs and inline",
+    name: "loose list with multiple paragraphs and inline",
     input: "- a\n\n  b _c_",
     ast: [
       {
@@ -4385,7 +4385,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "142 nested list mixed markers should keep same list",
+    name: "nested list mixed markers should keep same list",
     input: "- a\n  + b\n  * c",
     ast: [
       {
@@ -4439,7 +4439,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "143 nested list after long ordered marker",
+    name: "nested list after long ordered marker",
     input: "123. a\n     - b\n     - c",
     ast: [
       {
@@ -4487,7 +4487,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "144 table with pipes inside code spans",
+    name: "table with pipes inside code spans",
     input: "| a | b |\n| - | - |\n| `x|y` | z |",
     ast: [
       {
@@ -4554,7 +4554,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "145 table with escaped pipe in cell",
+    name: "table with escaped pipe in cell",
     input: "| a | b |\n| - | - |\n| x \\| y | z |",
     ast: [
       {
@@ -4621,7 +4621,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "146 table should not parse if separator row invalid",
+    name: "table should not parse if separator row invalid",
     input: "| a | b |\n| --- | -x- |\n| c | d |",
     ast: [
       {
@@ -4644,7 +4644,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "147 table with leading/trailing spaces in cells",
+    name: "table with leading/trailing spaces in cells",
     input: "|  a  |  b  |\n| - | - |\n|  c  |  d  |",
     ast: [
       {
@@ -4711,7 +4711,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "148 fenced code in blockquote with lazy line",
+    name: "fenced code in blockquote with lazy line",
     input: "> ```\n> a\n> ```\n> b",
     ast: [
       {
@@ -4736,7 +4736,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "149 fence closer must be >= opener length",
+    name: "fence closer must be >= opener length",
     input: "````\na\n```",
     ast: [
       {
@@ -4747,7 +4747,7 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "150 complex mixed inline and block structure",
+    name: "complex mixed inline and block structure",
     input:
       "> # Title _x_\n> - a **b**\n> - c\n>\n> para  \n> line\n\nFinal `code`",
     ast: [
@@ -4835,6 +4835,293 @@ export const TEST_CASES: readonly TestCase[] = [
           {
             type: "code",
             value: "code",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "blockquote ending with > character",
+    input: ">",
+    ast: [
+      {
+        type: "blockquote",
+        children: [],
+      },
+    ],
+  },
+  {
+    name: "blockquote ending with > and space",
+    input: "> ",
+    ast: [
+      {
+        type: "blockquote",
+        children: [],
+      },
+    ],
+  },
+  {
+    name: "blockquote with > at end of line",
+    input: ">text",
+    ast: [
+      {
+        type: "blockquote",
+        children: [
+          {
+            type: "p",
+            children: [
+              {
+                type: "text",
+                value: "text",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "table cell ending with backslash (no crash)",
+    input: "| a | b\\ |\n|---|---|\n| x | y |",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "b\\",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "x",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "y",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "table with escaped pipe (no crash)",
+    input: "| a | b\\|c |\n|---|-----|\n| x | y   |",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "b|c",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "x",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "text",
+                        value: "y",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "hard break in paragraph (no crash)",
+    input: "text  \nmore",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "text",
+          },
+          {
+            type: "br",
+          },
+          {
+            type: "text",
+            value: "more",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "link text without URL",
+    input: "[link]",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "[link]",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "link text without closing bracket",
+    input: "[text",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "[text",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delimiter at end of string",
+    input: "text***",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "text***",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delimiter underscore at end",
+    input: "end_",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "end_",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "matching backticks create code span (no crash)",
+    input: "text ` ` more",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "text ",
+          },
+          {
+            type: "code",
+            value: " ",
+          },
+          {
+            type: "text",
+            value: " more",
           },
         ],
       },
