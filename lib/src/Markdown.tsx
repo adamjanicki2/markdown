@@ -16,16 +16,13 @@ type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
 
 /** Component to render a Markdown source string into React */
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
-  ({ children, renderers, dropTags, ...props }, ref) => {
+  ({ children, renderers, dropTags = [], ...props }, ref) => {
     const ast = React.useMemo(() => buildAst(children), [children]);
-    const dropTagsSet = React.useMemo(
-      () => (dropTags ? new Set(dropTags) : undefined),
-      [dropTags]
-    );
+    const dropTagsSet = React.useMemo(() => new Set(dropTags), [dropTags]);
 
     return (
       <div {...props} ref={ref}>
-        {renderAst(ast, { ...DEFAULT_RENDERERS, ...renderers }, dropTagsSet)}
+        {render(ast, { ...DEFAULT_RENDERERS, ...renderers }, dropTagsSet)}
       </div>
     );
   }
@@ -38,32 +35,116 @@ function getNodeKey(node: AstNode) {
   return type;
 }
 
-function getTagFromNode(node: AstNode): Tag | null {
+function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag {
   const type = node.type;
-  if (type === "text") return null;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
   return type;
 }
 
-function renderAst(
-  children: AstNode[],
+function render(
+  nodes: AstNode | AstNode[],
   renderers: Renderers,
-  dropTags?: Set<Tag>
+  dropTags: Set<Tag>
 ): React.ReactNode {
-  return (
-    <>
-      {children
-        .map((node, index) => ({
-          key: `${getNodeKey(node)}-${index}`,
-          rendered: renderNode(node, renderers, dropTags),
-        }))
-        .filter(({ rendered }) => rendered !== null)
-        .map(({ key, rendered }) => (
-          <React.Fragment key={key}>{rendered}</React.Fragment>
-        ))}
-    </>
-  );
+  if (Array.isArray(nodes)) {
+    return (
+      <>
+        {nodes.map((node, index) => {
+          const child = render(node, renderers, dropTags);
+          return child ? (
+            <React.Fragment key={`${getNodeKey(node)}-${index}`}>
+              {child}
+            </React.Fragment>
+          ) : null;
+        })}
+      </>
+    );
+  }
+
+  const node = nodes;
+  const type = node.type;
+
+  if (type === "text") return node.value;
+
+  // drop any nodes
+  if (dropTags.has(getTagFromNode(node))) return null;
+
+  if (type === "code") return renderers.code({ children: node.value });
+  if (type === "em")
+    return renderers.em({
+      children: render(node.children, renderers, dropTags),
+    });
+  if (type === "strong")
+    return renderers.strong({
+      children: render(node.children, renderers, dropTags),
+    });
+  if (type === "del")
+    return renderers.del({
+      children: render(node.children, renderers, dropTags),
+    });
+  if (type === "a")
+    return renderers.a({
+      children: render(node.children, renderers, dropTags),
+      href: node.url,
+    });
+  if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
+  if (type === "br") return renderers.br();
+  if (type === "p")
+    return renderers.p({
+      children: render(node.children, renderers, dropTags),
+    });
+  if (type === "h") {
+    const Heading = renderers[`h${node.level}`];
+    return Heading({
+      children: render(node.children, renderers, dropTags),
+    });
+  }
+  if (type === "hr") return renderers.hr();
+  if (type === "pre")
+    return renderers.pre({ children: node.raw, lang: node.lang });
+  if (type === "list") {
+    const children = render(node.children, renderers, dropTags);
+    if (node.ordered) {
+      const start =
+        node.start !== undefined && node.start !== 1 ? node.start : undefined;
+      return renderers.ol({ children, start });
+    }
+    return renderers.ul({ children });
+  }
+  if (type === "li")
+    return renderers.li({
+      children: render(node.children, renderers, dropTags),
+    });
+  if (type === "thead")
+    return renderers.thead({
+      children: render([node.children], renderers, dropTags),
+    });
+  if (type === "tbody")
+    return renderers.tbody({
+      children: render(node.children, renderers, dropTags),
+    });
+  if (type === "tr")
+    return renderers.tr({
+      children: render(node.children, renderers, dropTags),
+    });
+  if (type === "th")
+    return renderers.th({
+      children: render(node.children, renderers, dropTags),
+      align: node.align,
+    });
+  if (type === "td")
+    return renderers.td({
+      children: render(node.children, renderers, dropTags),
+      align: node.align,
+    });
+  if (type === "table")
+    return renderers.table({
+      children: render(node.children, renderers, dropTags),
+    });
+  return renderers.blockquote({
+    children: render(node.children, renderers, dropTags),
+  });
 }
 
 type ChildrenProps = { children: React.ReactNode };
@@ -140,107 +221,5 @@ const DEFAULT_RENDERERS: Renderers = {
   th: ({ children, align }) => <th align={align}>{children}</th>,
   td: ({ children, align }) => <td align={align}>{children}</td>,
 };
-
-function renderNode(
-  node: AstNode,
-  renderers: Renderers,
-  dropTags?: Set<Tag>
-): React.ReactNode {
-  const type = node.type;
-  if (type === "text") return node.value;
-
-  if (dropTags) {
-    const tag = getTagFromNode(node);
-    if (tag && dropTags.has(tag)) {
-      return null;
-    }
-  }
-
-  if (type === "code") return renderers.code({ children: node.value });
-  if (type === "em")
-    return renderers.em({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  if (type === "strong")
-    return renderers.strong({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  if (type === "del")
-    return renderers.del({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  if (type === "a")
-    return renderers.a({
-      children: renderAst(node.children, renderers, dropTags),
-      href: node.url,
-    });
-  if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
-  if (type === "br") return renderers.br();
-  if (type === "p")
-    return renderers.p({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  if (type === "h") {
-    const Heading = renderers[`h${node.level}`];
-    return Heading({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  }
-  if (type === "hr") return renderers.hr();
-  if (type === "pre")
-    return renderers.pre({ children: node.raw, lang: node.lang });
-  if (type === "list") {
-    const children = node.children.map((child, childIndex) => {
-      if (dropTags?.has("li")) return null;
-      return (
-        <React.Fragment key={childIndex}>
-          {renderers.li({
-            children: renderAst(child.children, renderers, dropTags),
-          })}
-        </React.Fragment>
-      );
-    });
-
-    if (node.ordered) {
-      const start =
-        node.start !== undefined && node.start !== 1 ? node.start : undefined;
-      return renderers.ol({ children, start });
-    }
-    return renderers.ul({ children });
-  }
-  if (type === "li")
-    return renderers.li({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  if (type === "thead")
-    return renderers.thead({
-      children: renderAst([node.children], renderers, dropTags),
-    });
-  if (type === "tbody")
-    return renderers.tbody({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  if (type === "tr")
-    return renderers.tr({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  if (type === "th")
-    return renderers.th({
-      children: renderAst(node.children, renderers, dropTags),
-      align: node.align,
-    });
-  if (type === "td")
-    return renderers.td({
-      children: renderAst(node.children, renderers, dropTags),
-      align: node.align,
-    });
-  if (type === "table")
-    return renderers.table({
-      children: renderAst(node.children, renderers, dropTags),
-    });
-  return renderers.blockquote({
-    children: renderAst(node.children, renderers, dropTags),
-  });
-}
 
 export default Markdown;

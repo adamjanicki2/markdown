@@ -1,4 +1,4 @@
-import { buildAst, type AstNode } from "../src/ast";
+import { type AstNode, buildAst } from "../src/ast";
 
 type TestCase = {
   readonly name: string;
