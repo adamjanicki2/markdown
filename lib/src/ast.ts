@@ -1,3 +1,12 @@
+import {
+  appendNode,
+  insertNode,
+  mapWhile,
+  removeNode,
+  type LinkedList,
+  type LinkedListNode,
+} from "./list";
+
 /**
  * Construct an AST given a markdown source string.
  * @param markdown the source to parse
@@ -730,114 +739,124 @@ function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
 }
 
 function resolveDelimiters(nodes: IrNode[]): IrNode[] {
-  const stack: Frame[] = [];
-  let currentNodes: IrNode[] = [];
-
-  const open = (delimiterChar: string, delimiterLength: number) => {
-    stack.push({ delimiterChar, delimiterLength, nodes: currentNodes });
-    currentNodes = [];
-  };
-
-  const close = (char: string, len: number) => {
-    const inner = currentNodes;
-    const frame = stack.pop();
-    if (!frame) return;
-    currentNodes = frame.nodes;
-    const children = finalizeInlineNodes(inner);
-    const type = char === "~" ? "del" : len === 2 ? "strong" : "em";
-    currentNodes.push({ type, children });
-  };
-
-  const emitText = (char: string, len: number) =>
-    currentNodes.push({ type: "text", value: char.repeat(len) });
-
-  function consumeDelimRun(delimiter: DelimiterToken) {
-    const config = DELIMITER_CONFIGS[delimiter.char];
-
-    if (config?.pairs) {
-      const odd = delimiter.len & 1;
-      const pairs = (delimiter.len - odd) >> 1;
-      const putOddBefore = odd && !(delimiter.canClose && !delimiter.canOpen);
-      if (putOddBefore) emitText(delimiter.char, 1);
-      for (let i = 0; i < pairs; i++) {
-        const top = stack[stack.length - 1];
-        if (
-          delimiter.canClose &&
-          top?.delimiterChar === delimiter.char &&
-          top.delimiterLength === 2
-        )
-          close(delimiter.char, 2);
-        else if (delimiter.canOpen) open(delimiter.char, 2);
-        else emitText(delimiter.char, 2);
-      }
-      if (odd && !putOddBefore) emitText(delimiter.char, 1);
-      return;
-    }
-
-    let remaining = delimiter.len;
-    const pieces: number[] = [];
-    while (remaining >= 2) {
-      pieces.push(2);
-      remaining -= 2;
-    }
-    if (remaining === 1) pieces.push(1);
-    if (pieces.length === 2 && pieces[0] === 2 && pieces[1] === 1) {
-      const top = stack[stack.length - 1];
-      if (
-        delimiter.canOpen &&
-        !(delimiter.canClose && top?.delimiterChar === delimiter.char)
-      )
-        pieces.splice(0, 2, 1, 2);
-    }
-
-    for (const pieceLen of pieces) {
-      while (true) {
-        const top = stack[stack.length - 1];
-        const canClose =
-          delimiter.canClose &&
-          top?.delimiterChar === delimiter.char &&
-          top.delimiterLength === pieceLen;
-        if (canClose && !currentNodes.length) {
-          emitText(delimiter.char, pieceLen);
-          break;
-        }
-        if (canClose) {
-          close(delimiter.char, pieceLen);
-          break;
-        }
-        if (delimiter.canOpen) {
-          open(delimiter.char, pieceLen);
-          break;
-        }
-        if (!currentNodes.length && top) {
-          const frame = stack.pop()!;
-          currentNodes = frame.nodes;
-          emitText(frame.delimiterChar, frame.delimiterLength);
-        } else {
-          emitText(delimiter.char, pieceLen);
-          break;
-        }
-      }
-    }
-  }
+  const list: LinkedList<IrNode> = {};
+  const delimiterList: LinkedList<Delimiter> = {};
 
   for (const node of nodes) {
     if (node.type === "delimiter") {
-      if (!node.canOpen && !node.canClose) emitText(node.char, node.len);
-      else consumeDelimRun(node);
-    } else currentNodes.push(node);
+      if (!node.canOpen && !node.canClose) {
+        appendNode(list, { type: "text", value: node.char.repeat(node.len) });
+      } else {
+        appendNode(delimiterList, {
+          char: node.char,
+          length: node.len,
+          canOpen: node.canOpen,
+          canClose: node.canClose,
+          node: appendNode(list, {
+            type: "text",
+            value: node.char.repeat(node.len),
+          }),
+        });
+      }
+    } else {
+      appendNode(list, node);
+    }
   }
 
-  while (stack.length) {
-    const frame = stack.pop();
-    if (!frame) break;
-    const inner = currentNodes;
-    currentNodes = frame.nodes;
-    emitText(frame.delimiterChar, frame.delimiterLength);
-    currentNodes.push(...inner);
+  const canMatch = (opener: Delimiter, closer: Delimiter) => {
+    if (opener.char !== closer.char) return false;
+    if (opener.length === 0 || closer.length === 0) return false;
+    if (opener.char === "~") return opener.length >= 2 && closer.length >= 2;
+    return true;
+  };
+
+  const useLength = (opener: Delimiter, closer: Delimiter) => {
+    if (opener.char === "~") return 2;
+    return opener.length >= 2 && closer.length >= 2 ? 2 : 1;
+  };
+
+  const openersBottom = new Map<
+    string,
+    LinkedListNode<Delimiter> | undefined
+  >();
+
+  let closer = delimiterList.head;
+  while (closer) {
+    const nextCloser = closer.next;
+    if (!closer.value.canClose) {
+      closer = nextCloser;
+      continue;
+    }
+
+    const bottom = openersBottom.get(closer.value.char);
+    let opener = closer.prev;
+    while (opener && opener !== bottom) {
+      if (opener.value.canOpen && canMatch(opener.value, closer.value)) break;
+      opener = opener.prev;
+    }
+
+    if (!opener || opener === bottom) {
+      openersBottom.set(closer.value.char, closer.prev);
+      closer = nextCloser;
+      continue;
+    }
+
+    const used = useLength(opener.value, closer.value);
+    const openerNode = opener.value.node;
+    const closerNode = closer.value.node;
+
+    const innerNodes = mapWhile(
+      openerNode.next,
+      (node) => node,
+      (node) => node !== closerNode
+    );
+
+    const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
+    const type =
+      closer.value.char === "~" ? "del" : used === 2 ? "strong" : "em";
+    const emphasisNode: IrNode = { type, children };
+
+    for (const item of innerNodes) removeNode(list, item);
+
+    opener.value.length -= used;
+    if (opener.value.length === 0) {
+      const insertAfterNode = openerNode.prev;
+      removeNode(list, openerNode);
+      removeNode(delimiterList, opener);
+      insertNode(list, insertAfterNode, emphasisNode);
+    } else if (openerNode.value.type === "text") {
+      openerNode.value.value = opener.value.char.repeat(opener.value.length);
+      insertNode(list, openerNode, emphasisNode);
+    }
+
+    closer.value.length -= used;
+    if (closer.value.length === 0) {
+      removeNode(list, closerNode);
+      removeNode(delimiterList, closer);
+    } else if (closerNode.value.type === "text") {
+      closerNode.value.value = closer.value.char.repeat(closer.value.length);
+    }
+
+    let between = opener.next;
+    while (between && between !== closer) {
+      const nextBetween = between.next;
+      removeNode(delimiterList, between);
+      between = nextBetween;
+    }
+
+    if (closer.value.length > 0) {
+      continue;
+    }
+    closer = nextCloser;
   }
 
-  return mergeAdjacentText(currentNodes);
+  return mergeAdjacentText(
+    mapWhile(
+      list.head,
+      (node) => node.value,
+      () => true
+    )
+  );
 }
 
 function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
@@ -1039,8 +1058,10 @@ type ListMarker = {
   start?: number;
 };
 
-type Frame = {
-  delimiterChar: string;
-  delimiterLength: number;
-  nodes: IrNode[];
+type Delimiter = {
+  char: string;
+  length: number;
+  canOpen: boolean;
+  canClose: boolean;
+  node: LinkedListNode<IrNode>;
 };

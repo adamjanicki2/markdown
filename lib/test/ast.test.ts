@@ -5157,6 +5157,218 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
+    name: "mismatched delimiter lengths - reduce opener",
+    input: "**Welcome!*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "*",
+          },
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "Welcome!",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "triple asterisk with single closer",
+    input: "***bold*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "**",
+          },
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "bold",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "quadruple asterisk reduces to strong",
+    input: "****text**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "**",
+          },
+          {
+            type: "strong",
+            children: [
+              {
+                type: "text",
+                value: "text",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "underscore delimiter mismatch",
+    input: "__text_",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "_",
+          },
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "text",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "proper length match - no reduction needed",
+    input: "**bold**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              {
+                type: "text",
+                value: "bold",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "opener shorter than closer - *text**",
+    input: "*Welcome!**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "Welcome!",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: "*",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "opener shorter than closer - *text***",
+    input: "*bold***",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "bold",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: "**",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "opener shorter than closer - **text****",
+    input: "**text****",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              {
+                type: "text",
+                value: "text",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: "**",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "opener shorter than closer - _text__",
+    input: "_text__",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "text",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: "_",
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: "strikethrough with nested strong",
     input: "~~deleted **bold**~~",
     ast: [
@@ -5492,15 +5704,21 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "p",
         children: [
           {
-            type: "text",
-            value: "****",
-          },
-          {
             type: "em",
             children: [
               {
-                type: "text",
-                value: "text****",
+                type: "strong",
+                children: [
+                  {
+                    type: "strong",
+                    children: [
+                      {
+                        type: "text",
+                        value: "text",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
@@ -5516,6 +5734,619 @@ export const TEST_CASES: readonly TestCase[] = [
         type: "pre",
         lang: "javascript",
         value: "const x = 1;",
+      },
+    ],
+  },
+  {
+    name: "delimiter single asterisk is literal in text",
+    input: "a * b",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "a * b" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delimiter double asterisk is literal",
+    input: "**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "**" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delimiter double tilde is literal",
+    input: "~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "~~" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delimiter triple tilde is literal",
+    input: "~~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "~~~" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "simple em with asterisks",
+    input: "*a*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "em", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "simple strong with asterisks",
+    input: "**a**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "strong", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "triple asterisks wraps strong in em",
+    input: "***a***",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              { type: "strong", children: [{ type: "text", value: "a" }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "quadruple asterisks yields nested strong",
+    input: "****a****",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              { type: "strong", children: [{ type: "text", value: "a" }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "five asterisks yields em around strongs",
+    input: "*****a*****",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              {
+                type: "strong",
+                children: [
+                  { type: "strong", children: [{ type: "text", value: "a" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mismatch opener short closer long (*a**)",
+    input: "*a**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "em", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: "*" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mismatch opener long closer short (**a*)",
+    input: "**a*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "*" },
+          { type: "em", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mismatch opener short closer long (*a***)",
+    input: "*a***",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "em", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: "**" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mismatch opener long closer short (***a*)",
+    input: "***a*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "**" },
+          { type: "em", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "simple em with underscores",
+    input: "_a_",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "em", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "simple strong with underscores",
+    input: "__a__",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "strong", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "triple underscores wraps strong in em",
+    input: "___a___",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              { type: "strong", children: [{ type: "text", value: "a" }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "intraword underscore is literal",
+    input: "a_b",
+    ast: [
+      {
+        type: "p",
+        children: [{ type: "text", value: "a_b" }],
+      },
+    ],
+  },
+  {
+    name: "intraword double underscores are literal",
+    input: "a__b__",
+    ast: [
+      {
+        type: "p",
+        children: [{ type: "text", value: "a__b__" }],
+      },
+    ],
+  },
+  {
+    name: "underscore em with spaces",
+    input: "a _b_ c",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "a " },
+          { type: "em", children: [{ type: "text", value: "b" }] },
+          { type: "text", value: " c" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "underscore strong with spaces",
+    input: "a __b__ c",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "a " },
+          { type: "strong", children: [{ type: "text", value: "b" }] },
+          { type: "text", value: " c" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "underscore triple wraps strong in em with spaces",
+    input: "a ___b___ c",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "a " },
+          {
+            type: "em",
+            children: [
+              { type: "strong", children: [{ type: "text", value: "b" }] },
+            ],
+          },
+          { type: "text", value: " c" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "simple strikethrough",
+    input: "~~a~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "del", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "triple tildes leaves single tildes around del",
+    input: "~~~a~~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "~" },
+          { type: "del", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: "~" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "quadruple tildes yields nested del",
+    input: "~~~~a~~~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "del",
+            children: [
+              { type: "del", children: [{ type: "text", value: "a" }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mismatch tildes closer longer",
+    input: "~~a~~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "del", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: "~" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mismatch tildes opener longer",
+    input: "~~~a~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "~" },
+          { type: "del", children: [{ type: "text", value: "a" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strikethrough followed by text",
+    input: "~~a~~b",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "del", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: "b" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strong contains em",
+    input: "**a _b_**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              { type: "text", value: "a " },
+              { type: "em", children: [{ type: "text", value: "b" }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "em contains strong",
+    input: "*a **b** c*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              { type: "text", value: "a " },
+              { type: "strong", children: [{ type: "text", value: "b" }] },
+              { type: "text", value: " c" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strong contains em (asterisks)",
+    input: "**a *b* c**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              { type: "text", value: "a " },
+              { type: "em", children: [{ type: "text", value: "b" }] },
+              { type: "text", value: " c" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "em contains del",
+    input: "*a ~~b~~ c*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              { type: "text", value: "a " },
+              { type: "del", children: [{ type: "text", value: "b" }] },
+              { type: "text", value: " c" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "del contains strong",
+    input: "~~a **b**~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "del",
+            children: [
+              { type: "text", value: "a " },
+              { type: "strong", children: [{ type: "text", value: "b" }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "del contains em",
+    input: "~~a *b*~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "del",
+            children: [
+              { type: "text", value: "a " },
+              { type: "em", children: [{ type: "text", value: "b" }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "code span blocks emphasis",
+    input: "`*a*`",
+    ast: [
+      {
+        type: "p",
+        children: [{ type: "code", value: "*a*" }],
+      },
+    ],
+  },
+  {
+    name: "em wraps code span",
+    input: "*a `b` c*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              { type: "text", value: "a " },
+              { type: "code", value: "b" },
+              { type: "text", value: " c" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strong wraps code span",
+    input: "**a `b` c**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              { type: "text", value: "a " },
+              { type: "code", value: "b" },
+              { type: "text", value: " c" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "adjacent em with different delimiters",
+    input: "a *b* _c_",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "a " },
+          { type: "em", children: [{ type: "text", value: "b" }] },
+          { type: "text", value: " " },
+          { type: "em", children: [{ type: "text", value: "c" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "adjacent em then strong",
+    input: "*a* **b**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "em", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: " " },
+          { type: "strong", children: [{ type: "text", value: "b" }] },
+        ],
+      },
+    ],
+  },
+  {
+    name: "em with surrounding punctuation",
+    input: "(*a*)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "(" },
+          { type: "em", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: ")" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strong with surrounding punctuation",
+    input: "[**a**]",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "[" },
+          { type: "strong", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: "]" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "del with surrounding punctuation",
+    input: "(~~a~~)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "text", value: "(" },
+          { type: "del", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: ")" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strikethrough with trailing text",
+    input: "~~a~~b",
+    ast: [
+      {
+        type: "p",
+        children: [
+          { type: "del", children: [{ type: "text", value: "a" }] },
+          { type: "text", value: "b" },
+        ],
       },
     ],
   },
