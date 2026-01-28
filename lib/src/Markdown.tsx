@@ -14,6 +14,7 @@ type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   dropTags?: readonly Tag[] | Tag[];
 };
 
+/** Component to render a Markdown source string into React */
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
   ({ children, renderers, dropTags, ...props }, ref) => {
     const ast = React.useMemo(() => buildAst(children), [children]);
@@ -24,11 +25,7 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
 
     return (
       <div {...props} ref={ref}>
-        {renderChildren(
-          ast,
-          { ...DEFAULT_RENDERERS, ...renderers },
-          dropTagsSet
-        )}
+        {renderAst(ast, { ...DEFAULT_RENDERERS, ...renderers }, dropTagsSet)}
       </div>
     );
   }
@@ -46,16 +43,10 @@ function getTagFromNode(node: AstNode): Tag | null {
   if (type === "text") return null;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
-  if (type === "thead") return "thead";
-  if (type === "tbody") return "tbody";
-  if (type === "tr") return "tr";
-  if (type === "th") return "th";
-  if (type === "td") return "td";
   return type;
 }
 
-// Render an array of AST nodes with proper keying and null filtering
-function renderChildren(
+function renderAst(
   children: AstNode[],
   renderers: Renderers,
   dropTags?: Set<Tag>
@@ -168,31 +159,31 @@ function renderNode(
   if (type === "code") return renderers.code({ children: node.value });
   if (type === "em")
     return renderers.em({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   if (type === "strong")
     return renderers.strong({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   if (type === "del")
     return renderers.del({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   if (type === "a")
     return renderers.a({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
       href: node.url,
     });
   if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
   if (type === "br") return renderers.br();
   if (type === "p")
     return renderers.p({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   if (type === "h") {
     const Heading = renderers[`h${node.level}`];
     return Heading({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   }
   if (type === "hr") return renderers.hr();
@@ -204,7 +195,7 @@ function renderNode(
       return (
         <React.Fragment key={childIndex}>
           {renderers.li({
-            children: renderChildren(child.children, renderers, dropTags),
+            children: renderAst(child.children, renderers, dropTags),
           })}
         </React.Fragment>
       );
@@ -219,36 +210,36 @@ function renderNode(
   }
   if (type === "li")
     return renderers.li({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   if (type === "thead")
     return renderers.thead({
-      children: renderChildren([node.children], renderers, dropTags),
+      children: renderAst([node.children], renderers, dropTags),
     });
   if (type === "tbody")
     return renderers.tbody({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   if (type === "tr")
     return renderers.tr({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   if (type === "th")
     return renderers.th({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
       align: node.align,
     });
   if (type === "td")
     return renderers.td({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
       align: node.align,
     });
   if (type === "table")
     return renderers.table({
-      children: renderChildren(node.children, renderers, dropTags),
+      children: renderAst(node.children, renderers, dropTags),
     });
   return renderers.blockquote({
-    children: renderChildren(node.children, renderers, dropTags),
+    children: renderAst(node.children, renderers, dropTags),
   });
 }
 
