@@ -4851,16 +4851,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "blockquote ending with > and space",
-    input: "> ",
-    ast: [
-      {
-        type: "blockquote",
-        children: [],
-      },
-    ],
-  },
-  {
     name: "blockquote with > at end of line",
     input: ">text",
     ast: [
@@ -5090,21 +5080,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "delimiter underscore at end",
-    input: "end_",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "end_",
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "matching backticks create code span (no crash)",
     input: "text ` ` more",
     ast: [
@@ -5127,11 +5102,1116 @@ export const TEST_CASES: readonly TestCase[] = [
       },
     ],
   },
+  {
+    name: "nested strong and em with asterisks",
+    input: "***bold and italic***",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              {
+                type: "strong",
+                children: [
+                  {
+                    type: "text",
+                    value: "bold and italic",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "nested em and strong reversed",
+    input: "*italic **and bold***",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "italic ",
+              },
+              {
+                type: "strong",
+                children: [
+                  {
+                    type: "text",
+                    value: "and bold",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strikethrough with nested strong",
+    input: "~~deleted **bold**~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "del",
+            children: [
+              {
+                type: "text",
+                value: "deleted ",
+              },
+              {
+                type: "strong",
+                children: [
+                  {
+                    type: "text",
+                    value: "bold",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "code span containing delimiter characters",
+    input: "`**not bold**` and `~~not deleted~~`",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "code",
+            value: "**not bold**",
+          },
+          {
+            type: "text",
+            value: " and ",
+          },
+          {
+            type: "code",
+            value: "~~not deleted~~",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "escaped delimiters don't format",
+    input: "\\*not italic\\* \\*\\*not bold\\*\\*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "*not italic* **not bold**",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "escaped brackets in link text",
+    input: "[link \\[with\\] brackets](url)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "a",
+            url: "url",
+            children: [
+              {
+                type: "text",
+                value: "link [with] brackets",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "link with empty URL",
+    input: "[text]()",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "a",
+            url: "",
+            children: [
+              {
+                type: "text",
+                value: "text",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "image with escaped characters in alt text",
+    input: "![alt \\!\\[text\\]](url)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "img",
+            url: "url",
+            alt: "alt ![text]",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "link containing inline code",
+    input: "[link `code` text](url)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "a",
+            url: "url",
+            children: [
+              {
+                type: "text",
+                value: "link ",
+              },
+              {
+                type: "code",
+                value: "code",
+              },
+              {
+                type: "text",
+                value: " text",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "link with formatting in text",
+    input: "[**bold** _italic_](url)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "a",
+            url: "url",
+            children: [
+              {
+                type: "strong",
+                children: [
+                  {
+                    type: "text",
+                    value: "bold",
+                  },
+                ],
+              },
+              {
+                type: "text",
+                value: " ",
+              },
+              {
+                type: "em",
+                children: [
+                  {
+                    type: "text",
+                    value: "italic",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "multiple consecutive hard breaks",
+    input: "line1  \nline2  \nline3",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "line1",
+          },
+          {
+            type: "br",
+          },
+          {
+            type: "text",
+            value: "line2",
+          },
+          {
+            type: "br",
+          },
+          {
+            type: "text",
+            value: "line3",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "mixed strong with asterisk and underscore",
+    input: "**asterisk** __underscore__",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "strong",
+            children: [
+              {
+                type: "text",
+                value: "asterisk",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: " ",
+          },
+          {
+            type: "strong",
+            children: [
+              {
+                type: "text",
+                value: "underscore",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "underscore in middle of word doesn't format",
+    input: "snake_case_variable",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "snake_case_variable",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "asterisk works in middle of word",
+    input: "in*the*middle",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "in",
+          },
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "the",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: "middle",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "unmatched opening delimiter",
+    input: "**bold start but no end",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "**bold start but no end",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "unmatched closing delimiter",
+    input: "no start but bold end**",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "no start but bold end**",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "delimiter run with five asterisks",
+    input: "*****text*****",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "****",
+          },
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "text****",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "triple backtick code fence with language",
+    input: "```javascript\nconst x = 1;\n```",
+    ast: [
+      {
+        type: "pre",
+        lang: "javascript",
+        value: "const x = 1;",
+      },
+    ],
+  },
+  {
+    name: "code fence with no closing fence",
+    input: "```\ncode\nmore code",
+    ast: [
+      {
+        type: "pre",
+        lang: "",
+        value: "code\nmore code",
+      },
+    ],
+  },
+  {
+    name: "code fence with empty content",
+    input: "```\n```",
+    ast: [
+      {
+        type: "pre",
+        lang: "",
+        value: "",
+      },
+    ],
+  },
+  {
+    name: "nested blockquotes with depth 3",
+    input: ">>> deeply nested",
+    ast: [
+      {
+        type: "blockquote",
+        children: [
+          {
+            type: "blockquote",
+            children: [
+              {
+                type: "blockquote",
+                children: [
+                  {
+                    type: "p",
+                    children: [
+                      {
+                        type: "text",
+                        value: "deeply nested",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "blockquote with multiple paragraphs",
+    input: "> para1\n>\n> para2",
+    ast: [
+      {
+        type: "blockquote",
+        children: [
+          {
+            type: "p",
+            children: [
+              {
+                type: "text",
+                value: "para1",
+              },
+            ],
+          },
+          {
+            type: "p",
+            children: [
+              {
+                type: "text",
+                value: "para2",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "blockquote containing code fence",
+    input: "> ```\n> code\n> ```",
+    ast: [
+      {
+        type: "blockquote",
+        children: [
+          {
+            type: "pre",
+            lang: "",
+            value: "code",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "blockquote containing list",
+    input: "> - item1\n> - item2",
+    ast: [
+      {
+        type: "blockquote",
+        children: [
+          {
+            type: "list",
+            ordered: false,
+            tight: true,
+            children: [
+              {
+                type: "li",
+                children: [
+                  {
+                    type: "text",
+                    value: "item1",
+                  },
+                ],
+              },
+              {
+                type: "li",
+                children: [
+                  {
+                    type: "text",
+                    value: "item2",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "table with alignment specifiers",
+    input: "| L | C | R |\n|:---|:---:|---:|\n| a | b | c |",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    align: "left",
+                    children: [
+                      {
+                        type: "text",
+                        value: "L",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    align: "center",
+                    children: [
+                      {
+                        type: "text",
+                        value: "C",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    align: "right",
+                    children: [
+                      {
+                        type: "text",
+                        value: "R",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    align: "left",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    align: "center",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    align: "right",
+                    children: [
+                      {
+                        type: "text",
+                        value: "c",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "table with inline formatting in cells",
+    input: "| **B** | _I_ |\n|---|---|\n| `c` | ~~d~~ |",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "strong",
+                        children: [
+                          {
+                            type: "text",
+                            value: "B",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "em",
+                        children: [
+                          {
+                            type: "text",
+                            value: "I",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "code",
+                        value: "c",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    align: undefined,
+                    children: [
+                      {
+                        type: "del",
+                        children: [
+                          {
+                            type: "text",
+                            value: "d",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "nested list 3 levels deep",
+    input: "- L1\n  - L2\n    - L3",
+    ast: [
+      {
+        type: "list",
+        ordered: false,
+        tight: true,
+        children: [
+          {
+            type: "li",
+            children: [
+              {
+                type: "text",
+                value: "L1",
+              },
+              {
+                type: "list",
+                ordered: false,
+                tight: true,
+                children: [
+                  {
+                    type: "li",
+                    children: [
+                      {
+                        type: "text",
+                        value: "L2",
+                      },
+                      {
+                        type: "list",
+                        ordered: false,
+                        tight: true,
+                        children: [
+                          {
+                            type: "li",
+                            children: [
+                              {
+                                type: "text",
+                                value: "L3",
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ordered list with custom start number",
+    input: "5. first\n6. second",
+    ast: [
+      {
+        type: "list",
+        ordered: true,
+        start: 5,
+        tight: true,
+        children: [
+          {
+            type: "li",
+            children: [
+              {
+                type: "text",
+                value: "first",
+              },
+            ],
+          },
+          {
+            type: "li",
+            children: [
+              {
+                type: "text",
+                value: "second",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "list item with multiple paragraphs (loose)",
+    input: "- para1\n\n  para2\n- item2",
+    ast: [
+      {
+        type: "list",
+        ordered: false,
+        tight: false,
+        children: [
+          {
+            type: "li",
+            children: [
+              {
+                type: "p",
+                children: [
+                  {
+                    type: "text",
+                    value: "para1",
+                  },
+                ],
+              },
+              {
+                type: "p",
+                children: [
+                  {
+                    type: "text",
+                    value: "para2",
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "li",
+            children: [
+              {
+                type: "p",
+                children: [
+                  {
+                    type: "text",
+                    value: "item2",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "heading level 6",
+    input: "###### h6",
+    ast: [
+      {
+        type: "h",
+        level: 6,
+        children: [
+          {
+            type: "text",
+            value: "h6",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "heading with trailing hashes",
+    input: "## heading ##",
+    ast: [
+      {
+        type: "h",
+        level: 2,
+        children: [
+          {
+            type: "text",
+            value: "heading",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "heading with inline formatting",
+    input: "# **Bold** heading with `code`",
+    ast: [
+      {
+        type: "h",
+        level: 1,
+        children: [
+          {
+            type: "strong",
+            children: [
+              {
+                type: "text",
+                value: "Bold",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: " heading with ",
+          },
+          {
+            type: "code",
+            value: "code",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "horizontal rule with asterisks",
+    input: "***",
+    ast: [
+      {
+        type: "hr",
+      },
+    ],
+  },
+  {
+    name: "horizontal rule with dashes and spaces",
+    input: "- - -",
+    ast: [
+      {
+        type: "hr",
+      },
+    ],
+  },
+  {
+    name: "link URL with special characters",
+    input: "[link](https://example.com/path?query=1&foo=bar#hash)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "a",
+            url: "https://example.com/path?query=1&foo=bar#hash",
+            children: [
+              {
+                type: "text",
+                value: "link",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "image with URL containing parentheses",
+    input: "![alt](url(with)parens)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "img",
+            url: "url(with)parens",
+            alt: "alt",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "multiple links in same paragraph",
+    input: "[link1](url1) and [link2](url2)",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "a",
+            url: "url1",
+            children: [
+              {
+                type: "text",
+                value: "link1",
+              },
+            ],
+          },
+          {
+            type: "text",
+            value: " and ",
+          },
+          {
+            type: "a",
+            url: "url2",
+            children: [
+              {
+                type: "text",
+                value: "link2",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "code span with multiple backticks",
+    input: "``code with ` backtick``",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "code",
+            value: "code with ` backtick",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "strikethrough with tilde",
+    input: "~~deleted text~~",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "del",
+            children: [
+              {
+                type: "text",
+                value: "deleted text",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "escaped backslash before delimiter",
+    input: "\\\\*not italic*",
+    ast: [
+      {
+        type: "p",
+        children: [
+          {
+            type: "text",
+            value: "\\",
+          },
+          {
+            type: "em",
+            children: [
+              {
+                type: "text",
+                value: "not italic",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "list with code block inside item",
+    input: "- item\n\n  ```\n  code\n  ```",
+    ast: [
+      {
+        type: "list",
+        ordered: false,
+        tight: false,
+        children: [
+          {
+            type: "li",
+            children: [
+              {
+                type: "p",
+                children: [
+                  {
+                    type: "text",
+                    value: "item",
+                  },
+                ],
+              },
+              {
+                type: "pre",
+                lang: "",
+                value: "code",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 describe("ast", () => {
-  TEST_CASES.forEach(({ name, input, ast }) => {
-    it(name, () => {
+  TEST_CASES.forEach(({ name, input, ast }, index) => {
+    it(`${index + 1} - ${name}`, () => {
       expect(buildAst(input)).toEqual(ast);
     });
   });

@@ -7,7 +7,7 @@ import eslint from "typescript-eslint";
 
 export default [
   {
-    ignores: ["demo/build"],
+    ignores: ["demo/build", "lib/build"],
   },
   ...eslint.configs.recommended,
   {
