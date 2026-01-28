@@ -1,9 +1,13 @@
-import { Box, Icon, ui } from "@adamjanicki/ui";
+import { Box, Icon, TextArea, ui } from "@adamjanicki/ui";
 import { architect } from "@adamjanicki/ui/icons";
+import { useState } from "react";
+import DemoMarkdown from "src/components/DemoMarkdown";
+import Heading from "src/components/Heading";
 import Para from "src/components/Para";
 import Snippet from "src/components/Snippet";
 
 export default function Main() {
+  const [markdown, setMarkdown] = useState("**Welcome!** Play around with me.");
   return (
     <Box className="main-container">
       <ui.h1 vfx={{ textAlign: "center", fontSize: "xxl" }}>
@@ -22,6 +26,15 @@ export default function Main() {
         Checkout the docs and examples below to see what's available.
       </ui.p>
       <Snippet lang="bash">npm install --save @adamjanicki/markdown</Snippet>
+      <Heading level={1}>Playground</Heading>
+      <Box vfx={{ axis: "y", width: "full" }}>
+        <TextArea
+          value={markdown}
+          onChange={(e) => setMarkdown(e.target.value)}
+          rows={10}
+        />
+        <DemoMarkdown markdown={markdown} />
+      </Box>
       <Para>
         And that's it!
         <ui.br />
