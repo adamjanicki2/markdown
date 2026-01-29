@@ -89,7 +89,7 @@ export default function Example() {
             rows={16}
           />
           <Alert type="info" vfx={{ axis: "x", gap: "s" }}>
-            <Icon icon={infoSquare} size="m" />
+            <Icon icon={infoSquare} size="s" />
             Tip: try using "==" to render highlighted nodes using the custom
             syntax extensions!
           </Alert>
@@ -134,7 +134,7 @@ export default function Example() {
 const starterMarkdown = [
   "# Hello, Markdown!",
   "",
-  "This is **bold**, _italic_, ~~strikethrough~~, and ==highlight==.",
+  "This is **bold**, _italic_, ~~strikethrough~~, ==highlight==, %%subscript%%, and ^^superscript^^!",
   "",
   "> Blockquotes are great for callouts.",
   "",
