@@ -133,8 +133,8 @@ function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
   const rest = line.slice(marker.contentIndent).replace(/[ \t]/g, "");
   return (
     rest.length >= 3 &&
-    new Set(rest).size === 1 &&
-    rest[0] === marker.markerChar
+    rest[0] === marker.markerChar &&
+    rest.split("").every((c) => c === rest[0])
   );
 }
 
@@ -146,7 +146,7 @@ function getBlockquoteInfo(str: string) {
   while (index < str.length && str[index] === ">") {
     depth++;
     index++;
-    if (str[index] === " ") index++;
+    if (str[index] === " " || str[index] === "\t") index++;
   }
 
   if (depth === 0) return null;
@@ -162,7 +162,7 @@ function stripBlockquoteMarker(str: string) {
 }
 
 const isTopLevelNodeStarter = (line: string) =>
-  Boolean(
+  !!(
     isBlank(line) ||
     parseFenceOpening(line) ||
     isHorizontalRule(line) ||
@@ -216,7 +216,7 @@ function parseTableAlignments(
     if (trimmed.length === 0) return null;
     if (!allowColons && trimmed.includes(":")) return null;
     const withoutColons = trimmed.replace(RE_COLON, "");
-    const dashCount = withoutColons.split("-").length - 1;
+    const dashCount = (withoutColons.match(/-/g) || []).length;
     if (dashCount < minDashes) return null;
 
     if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
@@ -424,10 +424,10 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
       if (closingIndex >= tokens.length)
         appendText(nodes, "`".repeat(openerLen));
       else {
-        let code = "";
-        for (let tokenIndex = i + 1; tokenIndex < closingIndex; tokenIndex++) {
-          code += nodeToLiteral(tokens[tokenIndex]);
-        }
+        const code = tokens
+          .slice(i + 1, closingIndex)
+          .map(nodeToLiteral)
+          .join("");
 
         nodes.push({ type: "code", value: code });
         i = closingIndex;
@@ -440,6 +440,26 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
 
 const isPunctChar = (node: IrNode, char: string): node is PunctToken =>
   isToken(node) && node.type === "punct" && node.char === char;
+
+function findMatchingCloser(
+  nodes: IrNode[],
+  startIndex: number,
+  open: string,
+  close: string
+): number {
+  let index = startIndex;
+  let depth = 0;
+  while (index < nodes.length) {
+    const candidate = nodes[index];
+    if (isPunctChar(candidate, open)) depth++;
+    else if (isPunctChar(candidate, close)) {
+      if (depth === 0) return index;
+      depth--;
+    }
+    index++;
+  }
+  return index;
+}
 
 function parseLinkOrImage(
   nodes: IrNode[],
@@ -457,33 +477,23 @@ function parseLinkOrImage(
   )
     return null;
 
-  let rightBracketIndex = leftBracketIndex + 1;
-  let bracketDepth = 0;
-  while (rightBracketIndex < nodes.length) {
-    const candidate = nodes[rightBracketIndex];
-    if (isPunctChar(candidate, "[")) bracketDepth++;
-    else if (isPunctChar(candidate, "]")) {
-      if (bracketDepth === 0) break;
-      bracketDepth--;
-    }
-    rightBracketIndex++;
-  }
+  const rightBracketIndex = findMatchingCloser(
+    nodes,
+    leftBracketIndex + 1,
+    "[",
+    "]"
+  );
   if (rightBracketIndex >= nodes.length) return null;
 
   const leftParenNode = nodes[rightBracketIndex + 1];
   if (!leftParenNode || !isPunctChar(leftParenNode, "(")) return null;
 
-  let rightParenIndex = rightBracketIndex + 2;
-  let parenDepth = 0;
-  while (rightParenIndex < nodes.length) {
-    const candidate = nodes[rightParenIndex];
-    if (isPunctChar(candidate, "(")) parenDepth++;
-    else if (isPunctChar(candidate, ")")) {
-      if (parenDepth === 0) break;
-      parenDepth--;
-    }
-    rightParenIndex++;
-  }
+  const rightParenIndex = findMatchingCloser(
+    nodes,
+    rightBracketIndex + 2,
+    "(",
+    ")"
+  );
   if (rightParenIndex >= nodes.length) return null;
 
   const labelNodes = nodes.slice(leftBracketIndex + 1, rightBracketIndex);

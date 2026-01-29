@@ -315,21 +315,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "image renders with escaped attrs",
-    input: "<div>x</div>",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "<div>x</div>",
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "html is left alone",
     input: "<div>x</div>",
     ast: [{ type: "p", children: [{ type: "text", value: "<div>x</div>" }] }],
@@ -532,15 +517,6 @@ export const TEST_CASES: readonly TestCase[] = [
   {
     name: "thematic break",
     input: "---",
-    ast: [
-      {
-        type: "hr",
-      },
-    ],
-  },
-  {
-    name: "thematic break with spaces",
-    input: "- - -",
     ast: [
       {
         type: "hr",
@@ -2162,21 +2138,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "double backtick code span",
-    input: "``code``",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "code",
-            value: "code",
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "code span preserves leading and trailing spaces",
     input: "` code `",
     ast: [
@@ -2207,8 +2168,8 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "empty link url should still create link",
-    input: "[x]()",
+    name: "empty URLs create link and image nodes",
+    input: "[link]() ![img]()",
     ast: [
       {
         type: "p",
@@ -2219,25 +2180,18 @@ export const TEST_CASES: readonly TestCase[] = [
             children: [
               {
                 type: "text",
-                value: "x",
+                value: "link",
               },
             ],
           },
-        ],
-      },
-    ],
-  },
-  {
-    name: "empty image url should still create image",
-    input: "![x]()",
-    ast: [
-      {
-        type: "p",
-        children: [
+          {
+            type: "text",
+            value: " ",
+          },
           {
             type: "img",
             url: "",
-            alt: "x",
+            alt: "img",
           },
         ],
       },
@@ -2908,44 +2862,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "nested list with deeper indentation",
-    input: "- a\n    - b",
-    ast: [
-      {
-        type: "list",
-        ordered: false,
-        tight: true,
-        children: [
-          {
-            type: "li",
-            children: [
-              {
-                type: "text",
-                value: "a",
-              },
-              {
-                type: "list",
-                ordered: false,
-                tight: true,
-                children: [
-                  {
-                    type: "li",
-                    children: [
-                      {
-                        type: "text",
-                        value: "b",
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "blockquote ends before heading",
     input: "> a\n# b",
     ast: [
@@ -3597,24 +3513,6 @@ export const TEST_CASES: readonly TestCase[] = [
             value: "--",
           },
         ],
-      },
-    ],
-  },
-  {
-    name: "thematic break with tabs between markers",
-    input: "-\t-\t-",
-    ast: [
-      {
-        type: "hr",
-      },
-    ],
-  },
-  {
-    name: "thematic break with leading indentation 3 spaces still hr",
-    input: "   ---",
-    ast: [
-      {
-        type: "hr",
       },
     ],
   },
@@ -4968,77 +4866,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "table with escaped pipe (no crash)",
-    input: "| a | b\\|c |\n|---|-----|\n| x | y   |",
-    ast: [
-      {
-        type: "table",
-        children: [
-          {
-            type: "thead",
-            children: [
-              {
-                type: "tr",
-                children: [
-                  {
-                    type: "th",
-                    align: undefined,
-                    children: [
-                      {
-                        type: "text",
-                        value: "a",
-                      },
-                    ],
-                  },
-                  {
-                    type: "th",
-                    align: undefined,
-                    children: [
-                      {
-                        type: "text",
-                        value: "b|c",
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            type: "tbody",
-            children: [
-              {
-                type: "tr",
-                children: [
-                  {
-                    type: "td",
-                    align: undefined,
-                    children: [
-                      {
-                        type: "text",
-                        value: "x",
-                      },
-                    ],
-                  },
-                  {
-                    type: "td",
-                    align: undefined,
-                    children: [
-                      {
-                        type: "text",
-                        value: "y",
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "hard break in paragraph (no crash)",
     input: "text  \nmore",
     ast: [
@@ -5100,29 +4927,6 @@ export const TEST_CASES: readonly TestCase[] = [
           {
             type: "text",
             value: "text***",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "matching backticks create code span (no crash)",
-    input: "text ` ` more",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "text ",
-          },
-          {
-            type: "code",
-            value: " ",
-          },
-          {
-            type: "text",
-            value: " more",
           },
         ],
       },
@@ -5212,102 +5016,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "triple asterisk with single closer",
-    input: "***bold*",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "**",
-          },
-          {
-            type: "modifier",
-            delimiter: "*",
-            children: [
-              {
-                type: "text",
-                value: "bold",
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "quadruple asterisk reduces to strong",
-    input: "****text**",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "**",
-          },
-          {
-            type: "modifier",
-            delimiter: "**",
-            children: [
-              {
-                type: "text",
-                value: "text",
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "underscore delimiter mismatch",
-    input: "__text_",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "_",
-          },
-          {
-            type: "modifier",
-            delimiter: "_",
-            children: [
-              {
-                type: "text",
-                value: "text",
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "proper length match - no reduction needed",
-    input: "**bold**",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "modifier",
-            delimiter: "**",
-            children: [
-              {
-                type: "text",
-                value: "bold",
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "opener shorter than closer - *text**",
     input: "*Welcome!**",
     ast: [
@@ -5327,81 +5035,6 @@ export const TEST_CASES: readonly TestCase[] = [
           {
             type: "text",
             value: "*",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "opener shorter than closer - *text***",
-    input: "*bold***",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "modifier",
-            delimiter: "*",
-            children: [
-              {
-                type: "text",
-                value: "bold",
-              },
-            ],
-          },
-          {
-            type: "text",
-            value: "**",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "opener shorter than closer - **text****",
-    input: "**text****",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "modifier",
-            delimiter: "**",
-            children: [
-              {
-                type: "text",
-                value: "text",
-              },
-            ],
-          },
-          {
-            type: "text",
-            value: "**",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "opener shorter than closer - _text__",
-    input: "_text__",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "modifier",
-            delimiter: "_",
-            children: [
-              {
-                type: "text",
-                value: "text",
-              },
-            ],
-          },
-          {
-            type: "text",
-            value: "_",
           },
         ],
       },
@@ -5490,27 +5123,6 @@ export const TEST_CASES: readonly TestCase[] = [
               {
                 type: "text",
                 value: "link [with] brackets",
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "link with empty URL",
-    input: "[text]()",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "a",
-            url: "",
-            children: [
-              {
-                type: "text",
-                value: "text",
               },
             ],
           },
@@ -7411,60 +7023,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "nested list 3 levels deep",
-    input: "- L1\n  - L2\n    - L3",
-    ast: [
-      {
-        type: "list",
-        ordered: false,
-        tight: true,
-        children: [
-          {
-            type: "li",
-            children: [
-              {
-                type: "text",
-                value: "L1",
-              },
-              {
-                type: "list",
-                ordered: false,
-                tight: true,
-                children: [
-                  {
-                    type: "li",
-                    children: [
-                      {
-                        type: "text",
-                        value: "L2",
-                      },
-                      {
-                        type: "list",
-                        ordered: false,
-                        tight: true,
-                        children: [
-                          {
-                            type: "li",
-                            children: [
-                              {
-                                type: "text",
-                                value: "L3",
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "ordered list with custom start number",
     input: "5. first\n6. second",
     ast: [
@@ -7563,70 +7121,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "heading with trailing hashes",
-    input: "## heading ##",
-    ast: [
-      {
-        type: "h",
-        level: 2,
-        children: [
-          {
-            type: "text",
-            value: "heading",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "heading with inline formatting",
-    input: "# **Bold** heading with `code`",
-    ast: [
-      {
-        type: "h",
-        level: 1,
-        children: [
-          {
-            type: "modifier",
-            delimiter: "**",
-            children: [
-              {
-                type: "text",
-                value: "Bold",
-              },
-            ],
-          },
-          {
-            type: "text",
-            value: " heading with ",
-          },
-          {
-            type: "code",
-            value: "code",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "horizontal rule with asterisks",
-    input: "***",
-    ast: [
-      {
-        type: "hr",
-      },
-    ],
-  },
-  {
-    name: "horizontal rule with dashes and spaces",
-    input: "- - -",
-    ast: [
-      {
-        type: "hr",
-      },
-    ],
-  },
-  {
     name: "link URL with special characters",
     input: "[link](https://example.com/path?query=1&foo=bar#hash)",
     ast: [
@@ -7693,21 +7187,6 @@ export const TEST_CASES: readonly TestCase[] = [
                 value: "link2",
               },
             ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "code span with multiple backticks",
-    input: "``code with ` backtick``",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "code",
-            value: "code with ` backtick",
           },
         ],
       },

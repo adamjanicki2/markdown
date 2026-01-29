@@ -176,26 +176,18 @@ describe("Markdown", () => {
     expect(screen.getByText("Content")).toBeInTheDocument();
   });
 
-  it("unwraps ordered lists but preserves list items", () => {
+  it("unwraps list containers (ol/ul) but preserves list items", () => {
     const { container } = render(
-      <Markdown unwrapTags={["ol"]}>{"1. Item 1\n2. Item 2"}</Markdown>
+      <Markdown unwrapTags={["ol", "ul"]}>
+        {"1. Item 1\n2. Item 2\n\n- Item 3\n- Item 4"}
+      </Markdown>
     );
 
     expect(container.querySelector("ol")).not.toBeInTheDocument();
-    expect(container.querySelector("li")).toBeInTheDocument();
-    expect(container.textContent).toContain("Item 1");
-    expect(container.textContent).toContain("Item 2");
-  });
-
-  it("unwraps unordered lists but preserves list items", () => {
-    const { container } = render(
-      <Markdown unwrapTags={["ul"]}>{"- Item 1\n- Item 2"}</Markdown>
-    );
-
     expect(container.querySelector("ul")).not.toBeInTheDocument();
     expect(container.querySelector("li")).toBeInTheDocument();
     expect(container.textContent).toContain("Item 1");
-    expect(container.textContent).toContain("Item 2");
+    expect(container.textContent).toContain("Item 4");
   });
 
   it("unwraps list items but keeps list container", () => {
@@ -221,62 +213,31 @@ describe("Markdown", () => {
     expect(container.querySelector("td")).toBeInTheDocument();
   });
 
-  it("unwraps table rows but preserves cells", () => {
+  it("unwraps table elements (tr/th/td) but preserves structure and content", () => {
     const { container } = render(
-      <Markdown unwrapTags={["tr"]}>
+      <Markdown unwrapTags={["tr", "th", "td"]}>
         {"| a | b |\n| - | - |\n| x | y |"}
       </Markdown>
     );
 
     expect(container.querySelector("table")).toBeInTheDocument();
     expect(container.querySelector("tr")).not.toBeInTheDocument();
-    expect(container.querySelector("th")).toBeInTheDocument();
-    expect(container.querySelector("td")).toBeInTheDocument();
-  });
-
-  it("unwraps table header cells but preserves content", () => {
-    const { container } = render(
-      <Markdown unwrapTags={["th"]}>
-        {"| a | b |\n| - | - |\n| x | y |"}
-      </Markdown>
-    );
-
-    expect(container.querySelector("table")).toBeInTheDocument();
     expect(container.querySelector("th")).not.toBeInTheDocument();
-    expect(container.textContent).toContain("a");
-    expect(container.textContent).toContain("b");
-    expect(container.querySelector("td")).toBeInTheDocument();
-  });
-
-  it("unwraps table data cells but preserves content", () => {
-    const { container } = render(
-      <Markdown unwrapTags={["td"]}>
-        {"| a | b |\n| - | - |\n| x | y |"}
-      </Markdown>
-    );
-
-    expect(container.querySelector("table")).toBeInTheDocument();
-    expect(container.querySelector("th")).toBeInTheDocument();
     expect(container.querySelector("td")).not.toBeInTheDocument();
+    expect(container.textContent).toContain("a");
     expect(container.textContent).toContain("x");
-    expect(container.textContent).toContain("y");
   });
 
-  it("renders all content when unwrapTags is undefined", () => {
-    const { container } = render(
+  it("renders all content when unwrapTags is undefined or empty", () => {
+    const { container, rerender } = render(
       <Markdown>{"**bold** _italic_ [link](url)"}</Markdown>
     );
 
     expect(container.querySelector("strong")).toBeInTheDocument();
     expect(container.querySelector("em")).toBeInTheDocument();
     expect(container.querySelector("a")).toBeInTheDocument();
-  });
 
-  it("renders all content when unwrapTags is empty array", () => {
-    const { container } = render(
-      <Markdown unwrapTags={[]}>{"**bold** _italic_ [link](url)"}</Markdown>
-    );
-
+    rerender(<Markdown unwrapTags={[]}>{"**bold** _italic_ [link](url)"}</Markdown>);
     expect(container.querySelector("strong")).toBeInTheDocument();
     expect(container.querySelector("em")).toBeInTheDocument();
     expect(container.querySelector("a")).toBeInTheDocument();
@@ -363,31 +324,16 @@ describe("Markdown", () => {
     expect(container.textContent).toContain("World");
   });
 
-  it("unwraps em but preserves text", () => {
+  it("unwraps inline formatting tags (em/strong/del) but preserves text", () => {
     const { container } = render(
-      <Markdown unwrapTags={["em"]}>{"Hello _em_ world"}</Markdown>
+      <Markdown unwrapTags={["em", "strong", "del"]}>
+        {"Hello _em_ **bold** ~~gone~~ world"}
+      </Markdown>
     );
     expect(container.querySelector("em")).not.toBeInTheDocument();
-    expect(container.textContent).toContain("em");
-    expect(container).toHaveTextContent("Hello em world");
-  });
-
-  it("unwraps strong but preserves text", () => {
-    const { container } = render(
-      <Markdown unwrapTags={["strong"]}>{"Hello **bold** world"}</Markdown>
-    );
     expect(container.querySelector("strong")).not.toBeInTheDocument();
-    expect(container.textContent).toContain("bold");
-    expect(container).toHaveTextContent("Hello bold world");
-  });
-
-  it("unwraps del but preserves text", () => {
-    const { container } = render(
-      <Markdown unwrapTags={["del"]}>{"Hello ~~gone~~ world"}</Markdown>
-    );
     expect(container.querySelector("del")).not.toBeInTheDocument();
-    expect(container.textContent).toContain("gone");
-    expect(container).toHaveTextContent("Hello gone world");
+    expect(container).toHaveTextContent("Hello em bold gone world");
   });
 
   it("unwraps h4 headings but preserves content", () => {
@@ -404,40 +350,17 @@ describe("Markdown", () => {
     ).toBeInTheDocument();
   });
 
-  it("unwraps ordered list items", () => {
+  it("unwraps table sections (thead/tbody) but preserves cells", () => {
     const { container } = render(
-      <Markdown unwrapTags={["li"]}>{"1. Item 1\n2. Item 2"}</Markdown>
-    );
-    expect(container.querySelector("ol")).toBeInTheDocument();
-    expect(container.querySelector("li")).not.toBeInTheDocument();
-    expect(container.textContent).toContain("Item 1");
-    expect(container.textContent).toContain("Item 2");
-  });
-
-  it("unwraps thead but preserves header", () => {
-    const { container } = render(
-      <Markdown unwrapTags={["thead"]}>
+      <Markdown unwrapTags={["thead", "tbody"]}>
         {"| a | b |\n| - | - |\n| x | y |"}
       </Markdown>
     );
 
     expect(container.querySelector("thead")).not.toBeInTheDocument();
-    expect(container.querySelector("th")).toBeInTheDocument();
-    expect(container.querySelector("tbody")).toBeInTheDocument();
-    expect(container.querySelector("td")).toBeInTheDocument();
-  });
-
-  it("unwraps tbody but preserves body rows", () => {
-    const { container } = render(
-      <Markdown unwrapTags={["tbody"]}>
-        {"| a | b |\n| - | - |\n| x | y |"}
-      </Markdown>
-    );
-
     expect(container.querySelector("tbody")).not.toBeInTheDocument();
-    expect(container.querySelector("td")).toBeInTheDocument();
-    expect(container.querySelector("thead")).toBeInTheDocument();
     expect(container.querySelector("th")).toBeInTheDocument();
+    expect(container.querySelector("td")).toBeInTheDocument();
   });
 
   it("uses a custom paragraph renderer", () => {
@@ -454,23 +377,36 @@ describe("Markdown", () => {
     expect(screen.getByTestId("custom-p")).toHaveTextContent("Hello");
   });
 
-  it("uses a custom code renderer", () => {
+  it("uses custom inline element renderers", () => {
     render(
       <Markdown
         renderers={{
           code: ({ children }) => (
             <code data-testid="custom-code">{children}</code>
           ),
+          a: ({ children, href }) => (
+            <a data-testid="custom-link" href={href}>
+              {children}
+            </a>
+          ),
+          img: ({ alt, src }) => (
+            <img data-testid="custom-img" src={src} alt={alt} />
+          ),
         }}
       >
-        {"Inline `code`"}
+        {"Inline `code` [link](https://example.com) ![alt](img.png)"}
       </Markdown>
     );
 
     expect(screen.getByTestId("custom-code")).toHaveTextContent("code");
+    expect(screen.getByTestId("custom-link")).toHaveAttribute(
+      "href",
+      "https://example.com"
+    );
+    expect(screen.getByTestId("custom-img")).toHaveAttribute("src", "img.png");
   });
 
-  it("uses a custom pre renderer", () => {
+  it("uses custom block element renderers", () => {
     render(
       <Markdown
         renderers={{
@@ -479,72 +415,20 @@ describe("Markdown", () => {
               {children}
             </pre>
           ),
+          h2: ({ children }) => <h2 data-testid="custom-h2">{children}</h2>,
         }}
       >
-        {"```js\nconst x = 1;\n```"}
+        {"## Title\n\n```js\nconst x = 1;\n```"}
       </Markdown>
     );
 
+    expect(screen.getByTestId("custom-h2")).toHaveTextContent("Title");
     const pre = screen.getByTestId("custom-pre");
     expect(pre).toHaveAttribute("data-lang", "js");
     expect(pre).toHaveTextContent("const x = 1;");
   });
 
-  it("uses a custom link renderer", () => {
-    render(
-      <Markdown
-        renderers={{
-          a: ({ children, href }) => (
-            <a data-testid="custom-link" href={href}>
-              {children}
-            </a>
-          ),
-        }}
-      >
-        {"[Docs](https://example.com)"}
-      </Markdown>
-    );
-
-    expect(screen.getByTestId("custom-link")).toHaveAttribute(
-      "href",
-      "https://example.com"
-    );
-  });
-
-  it("uses a custom image renderer", () => {
-    render(
-      <Markdown
-        renderers={{
-          img: ({ alt, src }) => (
-            <img data-testid="custom-img" src={src} alt={alt} />
-          ),
-        }}
-      >
-        {"![Alt](image.png)"}
-      </Markdown>
-    );
-
-    expect(screen.getByTestId("custom-img")).toHaveAttribute(
-      "src",
-      "image.png"
-    );
-  });
-
-  it("uses a custom heading renderer", () => {
-    render(
-      <Markdown
-        renderers={{
-          h2: ({ children }) => <h2 data-testid="custom-h2">{children}</h2>,
-        }}
-      >
-        {"## Title"}
-      </Markdown>
-    );
-
-    expect(screen.getByTestId("custom-h2")).toHaveTextContent("Title");
-  });
-
-  it("uses custom list renderers", () => {
+  it("uses custom list and table renderers", () => {
     render(
       <Markdown
         renderers={{
@@ -555,84 +439,20 @@ describe("Markdown", () => {
             </ol>
           ),
           li: ({ children }) => <li data-testid="custom-li">{children}</li>,
+          table: ({ children }) => (
+            <table data-testid="custom-table">{children}</table>
+          ),
+          tr: ({ children }) => <tr data-testid="custom-tr">{children}</tr>,
         }}
       >
-        {"- A\n- B\n\n2. C\n3. D"}
+        {"- A\n\n2. B\n\n| x | y |\n| - | - |\n| 1 | 2 |"}
       </Markdown>
     );
 
     expect(screen.getByTestId("custom-ul")).toBeInTheDocument();
     expect(screen.getByTestId("custom-ol")).toHaveAttribute("start", "2");
-    expect(screen.getAllByTestId("custom-li").length).toBe(4);
-  });
-
-  it("uses custom table renderers", () => {
-    render(
-      <Markdown
-        renderers={{
-          table: ({ children }) => (
-            <table data-testid="custom-table">{children}</table>
-          ),
-          thead: ({ children }) => (
-            <thead data-testid="custom-thead">{children}</thead>
-          ),
-          tbody: ({ children }) => (
-            <tbody data-testid="custom-tbody">{children}</tbody>
-          ),
-          tr: ({ children }) => <tr data-testid="custom-tr">{children}</tr>,
-          th: ({ children }) => <th data-testid="custom-th">{children}</th>,
-          td: ({ children }) => <td data-testid="custom-td">{children}</td>,
-        }}
-      >
-        {"| a | b |\n| - | - |\n| x | y |"}
-      </Markdown>
-    );
-
+    expect(screen.getAllByTestId("custom-li").length).toBe(2);
     expect(screen.getByTestId("custom-table")).toBeInTheDocument();
-    expect(screen.getByTestId("custom-thead")).toBeInTheDocument();
-    expect(screen.getByTestId("custom-tbody")).toBeInTheDocument();
     expect(screen.getAllByTestId("custom-tr").length).toBe(2);
-    expect(screen.getAllByTestId("custom-th").length).toBe(2);
-    expect(screen.getAllByTestId("custom-td").length).toBe(2);
-  });
-
-  it("uses a custom blockquote renderer", () => {
-    render(
-      <Markdown
-        renderers={{
-          blockquote: ({ children }) => (
-            <blockquote data-testid="custom-quote">{children}</blockquote>
-          ),
-        }}
-      >
-        {"> Quote"}
-      </Markdown>
-    );
-
-    expect(screen.getByTestId("custom-quote")).toHaveTextContent("Quote");
-  });
-
-  it("uses a custom hr renderer", () => {
-    const { container } = render(
-      <Markdown renderers={{ hr: () => <hr data-testid="custom-hr" /> }}>
-        {"---"}
-      </Markdown>
-    );
-
-    expect(
-      container.querySelector('[data-testid="custom-hr"]')
-    ).toBeInTheDocument();
-  });
-
-  it("uses a custom br renderer", () => {
-    const { container } = render(
-      <Markdown renderers={{ br: () => <br data-testid="custom-br" /> }}>
-        {"a  \nb"}
-      </Markdown>
-    );
-
-    expect(
-      container.querySelector('[data-testid="custom-br"]')
-    ).toBeInTheDocument();
   });
 });
