@@ -15,6 +15,16 @@ export default function DemoMarkdown({ markdown }: { markdown: string }) {
             <ui.mark {...props} style={{ backgroundColor: "#00FFFF" }} />
           ),
         },
+        {
+          token: "^^",
+          intraword: true,
+          renderer: (props) => <ui.sup {...props} />,
+        },
+        {
+          token: "%%",
+          intraword: true,
+          renderer: (props) => <ui.sub {...props} />,
+        },
       ]}
     >
       {markdown}
