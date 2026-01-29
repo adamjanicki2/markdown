@@ -2,28 +2,39 @@ import React from "react";
 
 import { type AstNode, buildAst, type ModifierConfig } from "./ast";
 
+/** Props for the Markdown component */
 type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** The Markdown source string to convert into a react component */
   children: string;
-  /** Custom renderers to use for each DOM Element */
+  /** Custom renderers to use for each supported DOM element */
   renderers?: Partial<Renderers>;
   /**
-   * HTML elements to unwrap from output. Elements in this list will have their wrapper removed but children preserved.
+   * HTML elements to unwrap from output.
+   * Elements in this list will have their wrapper removed but children preserved.
    * Elements without children (img, br, hr) will be completely removed.
-   * @example ["img", "a"] // images removed entirely, link text preserved without <a> wrapper
+   * @example ["img", "a"] // images removed entirely, link text preserved without anchor element wrapper
    */
   unwrapTags?: readonly Tag[] | Tag[];
   /**
-   * Add custom inline expressions to augment the markdown experience.
-   * Here's an example of how to add a highlighter extension:
-   * @example [{ token: "==", intraword: true, renderer: (props) => <mark {...props} /> }]
+   * Custom inline expressions to add to your markdown.
+   * @example [{ token: "==", intraword: true, renderer: (props) => <mark {...props} /> }] // can use "==highlight==" in the source!
    */
   inlineExtensions?: readonly InlineExtension[] | InlineExtension[];
 };
 
+/**
+ * Defines a custom inline modifier.
+ * The token must a unique repeated character (e.g. "=", "%%").
+ */
 type InlineExtension = {
+  /** The delimiter token to match (e.g. "==") */
   token: string;
+  /**
+   * Whether the token is allowed to open/close within words.
+   * If false, instances of this token between words will be treated as literals.
+   */
   intraword: boolean;
+  /** Renderer used for this custom modifier */
   renderer: (props: ChildrenProps) => React.ReactNode;
 };
 
