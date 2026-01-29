@@ -83,44 +83,44 @@ function parseHeading(line: string) {
     : null;
 }
 
-function parseFenceStart(line: string) {
+function parseFenceOpening(line: string) {
   const match = RE_FENCE_START.exec(line);
   return match
     ? { fenceLen: match[1].length, info: (match[2] || "").trim() }
     : null;
 }
 
-function isFenceEnd(line: string, fenceLen: number) {
+function isFenceClosing(line: string, fenceLen: number) {
   const trimmed = line.replace(RE_FENCE_LEADING_SPACES, "").trimEnd();
   return RE_FENCE_TICKS.test(trimmed) && trimmed.length >= fenceLen;
 }
 
 function parseListMarker(line: string): ListMarker | null {
   const indent = getIndent(line);
-  const rest = line.slice(indent);
+  const lineRemainder = line.slice(indent);
 
-  const uliMatches = RE_UL_MARKER.exec(rest);
-  if (uliMatches) {
-    const markerWidth = uliMatches[0].length;
+  const unorderedMarkerMatch = RE_UL_MARKER.exec(lineRemainder);
+  if (unorderedMarkerMatch) {
+    const markerWidth = unorderedMarkerMatch[0].length;
     return {
       ordered: false,
       indent,
       markerWidth,
       contentIndent: indent + markerWidth,
-      markerChar: uliMatches[1],
+      markerChar: unorderedMarkerMatch[1],
     };
   }
 
-  const oliMatches = RE_OL_MARKER.exec(rest);
-  if (oliMatches) {
-    const markerWidth = oliMatches[0].length;
+  const orderedMarkerMatch = RE_OL_MARKER.exec(lineRemainder);
+  if (orderedMarkerMatch) {
+    const markerWidth = orderedMarkerMatch[0].length;
     return {
       ordered: true,
-      start: parseInt(oliMatches[1], 10),
+      start: parseInt(orderedMarkerMatch[1], 10),
       indent,
       markerWidth,
       contentIndent: indent + markerWidth,
-      markerChar: oliMatches[2],
+      markerChar: orderedMarkerMatch[2],
     };
   }
 
@@ -164,7 +164,7 @@ function stripBlockquoteMarker(str: string) {
 const isTopLevelNodeStarter = (line: string) =>
   Boolean(
     isBlank(line) ||
-    parseFenceStart(line) ||
+    parseFenceOpening(line) ||
     isHorizontalRule(line) ||
     parseHeading(line) ||
     stripBlockquoteMarker(line) !== null
@@ -207,21 +207,22 @@ function parseTableAlignments(
   const cells = splitTableRow(line);
   if (cells.length <= 1) return null;
 
-  const delimRegex = minDashes >= 3 ? RE_TABLE_DELIM_MIN3 : RE_TABLE_DELIM_MIN1;
+  const delimiterPattern =
+    minDashes >= 3 ? RE_TABLE_DELIM_MIN3 : RE_TABLE_DELIM_MIN1;
   const alignments: Array<TableAlign | undefined> = [];
 
   for (const cell of cells) {
     const trimmed = cell.replace(RE_WHITESPACE, "");
     if (trimmed.length === 0) return null;
     if (!allowColons && trimmed.includes(":")) return null;
-    const nocolon = trimmed.replace(RE_COLON, "");
-    const dashCount = nocolon.split("-").length - 1;
+    const withoutColons = trimmed.replace(RE_COLON, "");
+    const dashCount = withoutColons.split("-").length - 1;
     if (dashCount < minDashes) return null;
 
     if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
     else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
     else if (RE_TABLE_ALIGN_RIGHT.test(trimmed)) alignments.push("right");
-    else if (delimRegex.test(trimmed)) alignments.push(undefined);
+    else if (delimiterPattern.test(trimmed)) alignments.push(undefined);
     else return null;
   }
 
@@ -274,8 +275,8 @@ function parseTableNode(
   const line = lines[lineIndex];
   const header = splitTableRow(line);
   if (header.length <= 1 || lineIndex + 1 >= lines.length) return null;
-  const trimmed = line.trim();
-  const outerPipes = trimmed.startsWith("|") && trimmed.endsWith("|");
+  const trimmedLine = line.trim();
+  const outerPipes = trimmedLine.startsWith("|") && trimmedLine.endsWith("|");
   const minDashes = outerPipes ? 1 : 3;
   const alignments = parseTableAlignments(
     lines[lineIndex + 1],
@@ -291,12 +292,12 @@ function parseTableNode(
   while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
     const rowLine = lines[currentIndex];
     const rowCells = rowLine.includes("|") ? splitTableRow(rowLine) : null;
-    const isCandidate = rowCells !== null && rowCells.length > 1;
-    if (!isCandidate && isTopLevelNodeStarter(rowLine)) break;
+    const isRowCandidate = rowCells !== null && rowCells.length > 1;
+    if (!isRowCandidate && isTopLevelNodeStarter(rowLine)) break;
 
-    const row = isCandidate ? rowCells : [rowLine.trim()];
-    while (row.length < headerLength) row.push("");
-    rows.push(row.slice(0, headerLength));
+    const rowValues = isRowCandidate ? rowCells : [rowLine.trim()];
+    while (rowValues.length < headerLength) rowValues.push("");
+    rows.push(rowValues.slice(0, headerLength));
     currentIndex++;
   }
 
@@ -340,14 +341,14 @@ function tokenize(
   modifierConfigs: ModifierConfigs
 ): InlineToken[] {
   const tokens: InlineToken[] = [];
-  let text = "";
+  let textBuffer = "";
 
   const flushText = () => {
-    if (!text) return;
+    if (!textBuffer) return;
     const last = tokens[tokens.length - 1];
-    if (last && last.type === "text") last.value += text;
-    else tokens.push({ type: "text", value: text });
-    text = "";
+    if (last && last.type === "text") last.value += textBuffer;
+    else tokens.push({ type: "text", value: textBuffer });
+    textBuffer = "";
   };
 
   const pushToken = (token: InlineToken) => {
@@ -362,10 +363,10 @@ function tokenize(
     else if (char === "\\") {
       const nextChar = str[i + 1];
       if (nextChar && ESCAPABLE.has(nextChar)) {
-        text += nextChar;
+        textBuffer += nextChar;
         i++;
       } else {
-        text += "\\";
+        textBuffer += "\\";
       }
     } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
     else if (char === "`" || char in modifierConfigs) {
@@ -380,7 +381,7 @@ function tokenize(
         const nextChar = str[runIndex];
 
         if (!intraword && isAlphanum(prevChar) && isAlphanum(nextChar)) {
-          text += char.repeat(runIndex - i);
+          textBuffer += char.repeat(runIndex - i);
         } else {
           pushToken({
             type: "delimiter",
@@ -392,7 +393,7 @@ function tokenize(
         }
       }
       i = runIndex - 1;
-    } else text += char;
+    } else textBuffer += char;
   }
 
   flushText();
@@ -512,11 +513,11 @@ function resolveLinksAndImages(
   const nodesOut: IrNode[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
-    const parsed = parseLinkOrImage(nodes, i, parseInlineValue);
+    const linkOrImageMatch = parseLinkOrImage(nodes, i, parseInlineValue);
     const node = nodes[i];
-    if (parsed) {
-      nodesOut.push(parsed.node);
-      i = parsed.nextIndex;
+    if (linkOrImageMatch) {
+      nodesOut.push(linkOrImageMatch.node);
+      i = linkOrImageMatch.nextIndex;
     } else {
       nodesOut.push(node);
     }
@@ -526,8 +527,8 @@ function resolveLinksAndImages(
 }
 
 function getMaxSupportedDelimiterLength(
-  opener: Delimiter,
-  closer: Delimiter,
+  opener: DelimiterRun,
+  closer: DelimiterRun,
   modifierConfigs: ModifierConfigs
 ): number {
   if (opener.char !== closer.char) return 0;
@@ -547,16 +548,17 @@ function resolveDelimiters(
   nodes: IrNode[],
   modifierConfigs: ModifierConfigs
 ): IrNode[] {
-  const list: LinkedList<IrNode> = {};
-  const delimiterList: LinkedList<Delimiter> = {};
-  const pushText = (value: string) => appendNode(list, { type: "text", value });
+  const nodeList: LinkedList<IrNode> = {};
+  const delimiterRunList: LinkedList<DelimiterRun> = {};
+  const pushText = (value: string) =>
+    appendNode(nodeList, { type: "text", value });
 
   for (const node of nodes) {
     if (node.type === "delimiter") {
       if (!node.canOpen && !node.canClose) {
         pushText(node.char.repeat(node.len));
       } else {
-        appendNode(delimiterList, {
+        appendNode(delimiterRunList, {
           char: node.char,
           length: node.len,
           canOpen: node.canOpen,
@@ -565,19 +567,22 @@ function resolveDelimiters(
         });
       }
     } else {
-      appendNode(list, node);
+      appendNode(nodeList, node);
     }
   }
 
-  const canMatch = (opener: Delimiter, closer: Delimiter) =>
+  const canMatch = (opener: DelimiterRun, closer: DelimiterRun) =>
     getMaxSupportedDelimiterLength(opener, closer, modifierConfigs) > 0;
 
-  const getDelimiterLength = (opener: Delimiter, closer: Delimiter) =>
+  const getDelimiterLength = (opener: DelimiterRun, closer: DelimiterRun) =>
     getMaxSupportedDelimiterLength(opener, closer, modifierConfigs);
 
-  const openersBottom = new Map<string, LinkedListNode<Delimiter> | null>();
+  const lastOpenerByChar = new Map<
+    string,
+    LinkedListNode<DelimiterRun> | null
+  >();
 
-  let closer = delimiterList.head;
+  let closer = delimiterRunList.head;
   while (closer) {
     const nextCloser = closer.next;
     if (!closer.value.canClose) {
@@ -585,7 +590,7 @@ function resolveDelimiters(
       continue;
     }
 
-    const bottom = openersBottom.get(closer.value.char) ?? null;
+    const bottom = lastOpenerByChar.get(closer.value.char) ?? null;
     let opener = closer.prev;
     while (opener && opener !== bottom) {
       if (opener.value.canOpen && canMatch(opener.value, closer.value)) break;
@@ -593,7 +598,7 @@ function resolveDelimiters(
     }
 
     if (!opener || opener === bottom) {
-      openersBottom.set(closer.value.char, closer.prev ?? null);
+      lastOpenerByChar.set(closer.value.char, closer.prev ?? null);
       closer = nextCloser;
       continue;
     }
@@ -616,32 +621,32 @@ function resolveDelimiters(
       children,
     };
 
-    for (const item of innerNodes) removeNode(list, item);
+    for (const item of innerNodes) removeNode(nodeList, item);
 
     opener.value.length -= used;
     if (opener.value.length === 0) {
       const insertAfterNode = openerNode.prev;
-      removeNode(list, openerNode);
-      removeNode(delimiterList, opener);
-      insertNode(list, insertAfterNode, emphasisNode);
+      removeNode(nodeList, openerNode);
+      removeNode(delimiterRunList, opener);
+      insertNode(nodeList, insertAfterNode, emphasisNode);
     } else if (openerNode.value.type === "text") {
       openerNode.value.value = opener.value.char.repeat(opener.value.length);
-      insertNode(list, openerNode, emphasisNode);
+      insertNode(nodeList, openerNode, emphasisNode);
     }
 
     closer.value.length -= used;
     if (closer.value.length === 0) {
-      removeNode(list, closerNode);
-      removeNode(delimiterList, closer);
+      removeNode(nodeList, closerNode);
+      removeNode(delimiterRunList, closer);
     } else if (closerNode.value.type === "text") {
       closerNode.value.value = closer.value.char.repeat(closer.value.length);
     }
 
-    let between = opener.next;
-    while (between && between !== closer) {
-      const nextBetween = between.next;
-      removeNode(delimiterList, between);
-      between = nextBetween;
+    let betweenRun = opener.next;
+    while (betweenRun && betweenRun !== closer) {
+      const nextBetween = betweenRun.next;
+      removeNode(delimiterRunList, betweenRun);
+      betweenRun = nextBetween;
     }
 
     if (closer.value.length > 0) {
@@ -652,7 +657,7 @@ function resolveDelimiters(
 
   return mergeAdjacentText(
     mapWhile(
-      list.head,
+      nodeList.head,
       (node) => node.value,
       () => true
     )
@@ -705,10 +710,10 @@ function parseListNode(
     const listMarker = getSameListMarker(lines[lineIndex]);
     if (!listMarker) break;
 
-    const contentAfterMarker = lines[lineIndex].slice(listMarker.contentIndent);
+    const markerContent = lines[lineIndex].slice(listMarker.contentIndent);
     lineIndex++;
 
-    const listItem: string[] = [contentAfterMarker];
+    const listItemLines: string[] = [markerContent];
 
     while (lineIndex < lines.length) {
       const currentLine = lines[lineIndex];
@@ -733,7 +738,7 @@ function parseListNode(
         if (nextIndent <= indent && isTopLevelNodeStarter(nextLine)) break;
 
         tight = false;
-        listItem.push("");
+        listItemLines.push("");
         lineIndex++;
         continue;
       }
@@ -746,8 +751,8 @@ function parseListNode(
       if (otherMarker && otherMarker.indent <= indent) break;
       if (otherMarker && otherMarker.ordered && otherMarker.indent >= 4) {
         const trimmedLine = currentLine.slice(lineIndent);
-        const lastIndex = listItem.length - 1;
-        listItem[lastIndex] = listItem[lastIndex] + trimmedLine;
+        const lastIndex = listItemLines.length - 1;
+        listItemLines[lastIndex] = listItemLines[lastIndex] + trimmedLine;
         lineIndex++;
         continue;
       }
@@ -765,13 +770,13 @@ function parseListNode(
       } else if (lineIndent > indent) {
         sliceAt = Math.min(lineIndent, indent + 1);
       }
-      listItem.push(currentLine.slice(sliceAt));
+      listItemLines.push(currentLine.slice(sliceAt));
       lineIndex++;
     }
 
     children.push({
       type: "li",
-      children: parseBlocks(listItem.join("\n")),
+      children: parseBlocks(listItemLines.join("\n")),
     });
     if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
   }
@@ -799,7 +804,7 @@ function parseBlockquoteNode(
   const firstMarker = stripBlockquoteMarker(firstLine);
   if (firstMarker === null) return null;
 
-  const blockquote: string[] = [];
+  const blockquoteLines: string[] = [];
   let lineIndex = startIndex;
 
   while (lineIndex < lines.length) {
@@ -818,7 +823,7 @@ function parseBlockquoteNode(
           break;
         }
       }
-      blockquote.push(strippedLine);
+      blockquoteLines.push(strippedLine);
       lineIndex++;
     } else if (isBlank(currentLine)) break;
     else {
@@ -826,7 +831,7 @@ function parseBlockquoteNode(
       if (currentIndent === 0 && parseListMarker(currentLine)) break;
       if (isTopLevelNodeStarter(currentLine)) break;
 
-      blockquote.push(currentLine);
+      blockquoteLines.push(currentLine);
       lineIndex++;
     }
   }
@@ -834,7 +839,7 @@ function parseBlockquoteNode(
   return {
     node: {
       type: "blockquote",
-      children: parseBlocks(blockquote.join("\n")),
+      children: parseBlocks(blockquoteLines.join("\n")),
     },
     nextIndex: lineIndex,
   };
@@ -872,7 +877,7 @@ function walkAndBuildAst(
       continue;
     }
 
-    const fence = parseFenceStart(line);
+    const fence = parseFenceOpening(line);
     if (fence) {
       flushParagraph();
       const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
@@ -881,7 +886,7 @@ function walkAndBuildAst(
       const pre: string[] = [];
       while (
         lineIndex < lines.length &&
-        !isFenceEnd(lines[lineIndex], fence.fenceLen)
+        !isFenceClosing(lines[lineIndex], fence.fenceLen)
       ) {
         pre.push(lines[lineIndex]);
         lineIndex++;
@@ -976,7 +981,7 @@ type InlineAstNode =
   | InlineModifierNode
   | BrNode;
 
-type DelimiterToken = {
+type DelimiterRunToken = {
   type: "delimiter";
   char: string;
   len: number;
@@ -988,7 +993,7 @@ type PunctToken = { type: "punct"; char: string };
 
 type InlineToken =
   | TextNode
-  | DelimiterToken
+  | DelimiterRunToken
   | PunctToken
   | { type: "newline" }
   | { type: "backtick"; len: number };
@@ -1076,7 +1081,7 @@ type ListMarker = {
   start?: number;
 };
 
-type Delimiter = {
+type DelimiterRun = {
   char: string;
   length: number;
   canOpen: boolean;
