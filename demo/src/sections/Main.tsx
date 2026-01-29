@@ -49,29 +49,33 @@ export default function Example() {
 }`}
       </Snippet>
 
-      <Heading level={1}>Supported Elements</Heading>
+      <Heading level={1}>Components</Heading>
       <Para>
-        The parser supports the everyday Markdown you expect, including tables
-        and fenced code blocks. Anything you don't like can be dropped or
-        swapped out with a renderer that matches your design system.
+        The parser supports the everyday Markdown you expect, like bold,
+        italics, inline code, and links, plus GFM extensions like tables.
+        Anything you don't like can be dropped or swapped out with a renderer
+        that matches your design system.
       </Para>
       <Box vfx={{ axis: "x", gap: "s", wrap: true }}>
-        <Badge type="static">Headings (h1-h6)</Badge>
-        <Badge type="static">Paragraphs</Badge>
-        <Badge type="static">Links</Badge>
-        <Badge type="static">Images</Badge>
-        <Badge type="static">Blockquotes</Badge>
-        <Badge type="static">Inline code</Badge>
-        <Badge type="static">Code blocks</Badge>
-        <Badge type="static">Lists (ul/ol)</Badge>
-        <Badge type="static">Tables</Badge>
-        <Badge type="static">Horizontal rules</Badge>
-        <Badge type="static">Line breaks</Badge>
-        <Badge type="static">Bold / Italic / Strike</Badge>
+        <Badge type="success">Headings (h1-h6)</Badge>
+        <Badge type="success">Paragraphs</Badge>
+        <Badge type="success">Links</Badge>
+        <Badge type="success">Images</Badge>
+        <Badge type="success">Blockquotes</Badge>
+        <Badge type="success">Inline code</Badge>
+        <Badge type="success">Code blocks</Badge>
+        <Badge type="success">Lists (ul/ol)</Badge>
+        <Badge type="success">Tables</Badge>
+        <Badge type="success">Horizontal rules</Badge>
+        <Badge type="success">Line breaks</Badge>
+        <Badge type="success">Bold / Italic / Strike</Badge>
       </Box>
       <Para>
-        Need more? Add your own inline extensions or replace any element with a
-        custom component in the renderers map.
+        Need to push beyond custom renderers for existing components? You can
+        add your own inline extensions to get more functionality out of
+        Markdown! For example, you could make <ui.code>==</ui.code> translate to{" "}
+        <ui.code>{"<mark>"}</ui.code> elements, which is what I did below in the
+        playground.
       </Para>
 
       <Heading level={1}>Playground</Heading>
