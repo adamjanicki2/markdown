@@ -113,7 +113,7 @@ describe("Markdown", () => {
 
   it("drops images completely", () => {
     const { container } = render(
-      <Markdown unwrapTags={["img"]}>
+      <Markdown hideTags={{ img: 'drop' }}>
         {"Here's an image: ![alt](url.png)\n\nAnd some text."}
       </Markdown>
     );
@@ -125,7 +125,7 @@ describe("Markdown", () => {
 
   it("unwraps links but preserves text", () => {
     const { container } = render(
-      <Markdown unwrapTags={["a"]}>
+      <Markdown hideTags={{ a: 'unwrap' }}>
         {"Visit [example.com](https://example.com) for more info."}
       </Markdown>
     );
@@ -138,7 +138,7 @@ describe("Markdown", () => {
 
   it("unwraps multiple tag types while preserving their content", () => {
     const { container } = render(
-      <Markdown unwrapTags={["strong", "a"]}>
+      <Markdown hideTags={{ strong: 'unwrap', a: 'unwrap' }}>
         {"**bold** _italic_ [link](url) ![img](img.png)"}
       </Markdown>
     );
@@ -153,7 +153,7 @@ describe("Markdown", () => {
 
   it("unwraps parent but preserves nested children", () => {
     const { container } = render(
-      <Markdown unwrapTags={["a"]}>{"Visit [**bold link**](url)"}</Markdown>
+      <Markdown hideTags={{ a: 'unwrap' }}>{"Visit [**bold link**](url)"}</Markdown>
     );
 
     expect(container.querySelector("a")).not.toBeInTheDocument();
@@ -163,7 +163,7 @@ describe("Markdown", () => {
 
   it("unwraps specific heading levels", () => {
     render(
-      <Markdown unwrapTags={["h1", "h3"]}>
+      <Markdown hideTags={{ h1: 'unwrap', h3: 'unwrap' }}>
         {"# H1\n\n## H2\n\n### H3\n\nContent"}
       </Markdown>
     );
@@ -178,7 +178,7 @@ describe("Markdown", () => {
 
   it("unwraps list containers (ol/ul) but preserves list items", () => {
     const { container } = render(
-      <Markdown unwrapTags={["ol", "ul"]}>
+      <Markdown hideTags={{ ol: 'unwrap', ul: 'unwrap' }}>
         {"1. Item 1\n2. Item 2\n\n- Item 3\n- Item 4"}
       </Markdown>
     );
@@ -192,7 +192,7 @@ describe("Markdown", () => {
 
   it("unwraps list items but keeps list container", () => {
     const { container } = render(
-      <Markdown unwrapTags={["li"]}>{"- Item 1\n- Item 2"}</Markdown>
+      <Markdown hideTags={{ li: 'unwrap' }}>{"- Item 1\n- Item 2"}</Markdown>
     );
 
     expect(container.querySelector("ul")).toBeInTheDocument();
@@ -203,7 +203,7 @@ describe("Markdown", () => {
 
   it("unwraps table but preserves table structure", () => {
     const { container } = render(
-      <Markdown unwrapTags={["table"]}>
+      <Markdown hideTags={{ table: 'unwrap' }}>
         {"| a | b |\n| - | - |\n| x | y |"}
       </Markdown>
     );
@@ -215,7 +215,7 @@ describe("Markdown", () => {
 
   it("unwraps table elements (tr/th/td) but preserves structure and content", () => {
     const { container } = render(
-      <Markdown unwrapTags={["tr", "th", "td"]}>
+      <Markdown hideTags={{ tr: 'unwrap', th: 'unwrap', td: 'unwrap' }}>
         {"| a | b |\n| - | - |\n| x | y |"}
       </Markdown>
     );
@@ -228,7 +228,7 @@ describe("Markdown", () => {
     expect(container.textContent).toContain("x");
   });
 
-  it("renders all content when unwrapTags is undefined or empty", () => {
+  it("renders all content when hideTags is undefined or empty", () => {
     const { container, rerender } = render(
       <Markdown>{"**bold** _italic_ [link](url)"}</Markdown>
     );
@@ -237,7 +237,7 @@ describe("Markdown", () => {
     expect(container.querySelector("em")).toBeInTheDocument();
     expect(container.querySelector("a")).toBeInTheDocument();
 
-    rerender(<Markdown unwrapTags={[]}>{"**bold** _italic_ [link](url)"}</Markdown>);
+    rerender(<Markdown hideTags={{}}>{"**bold** _italic_ [link](url)"}</Markdown>);
     expect(container.querySelector("strong")).toBeInTheDocument();
     expect(container.querySelector("em")).toBeInTheDocument();
     expect(container.querySelector("a")).toBeInTheDocument();
@@ -265,7 +265,7 @@ describe("Markdown", () => {
 
   it("unwraps inline code", () => {
     const { container } = render(
-      <Markdown unwrapTags={["code"]}>{"Hello `code` world"}</Markdown>
+      <Markdown hideTags={{ code: 'unwrap' }}>{"Hello `code` world"}</Markdown>
     );
 
     expect(container.querySelector("code")).not.toBeInTheDocument();
@@ -274,7 +274,7 @@ describe("Markdown", () => {
 
   it("unwraps fenced code blocks", () => {
     const { container } = render(
-      <Markdown unwrapTags={["pre"]}>
+      <Markdown hideTags={{ pre: 'unwrap' }}>
         {"```js\nconst x = 1;\n```\n\nAfter"}
       </Markdown>
     );
@@ -287,7 +287,7 @@ describe("Markdown", () => {
 
   it("unwraps blockquote but preserves content", () => {
     const { container } = render(
-      <Markdown unwrapTags={["blockquote"]}>{"> quote\n\nAfter"}</Markdown>
+      <Markdown hideTags={{ blockquote: 'unwrap' }}>{"> quote\n\nAfter"}</Markdown>
     );
 
     expect(container.querySelector("blockquote")).not.toBeInTheDocument();
@@ -297,7 +297,7 @@ describe("Markdown", () => {
 
   it("drops horizontal rules", () => {
     const { container } = render(
-      <Markdown unwrapTags={["hr"]}>{"# Title\n\n---\n\nAfter"}</Markdown>
+      <Markdown hideTags={{ hr: 'drop' }}>{"# Title\n\n---\n\nAfter"}</Markdown>
     );
 
     expect(container.querySelector("hr")).not.toBeInTheDocument();
@@ -309,7 +309,7 @@ describe("Markdown", () => {
 
   it("drops hard line breaks completely", () => {
     const { container } = render(
-      <Markdown unwrapTags={["br"]}>{"a  \nb"}</Markdown>
+      <Markdown hideTags={{ br: 'drop' }}>{"a  \nb"}</Markdown>
     );
     expect(container.querySelector("br")).not.toBeInTheDocument();
     expect(container.textContent).toBe("ab");
@@ -317,7 +317,7 @@ describe("Markdown", () => {
 
   it("unwraps paragraph but preserves content", () => {
     const { container } = render(
-      <Markdown unwrapTags={["p"]}>{"Hello\n\nWorld"}</Markdown>
+      <Markdown hideTags={{ p: 'unwrap' }}>{"Hello\n\nWorld"}</Markdown>
     );
     expect(container.querySelector("p")).not.toBeInTheDocument();
     expect(container.textContent).toContain("Hello");
@@ -326,7 +326,7 @@ describe("Markdown", () => {
 
   it("unwraps inline formatting tags (em/strong/del) but preserves text", () => {
     const { container } = render(
-      <Markdown unwrapTags={["em", "strong", "del"]}>
+      <Markdown hideTags={{ em: 'unwrap', strong: 'unwrap', del: 'unwrap' }}>
         {"Hello _em_ **bold** ~~gone~~ world"}
       </Markdown>
     );
@@ -338,7 +338,7 @@ describe("Markdown", () => {
 
   it("unwraps h4 headings but preserves content", () => {
     const { container } = render(
-      <Markdown unwrapTags={["h4"]}>{"### H3\n\n#### H4\n\n##### H5"}</Markdown>
+      <Markdown hideTags={{ h4: 'unwrap' }}>{"### H3\n\n#### H4\n\n##### H5"}</Markdown>
     );
     expect(
       screen.getByRole("heading", { level: 3, name: "H3" })
@@ -352,7 +352,7 @@ describe("Markdown", () => {
 
   it("unwraps table sections (thead/tbody) but preserves cells", () => {
     const { container } = render(
-      <Markdown unwrapTags={["thead", "tbody"]}>
+      <Markdown hideTags={{ thead: 'unwrap', tbody: 'unwrap' }}>
         {"| a | b |\n| - | - |\n| x | y |"}
       </Markdown>
     );

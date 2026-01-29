@@ -9,12 +9,12 @@ type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** Custom renderers to use for each supported DOM element */
   renderers?: Partial<Renderers>;
   /**
-   * HTML elements to unwrap from output.
-   * Elements in this list will have their wrapper removed but children preserved.
-   * Elements without children (img, br, hr) will be completely removed.
-   * @example ["img", "a"] // images removed entirely, link text preserved without anchor element wrapper
+   * HTML elements to hide from output JSX.
+   * - `'unwrap'`: Remove wrapper element but preserve children.
+   * - `'drop'`: Fully remove subtree rooted at the element.
+   * @example { img: 'drop', a: 'unwrap' } // images removed entirely, link text preserved without anchor
    */
-  unwrapTags?: readonly Tag[] | Tag[];
+  hideTags?: Partial<Record<Tag, "unwrap" | "drop">>;
   /**
    * Custom inline expressions to add to your markdown.
    * @example [{ token: "==", intraword: true, renderer: (props) => <mark {...props} /> }] // can use "==highlight==" in the source!
@@ -45,7 +45,7 @@ type ModifierTag = "em" | "strong" | "del";
 /** Component to render a Markdown source string into React */
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
   (
-    { children, renderers, unwrapTags = [], inlineExtensions = [], ...props },
+    { children, renderers, hideTags = {}, inlineExtensions = [], ...props },
     ref
   ) => {
     const { modifierConfigs, inlineExtensionMap } = React.useMemo(
@@ -56,9 +56,9 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
       () => buildAst(children, { modifierConfigs }),
       [children, modifierConfigs]
     );
-    const unwrapTagsSet = React.useMemo(
-      () => new Set(unwrapTags),
-      [unwrapTags]
+    const hideTagsMap = React.useMemo(
+      () => new Map(Object.entries(hideTags)),
+      [hideTags]
     );
 
     return (
@@ -66,7 +66,7 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
         {render(
           ast,
           { ...DEFAULT_RENDERERS, ...renderers },
-          unwrapTagsSet,
+          hideTagsMap,
           inlineExtensionMap
         )}
       </div>
@@ -122,14 +122,14 @@ function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag | null {
 function render(
   nodes: AstNode | AstNode[],
   renderers: Renderers,
-  unwrapTags: Set<Tag>,
+  hideTags: Map<string, "unwrap" | "drop">,
   inlineExtensionMap: InlineExtensionMap
 ): React.ReactNode {
   if (Array.isArray(nodes)) {
     return (
       <>
         {nodes.map((node, index) => {
-          const child = render(node, renderers, unwrapTags, inlineExtensionMap);
+          const child = render(node, renderers, hideTags, inlineExtensionMap);
           return child ? (
             <React.Fragment key={`${getNodeKey(node)}-${index}`}>
               {child}
@@ -145,15 +145,17 @@ function render(
 
   if (type === "text") return node.value;
 
-  // unwrap nodes in unwrapTags (render children without wrapper)
   const tag = getTagFromNode(node);
-  if (tag && unwrapTags.has(tag)) {
+  const hideBehavior = tag ? hideTags.get(tag) : undefined;
+  if (hideBehavior) {
+    // drop entire subtree
+    if (hideBehavior === "drop") return null;
     // unwrap and return children
     if ("children" in node)
-      return render(node.children, renderers, unwrapTags, inlineExtensionMap);
+      return render(node.children, renderers, hideTags, inlineExtensionMap);
     // return raw code strings
     if (node.type === "code" || node.type === "pre") return node.value;
-    // fully drop remaining nodes without meaningful children (img, hr, etc)
+    // elements without children (img, hr, br) return null
     return null;
   }
 
@@ -165,7 +167,7 @@ function render(
         children: render(
           node.children,
           renderers,
-          unwrapTags,
+          hideTags,
           inlineExtensionMap
         ),
       });
@@ -174,48 +176,28 @@ function render(
     const builtinTag = BUILTIN_MODIFIERS[node.delimiter];
     const renderer = builtinTag ? renderers[builtinTag] : null;
     if (!renderer) {
-      return render(node.children, renderers, unwrapTags, inlineExtensionMap);
+      return render(node.children, renderers, hideTags, inlineExtensionMap);
     }
 
     return renderer({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   }
   if (type === "a")
     return renderers.a({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
       href: node.url,
     });
   if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
   if (type === "br") return renderers.br();
   if (type === "p")
     return renderers.p({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "h") {
     const Heading = renderers[`h${node.level}`];
     return Heading({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   }
   if (type === "hr") return renderers.hr();
@@ -225,7 +207,7 @@ function render(
     const children = render(
       node.children,
       renderers,
-      unwrapTags,
+      hideTags,
       inlineExtensionMap
     );
     if (node.ordered) {
@@ -237,71 +219,36 @@ function render(
   }
   if (type === "li")
     return renderers.li({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "thead")
     return renderers.thead({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "tbody")
     return renderers.tbody({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "tr")
     return renderers.tr({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "th")
     return renderers.th({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
       align: node.align,
     });
   if (type === "td")
     return renderers.td({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
       align: node.align,
     });
   if (type === "table")
     return renderers.table({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   return renderers.blockquote({
-    children: render(node.children, renderers, unwrapTags, inlineExtensionMap),
+    children: render(node.children, renderers, hideTags, inlineExtensionMap),
   });
 }
 
