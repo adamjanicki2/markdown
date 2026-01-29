@@ -1,5 +1,84 @@
 import Markdown from "@adamjanicki/markdown";
-import { Link, ui } from "@adamjanicki/ui";
+import { Badge, Box, Button, Icon, Link, ui } from "@adamjanicki/ui";
+import { check, clipboard } from "@adamjanicki/ui/icons";
+import { useState } from "react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneLight as light } from "react-syntax-highlighter/dist/esm/styles/prism";
+
+function CodeBlock({ children, lang }: { children: string; lang?: string }) {
+  const code = children.trim();
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 3000);
+  };
+
+  return (
+    <Box
+      vfx={{
+        axis: "y",
+        width: "full",
+        border: true,
+        radius: "rounded",
+        shadow: "subtle",
+      }}
+    >
+      <Box
+        vfx={{
+          axis: "x",
+          align: "center",
+          justify: "between",
+          width: "full",
+          paddingX: "s",
+          paddingY: "xs",
+          borderBottom: true,
+        }}
+      >
+        <ui.span vfx={{ fontSize: "s", fontWeight: 5 }}>
+          {lang || "text"}
+        </ui.span>
+        {copied ? (
+          <Badge vfx={{ axis: "x", align: "center", gap: "xs" }} type="success">
+            <Icon icon={check} /> Copied
+          </Badge>
+        ) : (
+          <Button
+            vfx={{ axis: "x", align: "center", gap: "xs", paddingY: "xxs" }}
+            onClick={copyCode}
+            size="small"
+            variant="secondary"
+          >
+            <Icon icon={clipboard} />
+            Copy
+          </Button>
+        )}
+      </Box>
+      <ui.pre
+        vfx={{
+          axis: "x",
+          margin: "none",
+          overflow: "auto",
+          padding: "s",
+          width: "full",
+        }}
+        className="no-bg"
+      >
+        <SyntaxHighlighter
+          style={light}
+          language={lang || "text"}
+          customStyle={{
+            padding: 0,
+            margin: 0,
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </ui.pre>
+    </Box>
+  );
+}
 
 export default function DemoMarkdown({ markdown }: { markdown: string }) {
   return (
@@ -34,10 +113,11 @@ export default function DemoMarkdown({ markdown }: { markdown: string }) {
         ),
         p: (props) => <ui.p {...props} vfx={{ lineHeight: "m" }} />,
         li: (props) => <ui.li {...props} vfx={{ lineHeight: "m" }} />,
+        pre: (props) => <CodeBlock {...props} />,
         table: ({ children }) => (
           <ui.table
             vfx={{
-              margin: "none",
+              marginY: "s",
               border: true,
               radius: "rounded",
               shadow: "subtle",
