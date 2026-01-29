@@ -7,7 +7,7 @@ import {
   removeNode,
 } from "./list";
 
-type ModifierConfig = {
+export type ModifierConfig = {
   intraword: boolean;
   lengths: number[];
 };
