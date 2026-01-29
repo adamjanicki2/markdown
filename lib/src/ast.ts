@@ -7,43 +7,6 @@ import {
   removeNode,
 } from "./list";
 
-export type ModifierConfig = {
-  intraword: boolean;
-  lengths: Set<number>;
-};
-
-export type BuildAstOptions = {
-  modifierConfigs?: Partial<Record<string, ModifierConfig>>;
-};
-
-type ModifierConfigs = Record<string, ModifierConfig | undefined>;
-
-const MODIFIER_CONFIGS = {
-  "*": { intraword: true, lengths: new Set([1, 2]) },
-  _: { intraword: false, lengths: new Set([1, 2]) },
-  "~": { intraword: true, lengths: new Set([2]) },
-} as const;
-
-type InlineParser = (value: string) => InlineAstNode[];
-
-function getMaxSupportedDelimiterLength(
-  opener: Delimiter,
-  closer: Delimiter,
-  modifierConfigs: ModifierConfigs
-): number {
-  if (opener.char !== closer.char) return 0;
-  if (opener.length === 0 || closer.length === 0) return 0;
-
-  const supported = modifierConfigs[opener.char]?.lengths;
-  if (!supported) return 0;
-
-  const maxPossible = Math.min(opener.length, closer.length);
-  for (let length = maxPossible; length >= 1; length--) {
-    if (supported.has(length)) return length;
-  }
-  return 0;
-}
-
 /**
  * Construct an AST given a markdown source string.
  * @param markdown the source to parse
@@ -60,108 +23,7 @@ export function buildAst(
   return walkAndBuildAst(markdown, modifierConfigs);
 }
 
-function walkAndBuildAst(
-  markdown: string,
-  modifierConfigs: ModifierConfigs
-): AstNode[] {
-  const parseInlineWithConfigs: InlineParser = (value) =>
-    parseInline(value, modifierConfigs);
-  const lines = splitLines(markdown);
-  const nodes: AstNode[] = [];
-
-  let lineIndex = 0;
-  let paragraph: string[] = [];
-
-  const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    nodes.push({
-      type: "p",
-      children: parseInlineWithConfigs(paragraph.join("\n")),
-    });
-    paragraph = [];
-  };
-
-  while (lineIndex < lines.length) {
-    const line = lines[lineIndex];
-
-    if (isBlank(line)) {
-      flushParagraph();
-      lineIndex++;
-      continue;
-    }
-
-    const fence = parseFenceStart(line);
-    if (fence) {
-      flushParagraph();
-      const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
-
-      lineIndex++;
-      const pre: string[] = [];
-      while (
-        lineIndex < lines.length &&
-        !isFenceEnd(lines[lineIndex], fence.fenceLen)
-      ) {
-        pre.push(lines[lineIndex]);
-        lineIndex++;
-      }
-      if (lineIndex < lines.length) lineIndex++;
-
-      nodes.push({ type: "pre", lang, value: pre.join("\n") });
-      continue;
-    }
-
-    const list = parseListNode(lines, lineIndex, modifierConfigs);
-    if (list) {
-      flushParagraph();
-      nodes.push(list.node);
-      lineIndex = list.nextIndex;
-      continue;
-    }
-
-    if (isHorizontalRule(line)) {
-      flushParagraph();
-      nodes.push({ type: "hr" });
-      lineIndex++;
-      continue;
-    }
-
-    const heading = parseHeading(line);
-    if (heading) {
-      flushParagraph();
-      nodes.push({
-        type: "h",
-        level: heading.level,
-        children: parseInlineWithConfigs(heading.raw),
-      });
-      lineIndex++;
-      continue;
-    }
-
-    const table = parseTableNode(lines, lineIndex, parseInlineWithConfigs);
-    if (table) {
-      flushParagraph();
-      nodes.push(table.node);
-      lineIndex = table.nextIndex;
-      continue;
-    }
-
-    const blockquote = parseBlockquoteNode(lines, lineIndex, modifierConfigs);
-    if (blockquote) {
-      flushParagraph();
-      nodes.push(blockquote.node);
-      lineIndex = blockquote.nextIndex;
-      continue;
-    }
-
-    paragraph.push(line);
-    lineIndex++;
-  }
-
-  flushParagraph();
-  return nodes;
-}
-
-// Helper functions
+// helpers
 const splitLines = (str: string) => str.replace(RE_NEWLINES, "\n").split("\n");
 const isBlank = (str: string) => !str.trim();
 const getIndent = (line: string) =>
@@ -169,18 +31,10 @@ const getIndent = (line: string) =>
 const isSpace = (char?: string) =>
   char === undefined || char === " " || char === "\t" || char === "\n";
 const isAlphanum = (char?: string) => !!char && RE_ALPHANUM.test(char);
-const isTopLevelNodeStarter = (line: string) =>
-  Boolean(
-    isBlank(line) ||
-    parseFenceStart(line) ||
-    isHorizontalRule(line) ||
-    parseHeading(line) ||
-    stripBlockquoteMarker(line) !== null
-  );
-
-function isToken(node: IrNode): node is InlineToken {
-  return (TOKEN_TYPES as Set<string>).has(node.type);
-}
+const isToken = (node: IrNode): node is InlineToken =>
+  (TOKEN_TYPES as Set<string>).has(node.type);
+const isTextNode = (node: IrNode | InlineToken): node is TextNode =>
+  node.type === "text";
 
 function appendText(nodes: IrNode[], value: string) {
   if (!value) return;
@@ -189,8 +43,6 @@ function appendText(nodes: IrNode[], value: string) {
   else nodes.push({ type: "text", value });
 }
 
-const isTextNode = (node: IrNode | InlineToken): node is TextNode =>
-  node.type === "text";
 function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
   const merged: T[] = [];
   for (const node of nodes) {
@@ -211,13 +63,13 @@ function nodeToLiteral(node: IrNode): string {
   if (node.type === "backtick") return "`".repeat(node.len);
   if (node.type === "code") return "`" + node.value + "`";
   if (node.type === "br" || node.type === "newline") return "\n";
-  if (node.type === "modifier") return nodesToLiteral(node.children);
+  if (node.type === "modifier")
+    return node.children.reduce((acc, child) => acc + nodeToLiteral(child), "");
   return "";
 }
 
-function nodesToLiteral(nodes: IrNode[]): string {
-  return nodes.reduce((acc, node) => acc + nodeToLiteral(node), "");
-}
+const nodesToLiteral = (nodes: IrNode[]) =>
+  nodes.reduce((acc, node) => acc + nodeToLiteral(node), "");
 
 const isHorizontalRule = (str: string) => RE_HR.test(str);
 
@@ -238,9 +90,9 @@ function parseFenceStart(line: string) {
     : null;
 }
 
-function isFenceEnd(str: string, fenceLen: number) {
-  const s = str.replace(RE_FENCE_LEADING_SPACES, "").trimEnd();
-  return RE_FENCE_TICKS.test(s) && s.length >= fenceLen;
+function isFenceEnd(line: string, fenceLen: number) {
+  const trimmed = line.replace(RE_FENCE_LEADING_SPACES, "").trimEnd();
+  return RE_FENCE_TICKS.test(trimmed) && trimmed.length >= fenceLen;
 }
 
 function parseListMarker(line: string): ListMarker | null {
@@ -308,6 +160,15 @@ function stripBlockquoteMarker(str: string) {
     ? info.content
     : ">".repeat(info.depth - 1) + " " + info.content;
 }
+
+const isTopLevelNodeStarter = (line: string) =>
+  Boolean(
+    isBlank(line) ||
+    parseFenceStart(line) ||
+    isHorizontalRule(line) ||
+    parseHeading(line) ||
+    stripBlockquoteMarker(line) !== null
+  );
 
 function splitTableRow(str: string): string[] {
   let text = str.trim();
@@ -445,170 +306,33 @@ function parseTableNode(
   };
 }
 
-function parseListNode(
-  lines: string[],
-  startIndex: number,
-  modifierConfigs: ModifierConfigs
-): NodeParseResult<ListNode> | null {
-  const firstLine = lines[startIndex];
-  const firstMarker = parseListMarker(firstLine);
-  if (!firstMarker) return null;
-  if (shouldDisallowListStart(firstLine, firstMarker)) return null;
-
-  const { ordered, start, indent } = firstMarker;
-  const children: ListItemNode[] = [];
-  let tight = true;
-
-  const getSameListMarker = (line: string): ListMarker | null => {
-    const marker = parseListMarker(line);
-    if (!marker) return null;
-    if (marker.ordered !== ordered) return null;
-    if (!ordered && marker.markerChar !== firstMarker.markerChar) return null;
-    if (!ordered && marker.indent !== indent) return null;
-    if (ordered && (marker.indent < indent || marker.indent > indent + 3))
-      return null;
-    if (shouldDisallowListStart(line, marker)) return null;
-    return marker;
-  };
-
-  let lineIndex = startIndex;
-  while (lineIndex < lines.length) {
-    const listMarker = getSameListMarker(lines[lineIndex]);
-    if (!listMarker) break;
-
-    const contentAfterMarker = lines[lineIndex].slice(listMarker.contentIndent);
-    lineIndex++;
-
-    const listItem: string[] = [contentAfterMarker];
-
-    while (lineIndex < lines.length) {
-      const currentLine = lines[lineIndex];
-
-      if (isBlank(currentLine)) {
-        let lookaheadIndex = lineIndex + 1;
-        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
-          lookaheadIndex++;
-
-        const nextLine =
-          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
-        if (!nextLine) break;
-
-        if (getSameListMarker(nextLine)) {
-          tight = false;
-          lineIndex = lookaheadIndex;
-          break;
-        }
-
-        const nextIndent = getIndent(nextLine);
-        if (nextIndent < listMarker.contentIndent) break;
-        if (nextIndent <= indent && isTopLevelNodeStarter(nextLine)) break;
-
-        tight = false;
-        listItem.push("");
-        lineIndex++;
-        continue;
-      }
-
-      const lineIndent = getIndent(currentLine);
-      const otherMarker = parseListMarker(currentLine);
-
-      if (getSameListMarker(currentLine)) break;
-
-      if (otherMarker && otherMarker.indent <= indent) break;
-      if (otherMarker && otherMarker.ordered && otherMarker.indent >= 4) {
-        const trimmedLine = currentLine.slice(lineIndent);
-        const lastIndex = listItem.length - 1;
-        listItem[lastIndex] = listItem[lastIndex] + trimmedLine;
-        lineIndex++;
-        continue;
-      }
-
-      if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
-
-      let sliceAt = 0;
-      if (lineIndent >= listMarker.contentIndent) {
-        sliceAt = listMarker.contentIndent;
-        if (
-          lineIndent > listMarker.contentIndent &&
-          !parseListMarker(currentLine.slice(listMarker.contentIndent))
-        )
-          sliceAt = lineIndent;
-      } else if (lineIndent > indent) {
-        sliceAt = Math.min(lineIndent, indent + 1);
-      }
-      listItem.push(currentLine.slice(sliceAt));
-      lineIndex++;
-    }
-
-    children.push({
-      type: "li",
-      children: walkAndBuildAst(listItem.join("\n"), modifierConfigs),
-    });
-    if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
+function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
+  const last = inlineNodes[inlineNodes.length - 1];
+  let hard = false;
+  if (last && last.type === "text" && last.value.endsWith("  ")) {
+    last.value = last.value.slice(0, -2);
+    hard = true;
+    if (!last.value) inlineNodes.pop();
   }
-
-  if (tight) {
-    for (const child of children) {
-      child.children = child.children.flatMap((grandchild) =>
-        grandchild.type === "p" ? grandchild.children : grandchild
-      );
-    }
-  }
-
-  return {
-    node: { type: "list", ordered, start, tight, children },
-    nextIndex: lineIndex,
-  };
+  inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
 }
 
-function parseBlockquoteNode(
-  lines: string[],
-  startIndex: number,
-  modifierConfigs: ModifierConfigs
-): NodeParseResult<BlockquoteNode> | null {
-  const firstLine = lines[startIndex];
-  const firstMarker = stripBlockquoteMarker(firstLine);
-  if (firstMarker === null) return null;
+function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
+  const inlineNodes: InlineAstNode[] = [];
 
-  const blockquote: string[] = [];
-  let lineIndex = startIndex;
-
-  while (lineIndex < lines.length) {
-    const currentLine = lines[lineIndex];
-    const strippedLine = stripBlockquoteMarker(currentLine);
-
-    if (strippedLine !== null) {
-      if (strippedLine.trim() === "") {
-        let lookaheadIndex = lineIndex + 1;
-        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
-          lookaheadIndex++;
-        const nextLine =
-          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
-        if (!nextLine || stripBlockquoteMarker(nextLine) === null) {
-          lineIndex++;
-          break;
-        }
-      }
-      blockquote.push(strippedLine);
-      lineIndex++;
-    } else if (isBlank(currentLine)) break;
-    else {
-      const currentIndent = getIndent(currentLine);
-      if (currentIndent === 0 && parseListMarker(currentLine)) break;
-      if (isTopLevelNodeStarter(currentLine)) break;
-
-      blockquote.push(currentLine);
-      lineIndex++;
+  for (const node of nodesList) {
+    if (node.type === "text") {
+      appendText(inlineNodes, node.value);
+    } else if (node.type === "newline") {
+      handleInlineNewline(inlineNodes);
+    } else if (isToken(node)) {
+      appendText(inlineNodes, nodeToLiteral(node));
+    } else {
+      inlineNodes.push(node);
     }
   }
 
-  return {
-    node: {
-      type: "blockquote",
-      children: walkAndBuildAst(blockquote.join("\n"), modifierConfigs),
-    },
-    nextIndex: lineIndex,
-  };
+  return inlineNodes;
 }
 
 function tokenize(
@@ -700,8 +424,8 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
         appendText(nodes, "`".repeat(openerLen));
       else {
         let code = "";
-        for (let j = i + 1; j < closingIndex; j++) {
-          code += nodeToLiteral(tokens[j]);
+        for (let tokenIndex = i + 1; tokenIndex < closingIndex; tokenIndex++) {
+          code += nodeToLiteral(tokens[tokenIndex]);
         }
 
         nodes.push({ type: "code", value: code });
@@ -713,14 +437,13 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
   return mergeAdjacentText(nodes);
 }
 
-function isPunctChar(node: IrNode, char: string): node is PunctToken {
-  return isToken(node) && node.type === "punct" && node.char === char;
-}
+const isPunctChar = (node: IrNode, char: string): node is PunctToken =>
+  isToken(node) && node.type === "punct" && node.char === char;
 
 function parseLinkOrImage(
   nodes: IrNode[],
   startIndex: number,
-  modifierConfigs: ModifierConfigs
+  parseInlineValue: InlineParser
 ): { node: IrNode; nextIndex: number } | null {
   const startNode = nodes[startIndex];
   if (!isToken(startNode)) return null;
@@ -775,7 +498,7 @@ function parseLinkOrImage(
     };
   }
 
-  const children = parseInline(label, modifierConfigs);
+  const children = parseInlineValue(label);
   return {
     node: { type: "a", url, children },
     nextIndex: rightParenIndex,
@@ -784,12 +507,12 @@ function parseLinkOrImage(
 
 function resolveLinksAndImages(
   nodes: IrNode[],
-  modifierConfigs: ModifierConfigs
+  parseInlineValue: InlineParser
 ): IrNode[] {
   const nodesOut: IrNode[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
-    const parsed = parseLinkOrImage(nodes, i, modifierConfigs);
+    const parsed = parseLinkOrImage(nodes, i, parseInlineValue);
     const node = nodes[i];
     if (parsed) {
       nodesOut.push(parsed.node);
@@ -800,6 +523,24 @@ function resolveLinksAndImages(
   }
 
   return mergeAdjacentText(nodesOut);
+}
+
+function getMaxSupportedDelimiterLength(
+  opener: Delimiter,
+  closer: Delimiter,
+  modifierConfigs: ModifierConfigs
+): number {
+  if (opener.char !== closer.char) return 0;
+  if (opener.length === 0 || closer.length === 0) return 0;
+
+  const supported = modifierConfigs[opener.char]?.lengths;
+  if (!supported) return 0;
+
+  const maxPossible = Math.min(opener.length, closer.length);
+  for (let length = maxPossible; length >= 1; length--) {
+    if (supported.has(length)) return length;
+  }
+  return 0;
 }
 
 function resolveDelimiters(
@@ -918,79 +659,301 @@ function resolveDelimiters(
   );
 }
 
-function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
-  const last = inlineNodes[inlineNodes.length - 1];
-  let hard = false;
-  if (last && last.type === "text" && last.value.endsWith("  ")) {
-    last.value = last.value.slice(0, -2);
-    hard = true;
-    if (!last.value) inlineNodes.pop();
-  }
-  inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
-}
-
-function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
-  const inlineNodes: InlineAstNode[] = [];
-
-  for (const node of nodesList) {
-    if (node.type === "text") {
-      appendText(inlineNodes, node.value);
-    } else if (node.type === "newline") {
-      handleInlineNewline(inlineNodes);
-    } else if (isToken(node)) {
-      appendText(inlineNodes, nodeToLiteral(node));
-    } else {
-      inlineNodes.push(node);
-    }
-  }
-
-  return inlineNodes;
-}
-
 function parseInline(
   str: string,
   modifierConfigs: ModifierConfigs
 ): InlineAstNode[] {
   const tokens = tokenize(str, modifierConfigs);
+  const parseInlineValue: InlineParser = (value) =>
+    parseInline(value, modifierConfigs);
 
   let nodes: IrNode[] = resolveCodeSpans(tokens);
-  nodes = resolveLinksAndImages(nodes, modifierConfigs);
+  nodes = resolveLinksAndImages(nodes, parseInlineValue);
   nodes = resolveDelimiters(nodes, modifierConfigs);
 
   return finalizeInlineNodes(nodes);
 }
 
-const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
-const RE_NEWLINES = /\r\n?/g;
-const RE_LEADING_SPACES = /^ */;
-const RE_HEADING = /^[ ]{0,3}(#{1,6})[ \t]+(.*)$/;
-const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
-const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
-const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
-const RE_FENCE_TICKS = /^`{3,}$/;
-const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
-const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
-const RE_WHITESPACE = /\s+/g;
-const RE_TABLE_DELIM_MIN1 = /^-+$/;
-const RE_TABLE_DELIM_MIN3 = /^-{3,}$/;
-const RE_TABLE_ALIGN_LEFT = /^:-+$/;
-const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
-const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
-const RE_COLON = /:/g;
-const RE_ALPHANUM = /[A-Za-z0-9]/;
-const RE_SPLIT_LANG = /\s+/;
+function parseListNode(
+  lines: string[],
+  startIndex: number,
+  parseBlocks: BlockParser
+): NodeParseResult<ListNode> | null {
+  const firstLine = lines[startIndex];
+  const firstMarker = parseListMarker(firstLine);
+  if (!firstMarker) return null;
+  if (shouldDisallowListStart(firstLine, firstMarker)) return null;
 
-const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
+  const { ordered, start, indent } = firstMarker;
+  const children: ListItemNode[] = [];
+  let tight = true;
 
-const TOKEN_TYPES = new Set<InlineToken["type"]>([
-  "text",
-  "newline",
-  "backtick",
-  "delimiter",
-  "punct",
-]);
+  const getSameListMarker = (line: string): ListMarker | null => {
+    const marker = parseListMarker(line);
+    if (!marker) return null;
+    if (marker.ordered !== ordered) return null;
+    if (!ordered && marker.markerChar !== firstMarker.markerChar) return null;
+    if (!ordered && marker.indent !== indent) return null;
+    if (ordered && (marker.indent < indent || marker.indent > indent + 3))
+      return null;
+    if (shouldDisallowListStart(line, marker)) return null;
+    return marker;
+  };
 
-// Types
+  let lineIndex = startIndex;
+  while (lineIndex < lines.length) {
+    const listMarker = getSameListMarker(lines[lineIndex]);
+    if (!listMarker) break;
+
+    const contentAfterMarker = lines[lineIndex].slice(listMarker.contentIndent);
+    lineIndex++;
+
+    const listItem: string[] = [contentAfterMarker];
+
+    while (lineIndex < lines.length) {
+      const currentLine = lines[lineIndex];
+
+      if (isBlank(currentLine)) {
+        let lookaheadIndex = lineIndex + 1;
+        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
+          lookaheadIndex++;
+
+        const nextLine =
+          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
+        if (!nextLine) break;
+
+        if (getSameListMarker(nextLine)) {
+          tight = false;
+          lineIndex = lookaheadIndex;
+          break;
+        }
+
+        const nextIndent = getIndent(nextLine);
+        if (nextIndent < listMarker.contentIndent) break;
+        if (nextIndent <= indent && isTopLevelNodeStarter(nextLine)) break;
+
+        tight = false;
+        listItem.push("");
+        lineIndex++;
+        continue;
+      }
+
+      const lineIndent = getIndent(currentLine);
+      const otherMarker = parseListMarker(currentLine);
+
+      if (getSameListMarker(currentLine)) break;
+
+      if (otherMarker && otherMarker.indent <= indent) break;
+      if (otherMarker && otherMarker.ordered && otherMarker.indent >= 4) {
+        const trimmedLine = currentLine.slice(lineIndent);
+        const lastIndex = listItem.length - 1;
+        listItem[lastIndex] = listItem[lastIndex] + trimmedLine;
+        lineIndex++;
+        continue;
+      }
+
+      if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
+
+      let sliceAt = 0;
+      if (lineIndent >= listMarker.contentIndent) {
+        sliceAt = listMarker.contentIndent;
+        if (
+          lineIndent > listMarker.contentIndent &&
+          !parseListMarker(currentLine.slice(listMarker.contentIndent))
+        )
+          sliceAt = lineIndent;
+      } else if (lineIndent > indent) {
+        sliceAt = Math.min(lineIndent, indent + 1);
+      }
+      listItem.push(currentLine.slice(sliceAt));
+      lineIndex++;
+    }
+
+    children.push({
+      type: "li",
+      children: parseBlocks(listItem.join("\n")),
+    });
+    if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
+  }
+
+  if (tight) {
+    for (const child of children) {
+      child.children = child.children.flatMap((grandchild) =>
+        grandchild.type === "p" ? grandchild.children : grandchild
+      );
+    }
+  }
+
+  return {
+    node: { type: "list", ordered, start, tight, children },
+    nextIndex: lineIndex,
+  };
+}
+
+function parseBlockquoteNode(
+  lines: string[],
+  startIndex: number,
+  parseBlocks: BlockParser
+): NodeParseResult<BlockquoteNode> | null {
+  const firstLine = lines[startIndex];
+  const firstMarker = stripBlockquoteMarker(firstLine);
+  if (firstMarker === null) return null;
+
+  const blockquote: string[] = [];
+  let lineIndex = startIndex;
+
+  while (lineIndex < lines.length) {
+    const currentLine = lines[lineIndex];
+    const strippedLine = stripBlockquoteMarker(currentLine);
+
+    if (strippedLine !== null) {
+      if (strippedLine.trim() === "") {
+        let lookaheadIndex = lineIndex + 1;
+        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
+          lookaheadIndex++;
+        const nextLine =
+          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
+        if (!nextLine || stripBlockquoteMarker(nextLine) === null) {
+          lineIndex++;
+          break;
+        }
+      }
+      blockquote.push(strippedLine);
+      lineIndex++;
+    } else if (isBlank(currentLine)) break;
+    else {
+      const currentIndent = getIndent(currentLine);
+      if (currentIndent === 0 && parseListMarker(currentLine)) break;
+      if (isTopLevelNodeStarter(currentLine)) break;
+
+      blockquote.push(currentLine);
+      lineIndex++;
+    }
+  }
+
+  return {
+    node: {
+      type: "blockquote",
+      children: parseBlocks(blockquote.join("\n")),
+    },
+    nextIndex: lineIndex,
+  };
+}
+
+function walkAndBuildAst(
+  markdown: string,
+  modifierConfigs: ModifierConfigs
+): AstNode[] {
+  const parseInlineWithConfigs: InlineParser = (value) =>
+    parseInline(value, modifierConfigs);
+  const parseBlocks: BlockParser = (value) =>
+    walkAndBuildAst(value, modifierConfigs);
+  const lines = splitLines(markdown);
+  const nodes: AstNode[] = [];
+
+  let lineIndex = 0;
+  let paragraph: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    nodes.push({
+      type: "p",
+      children: parseInlineWithConfigs(paragraph.join("\n")),
+    });
+    paragraph = [];
+  };
+
+  while (lineIndex < lines.length) {
+    const line = lines[lineIndex];
+
+    if (isBlank(line)) {
+      flushParagraph();
+      lineIndex++;
+      continue;
+    }
+
+    const fence = parseFenceStart(line);
+    if (fence) {
+      flushParagraph();
+      const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
+
+      lineIndex++;
+      const pre: string[] = [];
+      while (
+        lineIndex < lines.length &&
+        !isFenceEnd(lines[lineIndex], fence.fenceLen)
+      ) {
+        pre.push(lines[lineIndex]);
+        lineIndex++;
+      }
+      if (lineIndex < lines.length) lineIndex++;
+
+      nodes.push({ type: "pre", lang, value: pre.join("\n") });
+      continue;
+    }
+
+    const list = parseListNode(lines, lineIndex, parseBlocks);
+    if (list) {
+      flushParagraph();
+      nodes.push(list.node);
+      lineIndex = list.nextIndex;
+      continue;
+    }
+
+    if (isHorizontalRule(line)) {
+      flushParagraph();
+      nodes.push({ type: "hr" });
+      lineIndex++;
+      continue;
+    }
+
+    const heading = parseHeading(line);
+    if (heading) {
+      flushParagraph();
+      nodes.push({
+        type: "h",
+        level: heading.level,
+        children: parseInlineWithConfigs(heading.raw),
+      });
+      lineIndex++;
+      continue;
+    }
+
+    const table = parseTableNode(lines, lineIndex, parseInlineWithConfigs);
+    if (table) {
+      flushParagraph();
+      nodes.push(table.node);
+      lineIndex = table.nextIndex;
+      continue;
+    }
+
+    const blockquote = parseBlockquoteNode(lines, lineIndex, parseBlocks);
+    if (blockquote) {
+      flushParagraph();
+      nodes.push(blockquote.node);
+      lineIndex = blockquote.nextIndex;
+      continue;
+    }
+
+    paragraph.push(line);
+    lineIndex++;
+  }
+
+  flushParagraph();
+  return nodes;
+}
+
+// types
+export type ModifierConfig = {
+  intraword: boolean;
+  lengths: Set<number>;
+};
+
+export type BuildAstOptions = {
+  modifierConfigs?: Partial<Record<string, ModifierConfig>>;
+};
+
+type ModifierConfigs = Record<string, ModifierConfig | undefined>;
 type Level = 1 | 2 | 3 | 4 | 5 | 6;
 type TableAlign = "left" | "right" | "center";
 
@@ -1101,6 +1064,9 @@ type NodeParseResult<NodeType extends AstNode> = {
   nextIndex: number;
 };
 
+type InlineParser = (value: string) => InlineAstNode[];
+type BlockParser = (value: string) => AstNode[];
+
 type ListMarker = {
   ordered: boolean;
   indent: number;
@@ -1117,3 +1083,40 @@ type Delimiter = {
   canClose: boolean;
   node: LinkedListNode<IrNode>;
 };
+
+// constants
+const MODIFIER_CONFIGS: ModifierConfigs = {
+  "*": { intraword: true, lengths: new Set([1, 2]) },
+  _: { intraword: false, lengths: new Set([1, 2]) },
+  "~": { intraword: true, lengths: new Set([2]) },
+};
+
+const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
+const RE_NEWLINES = /\r\n?/g;
+const RE_LEADING_SPACES = /^ */;
+const RE_HEADING = /^[ ]{0,3}(#{1,6})[ \t]+(.*)$/;
+const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
+const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
+const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
+const RE_FENCE_TICKS = /^`{3,}$/;
+const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
+const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
+const RE_WHITESPACE = /\s+/g;
+const RE_TABLE_DELIM_MIN1 = /^-+$/;
+const RE_TABLE_DELIM_MIN3 = /^-{3,}$/;
+const RE_TABLE_ALIGN_LEFT = /^:-+$/;
+const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
+const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
+const RE_COLON = /:/g;
+const RE_ALPHANUM = /[A-Za-z0-9]/;
+const RE_SPLIT_LANG = /\s+/;
+
+const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
+
+const TOKEN_TYPES = new Set<InlineToken["type"]>([
+  "text",
+  "newline",
+  "backtick",
+  "delimiter",
+  "punct",
+]);
