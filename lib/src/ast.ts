@@ -9,7 +9,7 @@ import {
 
 export type ModifierConfig = {
   intraword: boolean;
-  lengths: number[];
+  lengths: Set<number>;
 };
 
 export type BuildAstOptions = {
@@ -17,6 +17,12 @@ export type BuildAstOptions = {
 };
 
 type ModifierConfigs = Record<string, ModifierConfig | undefined>;
+
+const MODIFIER_CONFIGS = {
+  "*": { intraword: true, lengths: new Set([1, 2]) },
+  _: { intraword: false, lengths: new Set([1, 2]) },
+  "~": { intraword: true, lengths: new Set([2]) },
+} as const;
 
 /**
  * Construct an AST given a markdown source string.
@@ -29,10 +35,7 @@ export function buildAst(
 ): AstNode[] {
   const modifierConfigs: ModifierConfigs = {
     ...options.modifierConfigs,
-    // Don't override the defaults
-    "*": { intraword: true, lengths: [1, 2] },
-    _: { intraword: false, lengths: [1, 2] },
-    "~": { intraword: true, lengths: [2] },
+    ...MODIFIER_CONFIGS,
   };
   return walkAndBuildAst(markdown, modifierConfigs);
 }
@@ -810,7 +813,7 @@ function resolveDelimiters(
     // Find the longest marker length that both support and has a config
     const maxPossible = Math.min(opener.length, closer.length);
     for (let len = maxPossible; len >= 1; len--) {
-      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
+      if (modifierConfigs[opener.char]?.lengths.has(len)) {
         return true;
       }
     }
@@ -821,7 +824,7 @@ function resolveDelimiters(
     // Find the longest marker length that both support and has a config
     const maxPossible = Math.min(opener.length, closer.length);
     for (let len = maxPossible; len >= 1; len--) {
-      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
+      if (modifierConfigs[opener.char]?.lengths.has(len)) {
         return len;
       }
     }

@@ -1,6 +1,6 @@
 import React from "react";
 
-import { type AstNode, buildAst, ModifierConfig } from "./ast";
+import { type AstNode, buildAst, type ModifierConfig } from "./ast";
 
 type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** The Markdown source string to convert into a react component */
@@ -29,6 +29,7 @@ type InlineExtension = {
 
 type InlineExtensionMap = Record<string, InlineExtension>;
 type ModifierConfigs = Record<string, ModifierConfig | undefined>;
+type ModifierTag = "em" | "strong" | "del";
 
 /** Component to render a Markdown source string into React */
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
@@ -80,13 +81,10 @@ function buildInlineExtensionMaps(
     inlineExtensionMap[token] = ext;
 
     const existing = modifierConfigs[char];
-    const lengths = existing
-      ? Array.from(new Set([...existing.lengths, token.length])).sort(
-          (a, b) => a - b
-        )
-      : [token.length];
+    const lengths = existing?.lengths || new Set();
+    lengths.add(token.length);
     modifierConfigs[char] = {
-      intraword: existing ? existing.intraword || ext.intraword : ext.intraword,
+      intraword: ext.intraword,
       lengths,
     };
   }
@@ -102,18 +100,11 @@ function getNodeKey(node: AstNode) {
   return type;
 }
 
-function getTagFromNode(
-  node: Exclude<AstNode, { type: "text" }>,
-  inlineExtensionMap: InlineExtensionMap
-): Tag {
+function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag | null {
   const type = node.type;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
-  if (type === "modifier") {
-    if (inlineExtensionMap[node.delimiter]) return "em";
-    const config = MARKER_CONFIG[node.delimiter];
-    return (config?.renderer as Tag) ?? "em"; // fallback
-  }
+  if (type === "modifier") return BUILTIN_MODIFIERS[node.delimiter] ?? null;
   return type;
 }
 
@@ -144,7 +135,8 @@ function render(
   if (type === "text") return node.value;
 
   // unwrap nodes in unwrapTags (render children without wrapper)
-  if (unwrapTags.has(getTagFromNode(node, inlineExtensionMap))) {
+  const tag = getTagFromNode(node);
+  if (tag && unwrapTags.has(tag)) {
     // unwrap and return children
     if ("children" in node)
       return render(node.children, renderers, unwrapTags, inlineExtensionMap);
@@ -168,19 +160,13 @@ function render(
       });
     }
 
-    const config = MARKER_CONFIG[node.delimiter];
-    if (!config) {
+    const builtinTag = BUILTIN_MODIFIERS[node.delimiter];
+    const renderer = builtinTag ? renderers[builtinTag] : null;
+    if (!renderer) {
       return render(node.children, renderers, unwrapTags, inlineExtensionMap);
     }
 
-    const rendererKey = config.renderer as keyof Renderers;
-    const rendererFn = renderers[rendererKey];
-
-    if (!rendererFn) {
-      return render(node.children, renderers, unwrapTags, inlineExtensionMap);
-    }
-
-    return (rendererFn as (props: ChildrenProps) => React.ReactNode)({
+    return renderer({
       children: render(
         node.children,
         renderers,
@@ -383,17 +369,12 @@ const DEFAULT_RENDERERS: Renderers = {
   td: ({ children, align }) => <td align={align}>{children}</td>,
 };
 
-type MarkerConfig = {
-  tag: string;
-  renderer: string;
-};
-
-const MARKER_CONFIG: Record<string, MarkerConfig> = {
-  "**": { tag: "strong", renderer: "strong" },
-  __: { tag: "strong", renderer: "strong" },
-  "*": { tag: "em", renderer: "em" },
-  _: { tag: "em", renderer: "em" },
-  "~~": { tag: "del", renderer: "del" },
+const BUILTIN_MODIFIERS: Record<string, ModifierTag> = {
+  "**": "strong",
+  __: "strong",
+  "*": "em",
+  _: "em",
+  "~~": "del",
 };
 
 export default Markdown;

@@ -9,31 +9,31 @@ type TestCase = {
 
 const HIGHLIGHT_OPTIONS: BuildAstOptions = {
   modifierConfigs: {
-    "=": { intraword: true, lengths: [2] },
+    "=": { intraword: true, lengths: new Set([2]) },
   },
 };
 
 const STRICT_HIGHLIGHT_OPTIONS: BuildAstOptions = {
   modifierConfigs: {
-    "=": { intraword: false, lengths: [2] },
+    "=": { intraword: false, lengths: new Set([2]) },
   },
 };
 
 const HASH_OPTIONS: BuildAstOptions = {
   modifierConfigs: {
-    "#": { intraword: true, lengths: [1] },
+    "#": { intraword: true, lengths: new Set([1]) },
   },
 };
 
 const OVERRIDE_STAR_OPTIONS: BuildAstOptions = {
   modifierConfigs: {
-    "*": { intraword: true, lengths: [1] },
+    "*": { intraword: true, lengths: new Set([1]) },
   },
 };
 
 const OVERRIDE_TILDE_OPTIONS: BuildAstOptions = {
   modifierConfigs: {
-    "~": { intraword: true, lengths: [1] },
+    "~": { intraword: true, lengths: new Set([1]) },
   },
 };
 

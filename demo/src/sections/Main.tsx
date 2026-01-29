@@ -11,7 +11,7 @@ export default function Main() {
   return (
     <Box className="main-container">
       <ui.h1 vfx={{ textAlign: "center", fontSize: "xxl" }}>
-        Markdown to React
+        Markdown → React
       </ui.h1>
       <ui.p
         vfx={{
