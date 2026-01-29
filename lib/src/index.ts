@@ -1,1 +1,1 @@
-export const thing = "thing";
+export { default } from "./Markdown";

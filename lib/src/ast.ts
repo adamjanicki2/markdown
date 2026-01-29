@@ -1,9 +1,46 @@
+import {
+  appendNode,
+  insertNode,
+  type LinkedList,
+  type LinkedListNode,
+  mapWhile,
+  removeNode,
+} from "./list";
+
+export type ModifierConfig = {
+  intraword: boolean;
+  lengths: number[];
+};
+
+export type BuildAstOptions = {
+  modifierConfigs?: Partial<Record<string, ModifierConfig>>;
+};
+
+type ModifierConfigs = Record<string, ModifierConfig | undefined>;
+
 /**
  * Construct an AST given a markdown source string.
  * @param markdown the source to parse
  * @returns an AST representing the markdown source
  */
-export function buildAst(markdown: string): AstNode[] {
+export function buildAst(
+  markdown: string,
+  options: BuildAstOptions = {}
+): AstNode[] {
+  const modifierConfigs: ModifierConfigs = {
+    ...options.modifierConfigs,
+    // Don't override the defaults
+    "*": { intraword: true, lengths: [1, 2] },
+    _: { intraword: false, lengths: [1, 2] },
+    "~": { intraword: true, lengths: [2] },
+  };
+  return walkAndBuildAst(markdown, modifierConfigs);
+}
+
+function walkAndBuildAst(
+  markdown: string,
+  modifierConfigs: ModifierConfigs
+): AstNode[] {
   const lines = splitLines(markdown);
   const nodes: AstNode[] = [];
 
@@ -12,7 +49,10 @@ export function buildAst(markdown: string): AstNode[] {
 
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
-    nodes.push({ type: "p", children: parseInline(paragraph.join("\n")) });
+    nodes.push({
+      type: "p",
+      children: parseInline(paragraph.join("\n"), modifierConfigs),
+    });
     paragraph = [];
   };
 
@@ -22,24 +62,6 @@ export function buildAst(markdown: string): AstNode[] {
     if (isBlank(line)) {
       flushParagraph();
       lineIndex++;
-      continue;
-    }
-
-    if (getIndent(line) >= 4) {
-      flushParagraph();
-      const pre: string[] = [];
-      while (lineIndex < lines.length) {
-        const currentLine = lines[lineIndex];
-        if (isBlank(currentLine)) {
-          pre.push("");
-          lineIndex++;
-          continue;
-        }
-        if (!RE_INDENTED_CODE.test(currentLine)) break;
-        pre.push(currentLine.slice(4));
-        lineIndex++;
-      }
-      nodes.push({ type: "pre", lang: undefined, raw: pre.join("\n") });
       continue;
     }
 
@@ -59,11 +81,11 @@ export function buildAst(markdown: string): AstNode[] {
       }
       if (lineIndex < lines.length) lineIndex++;
 
-      nodes.push({ type: "pre", lang, raw: pre.join("\n") });
+      nodes.push({ type: "pre", lang, value: pre.join("\n") });
       continue;
     }
 
-    const list = parseListNode(lines, lineIndex, isTopLevelNodeStarter);
+    const list = parseListNode(lines, lineIndex, modifierConfigs);
     if (list) {
       flushParagraph();
       nodes.push(list.node);
@@ -84,13 +106,13 @@ export function buildAst(markdown: string): AstNode[] {
       nodes.push({
         type: "h",
         level: heading.level,
-        children: parseInline(heading.raw),
+        children: parseInline(heading.raw, modifierConfigs),
       });
       lineIndex++;
       continue;
     }
 
-    const table = parseTableNode(lines, lineIndex);
+    const table = parseTableNode(lines, lineIndex, modifierConfigs);
     if (table) {
       flushParagraph();
       nodes.push(table.node);
@@ -98,11 +120,7 @@ export function buildAst(markdown: string): AstNode[] {
       continue;
     }
 
-    const blockquote = parseBlockquoteNode(
-      lines,
-      lineIndex,
-      isTopLevelNodeStarter
-    );
+    const blockquote = parseBlockquoteNode(lines, lineIndex, modifierConfigs);
     if (blockquote) {
       flushParagraph();
       nodes.push(blockquote.node);
@@ -161,22 +179,14 @@ function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
   return merged;
 }
 
-const LITERAL_MAP: Record<string, string> = {
-  newline: "\n",
-  linebreak: "\n",
-  backslash: "\\",
-  "escaped-backslash": "\\",
-};
-
 function nodeToLiteral(node: IrNode): string {
   if (node.type === "text") return node.value;
-  if (node.type in LITERAL_MAP) return LITERAL_MAP[node.type];
   if (node.type === "punct") return node.char;
   if (node.type === "delimiter") return node.char.repeat(node.len);
   if (node.type === "backtick") return "`".repeat(node.len);
   if (node.type === "code") return "`" + node.value + "`";
-  if (node.type === "em" || node.type === "strong" || node.type === "del")
-    return nodesToLiteral(node.children);
+  if (node.type === "br" || node.type === "newline") return "\n";
+  if (node.type === "modifier") return nodesToLiteral(node.children);
   return "";
 }
 
@@ -333,36 +343,45 @@ function parseTableAlignments(
 function buildTableNode(
   header: string[],
   rows: string[][],
-  alignments: Array<TableAlign | undefined>
+  alignments: Array<TableAlign | undefined>,
+  modifierConfigs: ModifierConfigs
 ): TableNode {
-  const headRow: TableRowNode<TableHeaderCellNode> = {
-    type: "tr",
-    cells: header.map((cellValue, cellIndex) => ({
-      type: "th",
-      align: alignments[cellIndex],
-      children: parseInline(cellValue),
+  const thead: TableHeadNode = {
+    type: "thead",
+    children: [
+      {
+        type: "tr",
+        children: header.map((cellValue, cellIndex) => ({
+          type: "th",
+          align: alignments[cellIndex],
+          children: parseInline(cellValue, modifierConfigs),
+        })),
+      },
+    ],
+  };
+
+  const tbody: TableBodyNode = {
+    type: "tbody",
+    children: rows.map((row) => ({
+      type: "tr",
+      children: row.map((cellValue, cellIndex) => ({
+        type: "td",
+        align: alignments[cellIndex],
+        children: parseInline(cellValue, modifierConfigs),
+      })),
     })),
   };
 
-  const bodyRows: TableRowNode<TableBodyCellNode>[] = rows.map((row) => ({
-    type: "tr",
-    cells: row.map((cellValue, cellIndex) => ({
-      type: "td",
-      align: alignments[cellIndex],
-      children: parseInline(cellValue),
-    })),
-  }));
-
   return {
     type: "table",
-    head: { type: "thead", row: headRow },
-    body: { type: "tbody", rows: bodyRows },
+    children: [thead, tbody],
   };
 }
 
 function parseTableNode(
   lines: string[],
-  lineIndex: number
+  lineIndex: number,
+  modifierConfigs: ModifierConfigs
 ): NodeParseResult<TableNode> | null {
   const line = lines[lineIndex];
   const header = splitTableRow(line);
@@ -394,7 +413,7 @@ function parseTableNode(
   }
 
   return {
-    node: buildTableNode(header, rows, alignments),
+    node: buildTableNode(header, rows, alignments, modifierConfigs),
     nextIndex: currentIndex,
   };
 }
@@ -402,7 +421,7 @@ function parseTableNode(
 function parseListNode(
   lines: string[],
   startIndex: number,
-  isTopLevelNodeStarter: (line: string) => boolean
+  modifierConfigs: ModifierConfigs
 ): NodeParseResult<ListNode> | null {
   const firstLine = lines[startIndex];
   const firstMarker = parseListMarker(firstLine);
@@ -410,7 +429,7 @@ function parseListNode(
   if (shouldDisallowListStart(firstLine, firstMarker)) return null;
 
   const { ordered, start, indent } = firstMarker;
-  const items: ListItemNode[] = [];
+  const children: ListItemNode[] = [];
   let tight = true;
 
   const getSameListMarker = (line: string): ListMarker | null => {
@@ -494,20 +513,23 @@ function parseListNode(
       lineIndex++;
     }
 
-    items.push({ type: "li", children: buildAst(listItem.join("\n")) });
+    children.push({
+      type: "li",
+      children: walkAndBuildAst(listItem.join("\n"), modifierConfigs),
+    });
     if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
   }
 
   if (tight) {
-    for (const item of items) {
-      item.children = item.children.flatMap((child) =>
-        child.type === "p" ? child.children : child
+    for (const child of children) {
+      child.children = child.children.flatMap((grandchild) =>
+        grandchild.type === "p" ? grandchild.children : grandchild
       );
     }
   }
 
   return {
-    node: { type: "list", ordered, start, tight, items },
+    node: { type: "list", ordered, start, tight, children },
     nextIndex: lineIndex,
   };
 }
@@ -515,7 +537,7 @@ function parseListNode(
 function parseBlockquoteNode(
   lines: string[],
   startIndex: number,
-  isTopLevelNodeStarter: (line: string) => boolean
+  modifierConfigs: ModifierConfigs
 ): NodeParseResult<BlockquoteNode> | null {
   const firstLine = lines[startIndex];
   const firstMarker = stripBlockquoteMarker(firstLine);
@@ -554,12 +576,18 @@ function parseBlockquoteNode(
   }
 
   return {
-    node: { type: "blockquote", children: buildAst(blockquote.join("\n")) },
+    node: {
+      type: "blockquote",
+      children: walkAndBuildAst(blockquote.join("\n"), modifierConfigs),
+    },
     nextIndex: lineIndex,
   };
 }
 
-function tokenize(str: string): InlineToken[] {
+function tokenize(
+  str: string,
+  modifierConfigs: ModifierConfigs
+): InlineToken[] {
   const tokens: InlineToken[] = [];
   let text = "";
 
@@ -580,24 +608,27 @@ function tokenize(str: string): InlineToken[] {
     const char = str[i];
 
     if (char === "\n") pushToken({ type: "newline" });
-    else if (char === "\\") pushToken({ type: "backslash" });
-    else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
-    else if (char === "`" || char in DELIMITER_CONFIGS) {
+    else if (char === "\\") {
+      const nextChar = str[i + 1];
+      if (nextChar && ESCAPABLE.has(nextChar)) {
+        text += nextChar;
+        i++;
+      } else {
+        text += "\\";
+      }
+    } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
+    else if (char === "`" || char in modifierConfigs) {
       let runIndex = i + 1;
       while (runIndex < str.length && str[runIndex] === char) runIndex++;
 
       if (char === "`") {
         pushToken({ type: "backtick", len: runIndex - i });
       } else {
-        const config = DELIMITER_CONFIGS[char];
+        const intraword = modifierConfigs[char]?.intraword;
         const prevChar = str[i - 1];
         const nextChar = str[runIndex];
 
-        if (
-          !config?.intraword &&
-          isAlphanum(prevChar) &&
-          isAlphanum(nextChar)
-        ) {
+        if (!intraword && isAlphanum(prevChar) && isAlphanum(nextChar)) {
           text += char.repeat(runIndex - i);
         } else {
           pushToken({
@@ -615,45 +646,6 @@ function tokenize(str: string): InlineToken[] {
 
   flushText();
   return tokens;
-}
-
-function applyBackslashEscapes(tokens: InlineToken[]): InlineToken[] {
-  const transformed: InlineToken[] = [];
-
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token.type !== "backslash") transformed.push(token);
-    else {
-      const nextToken = tokens[i + 1];
-      if (!nextToken) appendText(transformed, "\\");
-      else {
-        const literal = nodeToLiteral(nextToken);
-        const escapedChar = literal[0];
-
-        if (ESCAPABLE.has(escapedChar)) {
-          if (nextToken.type === "backslash")
-            transformed.push({ type: "escaped-backslash" });
-          else appendText(transformed, escapedChar);
-
-          if (nextToken.type === "delimiter" && nextToken.len > 1)
-            transformed.push({
-              ...nextToken,
-              len: nextToken.len - 1,
-              canOpen: true,
-              canClose: true,
-            });
-          else if (nextToken.type === "backtick" && nextToken.len > 1)
-            transformed.push({ ...nextToken, len: nextToken.len - 1 });
-          else if (nextToken.type === "text" && nextToken.value.length > 1)
-            appendText(transformed, nextToken.value.slice(1));
-
-          i++;
-        } else appendText(transformed, "\\");
-      }
-    }
-  }
-
-  return mergeAdjacentText(transformed);
 }
 
 function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
@@ -700,7 +692,8 @@ function isPunctChar(node: IrNode, char: string): node is PunctToken {
 
 function parseLinkOrImage(
   nodes: IrNode[],
-  startIndex: number
+  startIndex: number,
+  modifierConfigs: ModifierConfigs
 ): { node: IrNode; nextIndex: number } | null {
   const startNode = nodes[startIndex];
   if (!isToken(startNode)) return null;
@@ -755,265 +748,214 @@ function parseLinkOrImage(
     };
   }
 
-  const children = parseInline(label);
+  const children = parseInline(label, modifierConfigs);
   return {
     node: { type: "a", url, children },
     nextIndex: rightParenIndex,
   };
 }
 
-function resolveLinksAndImages(nodes: IrNode[]): IrNode[] {
+function resolveLinksAndImages(
+  nodes: IrNode[],
+  modifierConfigs: ModifierConfigs
+): IrNode[] {
   const nodesOut: IrNode[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
-    const parsed = parseLinkOrImage(nodes, i);
+    const parsed = parseLinkOrImage(nodes, i, modifierConfigs);
     const node = nodes[i];
     if (parsed) {
       nodesOut.push(parsed.node);
       i = parsed.nextIndex;
-    } else if (node.type === "text") {
-      let combinedText = node.value;
-      let lookaheadIndex = i + 1;
-      while (lookaheadIndex < nodes.length) {
-        const nextNode = nodes[lookaheadIndex];
-        if (nextNode.type === "text") combinedText += nextNode.value;
-        else if (isPunctChar(nextNode, "(") || isPunctChar(nextNode, ")"))
-          combinedText += nextNode.char;
-        else break;
-        lookaheadIndex++;
-      }
-      nodesOut.push(...parseAutolinksFromText(combinedText));
-      i = lookaheadIndex - 1;
-    } else nodesOut.push(node);
+    } else {
+      nodesOut.push(node);
+    }
   }
 
   return mergeAdjacentText(nodesOut);
 }
 
-function parseAutolinksFromText(text: string): IrNode[] {
-  if (!text.includes("http://") && !text.includes("https://"))
-    return [{ type: "text", value: text }];
-
-  const nodes: IrNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  RE_AUTOLINK_URL.lastIndex = 0;
-  while ((match = RE_AUTOLINK_URL.exec(text))) {
-    if (match.index > lastIndex)
-      nodes.push({ type: "text", value: text.slice(lastIndex, match.index) });
-
-    const textPrefix = match[1] || "";
-    if (textPrefix) nodes.push({ type: "text", value: textPrefix });
-
-    const rawUrl = match[0].slice(textPrefix.length);
-    const { url, trailing } = trimUrl(rawUrl);
-    nodes.push({ type: "a", url });
-    if (trailing) nodes.push({ type: "text", value: trailing });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length)
-    nodes.push({ type: "text", value: text.slice(lastIndex) });
-
-  return nodes;
-}
-
-function trimUrl(url: string): { url: string; trailing: string } {
-  let trailing = "";
-
-  while (url.length) {
-    const lastChar = url[url.length - 1];
-    if (!RE_AUTOLINK_TRAILING_PUNCT.test(lastChar)) break;
-    if (lastChar === ")") {
-      const openCount = url.split("(").length - 1;
-      const closeCount = url.split(")").length - 1;
-      if (closeCount <= openCount) break;
-    }
-    url = url.slice(0, -1);
-    trailing = lastChar + trailing;
-  }
-
-  return { url, trailing };
-}
-
-function resolveDelimiters(nodes: IrNode[]): IrNode[] {
-  const stack: Frame[] = [];
-  let currentNodes: IrNode[] = [];
-
-  const open = (delimiterChar: string, delimiterLength: number) => {
-    stack.push({ delimiterChar, delimiterLength, nodes: currentNodes });
-    currentNodes = [];
-  };
-
-  const close = (char: string, len: number) => {
-    const inner = currentNodes;
-    const frame = stack.pop();
-    if (!frame) return;
-    currentNodes = frame.nodes;
-    const children = finalizeInlineNodes(inner);
-    const type = char === "~" ? "del" : len === 2 ? "strong" : "em";
-    currentNodes.push({ type, children });
-  };
-
-  const emitText = (char: string, len: number) =>
-    currentNodes.push({ type: "text", value: char.repeat(len) });
-
-  function consumeDelimRun(delimiter: DelimiterToken) {
-    const config = DELIMITER_CONFIGS[delimiter.char];
-
-    if (config?.pairs) {
-      const odd = delimiter.len & 1;
-      const pairs = (delimiter.len - odd) >> 1;
-      const putOddBefore = odd && !(delimiter.canClose && !delimiter.canOpen);
-      if (putOddBefore) emitText(delimiter.char, 1);
-      for (let i = 0; i < pairs; i++) {
-        const top = stack[stack.length - 1];
-        if (
-          delimiter.canClose &&
-          top?.delimiterChar === delimiter.char &&
-          top.delimiterLength === 2
-        )
-          close(delimiter.char, 2);
-        else if (delimiter.canOpen) open(delimiter.char, 2);
-        else emitText(delimiter.char, 2);
-      }
-      if (odd && !putOddBefore) emitText(delimiter.char, 1);
-      return;
-    }
-
-    let remaining = delimiter.len;
-    const pieces: number[] = [];
-    while (remaining >= 2) {
-      pieces.push(2);
-      remaining -= 2;
-    }
-    if (remaining === 1) pieces.push(1);
-    if (pieces.length === 2 && pieces[0] === 2 && pieces[1] === 1) {
-      const top = stack[stack.length - 1];
-      if (
-        delimiter.canOpen &&
-        !(delimiter.canClose && top?.delimiterChar === delimiter.char)
-      )
-        pieces.splice(0, 2, 1, 2);
-    }
-
-    for (const pieceLen of pieces) {
-      while (true) {
-        const top = stack[stack.length - 1];
-        const canClose =
-          delimiter.canClose &&
-          top?.delimiterChar === delimiter.char &&
-          top.delimiterLength === pieceLen;
-        if (canClose && !currentNodes.length) {
-          emitText(delimiter.char, pieceLen);
-          break;
-        }
-        if (canClose) {
-          close(delimiter.char, pieceLen);
-          break;
-        }
-        if (delimiter.canOpen) {
-          open(delimiter.char, pieceLen);
-          break;
-        }
-        if (!currentNodes.length && top) {
-          const frame = stack.pop()!;
-          currentNodes = frame.nodes;
-          emitText(frame.delimiterChar, frame.delimiterLength);
-        } else {
-          emitText(delimiter.char, pieceLen);
-          break;
-        }
-      }
-    }
-  }
+function resolveDelimiters(
+  nodes: IrNode[],
+  modifierConfigs: ModifierConfigs
+): IrNode[] {
+  const list: LinkedList<IrNode> = {};
+  const delimiterList: LinkedList<Delimiter> = {};
 
   for (const node of nodes) {
     if (node.type === "delimiter") {
-      if (!node.canOpen && !node.canClose) emitText(node.char, node.len);
-      else consumeDelimRun(node);
-    } else currentNodes.push(node);
+      if (!node.canOpen && !node.canClose) {
+        appendNode(list, { type: "text", value: node.char.repeat(node.len) });
+      } else {
+        appendNode(delimiterList, {
+          char: node.char,
+          length: node.len,
+          canOpen: node.canOpen,
+          canClose: node.canClose,
+          node: appendNode(list, {
+            type: "text",
+            value: node.char.repeat(node.len),
+          }),
+        });
+      }
+    } else {
+      appendNode(list, node);
+    }
   }
 
-  while (stack.length) {
-    const frame = stack.pop();
-    if (!frame) break;
-    const inner = currentNodes;
-    currentNodes = frame.nodes;
-    emitText(frame.delimiterChar, frame.delimiterLength);
-    currentNodes.push(...inner);
+  const canMatch = (opener: Delimiter, closer: Delimiter) => {
+    if (opener.char !== closer.char) return false;
+    if (opener.length === 0 || closer.length === 0) return false;
+
+    // Find the longest marker length that both support and has a config
+    const maxPossible = Math.min(opener.length, closer.length);
+    for (let len = maxPossible; len >= 1; len--) {
+      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const getDelimiterLength = (opener: Delimiter, closer: Delimiter) => {
+    // Find the longest marker length that both support and has a config
+    const maxPossible = Math.min(opener.length, closer.length);
+    for (let len = maxPossible; len >= 1; len--) {
+      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
+        return len;
+      }
+    }
+    return 1; // Fallback
+  };
+
+  const openersBottom = new Map<
+    string,
+    LinkedListNode<Delimiter> | undefined
+  >();
+
+  let closer = delimiterList.head;
+  while (closer) {
+    const nextCloser = closer.next;
+    if (!closer.value.canClose) {
+      closer = nextCloser;
+      continue;
+    }
+
+    const bottom = openersBottom.get(closer.value.char);
+    let opener = closer.prev;
+    while (opener && opener !== bottom) {
+      if (opener.value.canOpen && canMatch(opener.value, closer.value)) break;
+      opener = opener.prev;
+    }
+
+    if (!opener || opener === bottom) {
+      openersBottom.set(closer.value.char, closer.prev);
+      closer = nextCloser;
+      continue;
+    }
+
+    const used = getDelimiterLength(opener.value, closer.value);
+    const openerNode = opener.value.node;
+    const closerNode = closer.value.node;
+
+    const innerNodes = mapWhile(
+      openerNode.next,
+      (node) => node,
+      (node) => node !== closerNode
+    );
+
+    const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
+    const delimiter = closer.value.char.repeat(used);
+    const emphasisNode: IrNode = {
+      type: "modifier",
+      delimiter,
+      children,
+    };
+
+    for (const item of innerNodes) removeNode(list, item);
+
+    opener.value.length -= used;
+    if (opener.value.length === 0) {
+      const insertAfterNode = openerNode.prev;
+      removeNode(list, openerNode);
+      removeNode(delimiterList, opener);
+      insertNode(list, insertAfterNode, emphasisNode);
+    } else if (openerNode.value.type === "text") {
+      openerNode.value.value = opener.value.char.repeat(opener.value.length);
+      insertNode(list, openerNode, emphasisNode);
+    }
+
+    closer.value.length -= used;
+    if (closer.value.length === 0) {
+      removeNode(list, closerNode);
+      removeNode(delimiterList, closer);
+    } else if (closerNode.value.type === "text") {
+      closerNode.value.value = closer.value.char.repeat(closer.value.length);
+    }
+
+    let between = opener.next;
+    while (between && between !== closer) {
+      const nextBetween = between.next;
+      removeNode(delimiterList, between);
+      between = nextBetween;
+    }
+
+    if (closer.value.length > 0) {
+      continue;
+    }
+    closer = nextCloser;
   }
 
-  return mergeAdjacentText(currentNodes);
+  return mergeAdjacentText(
+    mapWhile(
+      list.head,
+      (node) => node.value,
+      () => true
+    )
+  );
 }
 
 function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
   const last = inlineNodes[inlineNodes.length - 1];
   let hard = false;
-  if (last && last.type === "text") {
-    if (last.value.endsWith("  ")) {
-      last.value = last.value.slice(0, -2);
-      hard = true;
-    } else if (last.value.endsWith("\\")) {
-      last.value = last.value.slice(0, -1);
-      hard = true;
-    }
-    if (hard && !last.value) inlineNodes.pop();
+  if (last && last.type === "text" && last.value.endsWith("  ")) {
+    last.value = last.value.slice(0, -2);
+    hard = true;
+    if (!last.value) inlineNodes.pop();
   }
-  inlineNodes.push({ type: "linebreak", hard });
+  inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
 }
 
 function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
   const inlineNodes: InlineAstNode[] = [];
-  let lastEscapedBackslash = false;
 
   for (const node of nodesList) {
     if (node.type === "text") {
       appendText(inlineNodes, node.value);
-      lastEscapedBackslash = false;
-    } else if (node.type === "escaped-backslash") {
-      appendText(inlineNodes, "\\");
-      lastEscapedBackslash = true;
     } else if (node.type === "newline") {
-      if (lastEscapedBackslash) {
-        inlineNodes.push({ type: "linebreak", hard: false });
-        lastEscapedBackslash = false;
-      } else {
-        handleInlineNewline(inlineNodes);
-      }
+      handleInlineNewline(inlineNodes);
     } else if (isToken(node)) {
       appendText(inlineNodes, nodeToLiteral(node));
-      lastEscapedBackslash = false;
     } else {
       inlineNodes.push(node);
-      lastEscapedBackslash = false;
     }
   }
 
   return inlineNodes;
 }
 
-function parseInline(str: string): InlineAstNode[] {
-  let tokens = tokenize(str);
-  tokens = applyBackslashEscapes(tokens);
+function parseInline(
+  str: string,
+  modifierConfigs: ModifierConfigs
+): InlineAstNode[] {
+  const tokens = tokenize(str, modifierConfigs);
 
   let nodes: IrNode[] = resolveCodeSpans(tokens);
-  nodes = resolveLinksAndImages(nodes);
-  nodes = resolveDelimiters(nodes);
+  nodes = resolveLinksAndImages(nodes, modifierConfigs);
+  nodes = resolveDelimiters(nodes, modifierConfigs);
 
   return finalizeInlineNodes(nodes);
 }
-
-// Constants
-const DELIMITER_CONFIGS: Record<
-  string,
-  { intraword: boolean; pairs: boolean } | undefined
-> = {
-  "*": { intraword: true, pairs: false },
-  _: { intraword: false, pairs: false },
-  "~": { intraword: true, pairs: true },
-};
 
 const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
 const RE_NEWLINES = /\r\n?/g;
@@ -1023,7 +965,6 @@ const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
 const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
 const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
 const RE_FENCE_TICKS = /^`{3,}$/;
-const RE_INDENTED_CODE = /^ {4}/;
 const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
@@ -1035,16 +976,12 @@ const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
 const RE_COLON = /:/g;
 const RE_ALPHANUM = /[A-Za-z0-9]/;
 const RE_SPLIT_LANG = /\s+/;
-const RE_AUTOLINK_URL = /(^|[^A-Za-z])https?:\/\/[^\s]+/g;
-const RE_AUTOLINK_TRAILING_PUNCT = /[),.!?;:]/;
 
 const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
 
 const TOKEN_TYPES = new Set<InlineToken["type"]>([
   "text",
   "newline",
-  "backslash",
-  "escaped-backslash",
   "backtick",
   "delimiter",
   "punct",
@@ -1056,22 +993,22 @@ type TableAlign = "left" | "right" | "center";
 
 type TextNode = { type: "text"; value: string };
 type CodeNode = { type: "code"; value: string };
-type LinkNode = { type: "a"; url: string; children?: InlineAstNode[] };
+type LinkNode = { type: "a"; url: string; children: InlineAstNode[] };
 type ImageNode = { type: "img"; url: string; alt: string };
-type EmNode = { type: "em"; children: InlineAstNode[] };
-type StrongNode = { type: "strong"; children: InlineAstNode[] };
-type DelNode = { type: "del"; children: InlineAstNode[] };
-type LinebreakNode = { type: "linebreak"; hard: boolean };
+type InlineModifierNode = {
+  type: "modifier";
+  delimiter: string;
+  children: InlineAstNode[];
+};
+type BrNode = { type: "br" };
 
 type InlineAstNode =
   | TextNode
   | CodeNode
   | LinkNode
   | ImageNode
-  | EmNode
-  | StrongNode
-  | DelNode
-  | LinebreakNode;
+  | InlineModifierNode
+  | BrNode;
 
 type DelimiterToken = {
   type: "delimiter";
@@ -1088,8 +1025,6 @@ type InlineToken =
   | DelimiterToken
   | PunctToken
   | { type: "newline" }
-  | { type: "backslash" }
-  | { type: "escaped-backslash" }
   | { type: "backtick"; len: number };
 
 type IrNode = InlineToken | InlineAstNode;
@@ -1097,7 +1032,7 @@ type IrNode = InlineToken | InlineAstNode;
 type ParagraphNode = { type: "p"; children: InlineAstNode[] };
 type HeadingNode = { type: "h"; level: Level; children: InlineAstNode[] };
 type HorizontalRuleNode = { type: "hr" };
-type PreNode = { type: "pre"; lang?: string; raw: string };
+type PreNode = { type: "pre"; lang?: string; value: string };
 type BlockquoteNode = { type: "blockquote"; children: AstNode[] };
 
 type ListItemNode = { type: "li"; children: AstNode[] };
@@ -1106,10 +1041,10 @@ type ListNode = {
   ordered: boolean;
   start?: number;
   tight: boolean;
-  items: ListItemNode[];
+  children: ListItemNode[];
 };
 
-type TableHeaderCellNode = {
+type TableHeadCellNode = {
   type: "th";
   align?: TableAlign;
   children: InlineAstNode[];
@@ -1121,27 +1056,24 @@ type TableBodyCellNode = {
   children: InlineAstNode[];
 };
 
-type TableRowNode<
-  TableCellNode extends TableHeaderCellNode | TableBodyCellNode,
-> = {
+type TableRowNode = {
   type: "tr";
-  cells: TableCellNode[];
+  children: Array<TableHeadCellNode | TableBodyCellNode>;
 };
 
 type TableHeadNode = {
   type: "thead";
-  row: TableRowNode<TableHeaderCellNode>;
+  children: [TableRowNode];
 };
 
 type TableBodyNode = {
   type: "tbody";
-  rows: TableRowNode<TableBodyCellNode>[];
+  children: TableRowNode[];
 };
 
 type TableNode = {
   type: "table";
-  head: TableHeadNode;
-  body: TableBodyNode;
+  children: [TableHeadNode, TableBodyNode];
 };
 
 type BlockAstNode =
@@ -1152,7 +1084,12 @@ type BlockAstNode =
   | BlockquoteNode
   | ListNode
   | ListItemNode
-  | TableNode;
+  | TableNode
+  | TableHeadNode
+  | TableBodyNode
+  | TableRowNode
+  | TableHeadCellNode
+  | TableBodyCellNode;
 
 export type AstNode = InlineAstNode | BlockAstNode;
 
@@ -1170,8 +1107,10 @@ type ListMarker = {
   start?: number;
 };
 
-type Frame = {
-  delimiterChar: string;
-  delimiterLength: number;
-  nodes: IrNode[];
+type Delimiter = {
+  char: string;
+  length: number;
+  canOpen: boolean;
+  canClose: boolean;
+  node: LinkedListNode<IrNode>;
 };
