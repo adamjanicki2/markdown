@@ -13,14 +13,7 @@ export function appendNode<T>(
   list: LinkedList<T>,
   value: T
 ): LinkedListNode<T> {
-  const tail = list.tail;
-  const node = { prev: tail, value };
-
-  if (tail) tail.next = node;
-  else list.head = node;
-
-  list.tail = node;
-  return node;
+  return insertNode(list, list.tail, value);
 }
 
 export function insertNode<T>(

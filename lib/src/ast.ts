@@ -24,6 +24,26 @@ const MODIFIER_CONFIGS = {
   "~": { intraword: true, lengths: new Set([2]) },
 } as const;
 
+type InlineParser = (value: string) => InlineAstNode[];
+
+function getMaxSupportedDelimiterLength(
+  opener: Delimiter,
+  closer: Delimiter,
+  modifierConfigs: ModifierConfigs
+): number {
+  if (opener.char !== closer.char) return 0;
+  if (opener.length === 0 || closer.length === 0) return 0;
+
+  const supported = modifierConfigs[opener.char]?.lengths;
+  if (!supported) return 0;
+
+  const maxPossible = Math.min(opener.length, closer.length);
+  for (let length = maxPossible; length >= 1; length--) {
+    if (supported.has(length)) return length;
+  }
+  return 0;
+}
+
 /**
  * Construct an AST given a markdown source string.
  * @param markdown the source to parse
@@ -44,6 +64,8 @@ function walkAndBuildAst(
   markdown: string,
   modifierConfigs: ModifierConfigs
 ): AstNode[] {
+  const parseInlineWithConfigs: InlineParser = (value) =>
+    parseInline(value, modifierConfigs);
   const lines = splitLines(markdown);
   const nodes: AstNode[] = [];
 
@@ -54,7 +76,7 @@ function walkAndBuildAst(
     if (paragraph.length === 0) return;
     nodes.push({
       type: "p",
-      children: parseInline(paragraph.join("\n"), modifierConfigs),
+      children: parseInlineWithConfigs(paragraph.join("\n")),
     });
     paragraph = [];
   };
@@ -109,13 +131,13 @@ function walkAndBuildAst(
       nodes.push({
         type: "h",
         level: heading.level,
-        children: parseInline(heading.raw, modifierConfigs),
+        children: parseInlineWithConfigs(heading.raw),
       });
       lineIndex++;
       continue;
     }
 
-    const table = parseTableNode(lines, lineIndex, modifierConfigs);
+    const table = parseTableNode(lines, lineIndex, parseInlineWithConfigs);
     if (table) {
       flushParagraph();
       nodes.push(table.node);
@@ -200,18 +222,20 @@ function nodesToLiteral(nodes: IrNode[]): string {
 const isHorizontalRule = (str: string) => RE_HR.test(str);
 
 function parseHeading(line: string) {
-  const m = RE_HEADING.exec(line);
-  return m
+  const match = RE_HEADING.exec(line);
+  return match
     ? {
-        level: Math.min(m[1].length, 6) as Level,
-        raw: m[2].replace(RE_HEADING_TRAIL, ""),
+        level: Math.min(match[1].length, 6) as Level,
+        raw: match[2].replace(RE_HEADING_TRAIL, ""),
       }
     : null;
 }
 
 function parseFenceStart(line: string) {
-  const m = RE_FENCE_START.exec(line);
-  return m ? { fenceLen: m[1].length, info: (m[2] || "").trim() } : null;
+  const match = RE_FENCE_START.exec(line);
+  return match
+    ? { fenceLen: match[1].length, info: (match[2] || "").trim() }
+    : null;
 }
 
 function isFenceEnd(str: string, fenceLen: number) {
@@ -347,7 +371,7 @@ function buildTableNode(
   header: string[],
   rows: string[][],
   alignments: Array<TableAlign | undefined>,
-  modifierConfigs: ModifierConfigs
+  parseInlineValue: InlineParser
 ): TableNode {
   const thead: TableHeadNode = {
     type: "thead",
@@ -357,7 +381,7 @@ function buildTableNode(
         children: header.map((cellValue, cellIndex) => ({
           type: "th",
           align: alignments[cellIndex],
-          children: parseInline(cellValue, modifierConfigs),
+          children: parseInlineValue(cellValue),
         })),
       },
     ],
@@ -370,7 +394,7 @@ function buildTableNode(
       children: row.map((cellValue, cellIndex) => ({
         type: "td",
         align: alignments[cellIndex],
-        children: parseInline(cellValue, modifierConfigs),
+        children: parseInlineValue(cellValue),
       })),
     })),
   };
@@ -384,7 +408,7 @@ function buildTableNode(
 function parseTableNode(
   lines: string[],
   lineIndex: number,
-  modifierConfigs: ModifierConfigs
+  parseInlineValue: InlineParser
 ): NodeParseResult<TableNode> | null {
   const line = lines[lineIndex];
   const header = splitTableRow(line);
@@ -416,7 +440,7 @@ function parseTableNode(
   }
 
   return {
-    node: buildTableNode(header, rows, alignments, modifierConfigs),
+    node: buildTableNode(header, rows, alignments, parseInlineValue),
     nextIndex: currentIndex,
   };
 }
@@ -784,21 +808,19 @@ function resolveDelimiters(
 ): IrNode[] {
   const list: LinkedList<IrNode> = {};
   const delimiterList: LinkedList<Delimiter> = {};
+  const pushText = (value: string) => appendNode(list, { type: "text", value });
 
   for (const node of nodes) {
     if (node.type === "delimiter") {
       if (!node.canOpen && !node.canClose) {
-        appendNode(list, { type: "text", value: node.char.repeat(node.len) });
+        pushText(node.char.repeat(node.len));
       } else {
         appendNode(delimiterList, {
           char: node.char,
           length: node.len,
           canOpen: node.canOpen,
           canClose: node.canClose,
-          node: appendNode(list, {
-            type: "text",
-            value: node.char.repeat(node.len),
-          }),
+          node: pushText(node.char.repeat(node.len)),
         });
       }
     } else {
@@ -806,35 +828,13 @@ function resolveDelimiters(
     }
   }
 
-  const canMatch = (opener: Delimiter, closer: Delimiter) => {
-    if (opener.char !== closer.char) return false;
-    if (opener.length === 0 || closer.length === 0) return false;
+  const canMatch = (opener: Delimiter, closer: Delimiter) =>
+    getMaxSupportedDelimiterLength(opener, closer, modifierConfigs) > 0;
 
-    // Find the longest marker length that both support and has a config
-    const maxPossible = Math.min(opener.length, closer.length);
-    for (let len = maxPossible; len >= 1; len--) {
-      if (modifierConfigs[opener.char]?.lengths.has(len)) {
-        return true;
-      }
-    }
-    return false;
-  };
+  const getDelimiterLength = (opener: Delimiter, closer: Delimiter) =>
+    getMaxSupportedDelimiterLength(opener, closer, modifierConfigs);
 
-  const getDelimiterLength = (opener: Delimiter, closer: Delimiter) => {
-    // Find the longest marker length that both support and has a config
-    const maxPossible = Math.min(opener.length, closer.length);
-    for (let len = maxPossible; len >= 1; len--) {
-      if (modifierConfigs[opener.char]?.lengths.has(len)) {
-        return len;
-      }
-    }
-    return 1; // Fallback
-  };
-
-  const openersBottom = new Map<
-    string,
-    LinkedListNode<Delimiter> | undefined
-  >();
+  const openersBottom = new Map<string, LinkedListNode<Delimiter> | null>();
 
   let closer = delimiterList.head;
   while (closer) {
@@ -844,7 +844,7 @@ function resolveDelimiters(
       continue;
     }
 
-    const bottom = openersBottom.get(closer.value.char);
+    const bottom = openersBottom.get(closer.value.char) ?? null;
     let opener = closer.prev;
     while (opener && opener !== bottom) {
       if (opener.value.canOpen && canMatch(opener.value, closer.value)) break;
@@ -852,7 +852,7 @@ function resolveDelimiters(
     }
 
     if (!opener || opener === bottom) {
-      openersBottom.set(closer.value.char, closer.prev);
+      openersBottom.set(closer.value.char, closer.prev ?? null);
       closer = nextCloser;
       continue;
     }
