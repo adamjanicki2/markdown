@@ -1,5 +1,5 @@
-import { Alert, Badge, Box, Icon, TextArea, ui } from "@adamjanicki/ui";
-import { architect, infoSquare } from "@adamjanicki/ui/icons";
+import { Badge, Box, Icon, TextArea, ui } from "@adamjanicki/ui";
+import { architect } from "@adamjanicki/ui/icons";
 import { useState } from "react";
 import DemoMarkdown from "src/components/DemoMarkdown";
 import Heading from "src/components/Heading";
@@ -86,13 +86,8 @@ export default function Example() {
           <TextArea
             value={markdown}
             onChange={(e) => setMarkdown(e.target.value)}
-            rows={16}
+            rows={30}
           />
-          <Alert type="info" vfx={{ axis: "x", gap: "s" }}>
-            <Icon icon={infoSquare} size="s" />
-            Tip: try using "==" to render highlighted nodes using the custom
-            syntax extensions!
-          </Alert>
         </Box>
         <Box
           vfx={{ axis: "y", gap: "s", width: "full" }}
@@ -102,7 +97,8 @@ export default function Example() {
           <Box
             vfx={{
               width: "full",
-              padding: "s",
+              paddingY: "s",
+              paddingX: "m",
               radius: "rounded",
               border: true,
               shadow: "floating",
@@ -132,19 +128,21 @@ export default function Example() {
 }
 
 const starterMarkdown = [
-  "# Hello, Markdown!",
+  "# Welcome!",
   "",
-  "This is **bold**, _italic_, ~~strikethrough~~, ==highlight==, %%subscript%%, and ^^superscript^^!",
+  "Here are some text modifiers: **bold**, _italic_, `code`, and ~~strikethrough~~",
   "",
-  "> Blockquotes are great for callouts.",
+  "And here are some custom extensions: , ==highlight==, %%subscript%%, and ^^superscript^^!",
+  "",
+  "> Blockquotes are great for citing lines from movies",
   "",
   "## Lists",
-  "- First item",
-  "- Second item",
-  "- Third item",
+  "- item a",
+  "- item b",
+  "- item c",
   "",
-  "1. Ordered item",
-  "2. Another ordered item",
+  "1. Interstellar",
+  "2. Alien",
   "",
   "```ts",
   "// How efficient!",
@@ -160,5 +158,5 @@ const starterMarkdown = [
   "| Links | Yes |",
   "| Images | Yes |",
   "",
-  "[Playground](#playground)",
+  "[Link to the playground](#playground)",
 ].join("\n");
