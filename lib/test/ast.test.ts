@@ -2070,6 +2070,254 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
+    name: "table without outer pipes with min dashes",
+    input: "a | b\n-- | -\nc | d",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "c",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "d",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "single column table with pipes",
+    input: "| a |\n| - |\n| b |",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "single column table with divider pipes only",
+    input: "a\n| -\nb",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "table stops before list",
+    input: "a | b\n-- | --\nc | d\n- list item",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "c",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "d",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        type: "list",
+        ordered: false,
+        tight: true,
+        children: [
+          {
+            type: "li",
+            children: [
+              {
+                type: "text",
+                value: "list item",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: "heading with leading spaces",
     input: "  # not heading",
     ast: [

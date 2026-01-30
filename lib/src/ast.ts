@@ -158,6 +158,7 @@ const isTopLevelNodeStarter = (line: string) =>
     parseFenceOpening(line) ||
     isHorizontalRule(line) ||
     parseHeading(line) ||
+    parseListMarker(line) ||
     stripBlockquoteMarker(line) !== null
   );
 
@@ -191,27 +192,27 @@ function splitTableRow(str: string): string[] {
 }
 
 function parseTableAlignments(
-  line: string,
-  minDashes: number
+  line: string
 ): Array<TableAlign | undefined> | null {
+  const minDashes = !line.trim().startsWith("|");
   const cells = splitTableRow(line);
-  if (cells.length <= 1) return null;
+  if (cells.length <= 0) return null;
 
-  const delimiterPattern =
-    minDashes >= 3 ? RE_TABLE_DELIM_MIN3 : RE_TABLE_DELIM_MIN1;
   const alignments: Array<TableAlign | undefined> = [];
 
-  for (const cell of cells) {
+  for (let index = 0; index < cells.length; index++) {
+    const cell = cells[index];
     const trimmed = cell.replace(RE_WHITESPACE, "");
     if (trimmed.length === 0) return null;
     const withoutColons = trimmed.replace(RE_COLON, "");
-    const dashCount = (withoutColons.match(/-/g) || []).length;
-    if (dashCount < minDashes) return null;
+    const dashCount = (withoutColons.match(RE_DASH) || []).length;
+    if (dashCount < 1 || (index === 0 && dashCount < 2 && minDashes))
+      return null;
 
     if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
     else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
     else if (RE_TABLE_ALIGN_RIGHT.test(trimmed)) alignments.push("right");
-    else if (delimiterPattern.test(trimmed)) alignments.push(undefined);
+    else if (RE_TABLE_DIVIDER.test(trimmed)) alignments.push(undefined);
     else return null;
   }
 
@@ -263,11 +264,10 @@ function parseTableNode(
 ): NodeParseResult<TableNode> | null {
   const line = lines[lineIndex];
   const header = splitTableRow(line);
-  if (header.length <= 1 || lineIndex + 1 >= lines.length) return null;
-  const trimmedLine = line.trim();
-  const outerPipes = trimmedLine.startsWith("|") && trimmedLine.endsWith("|");
-  const minDashes = outerPipes ? 1 : 3;
-  const alignments = parseTableAlignments(lines[lineIndex + 1], minDashes);
+  const divider = lines[lineIndex + 1];
+  if (!divider) return null;
+  if (header.length <= 1 && !divider.includes("|")) return null;
+  const alignments = parseTableAlignments(lines[lineIndex + 1]);
   if (!alignments || alignments.length !== header.length) return null;
 
   const headerLength = header.length;
@@ -277,7 +277,8 @@ function parseTableNode(
   while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
     const rowLine = lines[currentIndex];
     const rowCells = rowLine.includes("|") ? splitTableRow(rowLine) : null;
-    const isRowCandidate = rowCells !== null && rowCells.length > 1;
+    const isRowCandidate =
+      rowCells !== null && (rowCells.length > 1 || headerLength === 1);
     if (!isRowCandidate && isTopLevelNodeStarter(rowLine)) break;
 
     const rowValues = isRowCandidate ? rowCells : [rowLine.trim()];
@@ -1102,8 +1103,8 @@ const RE_FENCE_TICKS = /^`{3,}$/;
 const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
-const RE_TABLE_DELIM_MIN1 = /^-+$/;
-const RE_TABLE_DELIM_MIN3 = /^-{3,}$/;
+const RE_DASH = /-/g;
+const RE_TABLE_DIVIDER = /^-+$/;
 const RE_TABLE_ALIGN_LEFT = /^:-+$/;
 const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
 const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
