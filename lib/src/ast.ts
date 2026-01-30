@@ -196,8 +196,6 @@ function parseTableAlignments(
 ): Array<TableAlign | undefined> | null {
   const cells = splitTableRow(line);
   if (cells.length <= 0) return null;
-  const trimmedLine = line.trim();
-  const minDashes = !(trimmedLine.startsWith("|") || trimmedLine.endsWith("|"));
 
   const alignments: Array<TableAlign | undefined> = [];
 
@@ -208,13 +206,6 @@ function parseTableAlignments(
     const withoutColons = trimmed.replace(RE_COLON, "");
     const dashCount = (withoutColons.match(RE_DASH) || []).length;
     if (dashCount < 1) return null;
-    if (index === 0 && dashCount < 2 && minDashes) {
-      const isAligned =
-        RE_TABLE_ALIGN_CENTER.test(trimmed) ||
-        RE_TABLE_ALIGN_LEFT.test(trimmed) ||
-        RE_TABLE_ALIGN_RIGHT.test(trimmed);
-      if (!isAligned) return null;
-    }
 
     if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
     else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
@@ -246,6 +237,13 @@ function buildTableNode(
     ],
   };
 
+  if (rows.length === 0) {
+    return {
+      type: "table",
+      children: [thead],
+    };
+  }
+
   const tbody: TableBodyNode = {
     type: "tbody",
     children: rows.map((row) => ({
@@ -274,12 +272,7 @@ function parseTableNode(
   const divider = lines[lineIndex + 1];
   if (!divider) return null;
   const alignments = parseTableAlignments(lines[lineIndex + 1]);
-  if (
-    !alignments ||
-    alignments.length !== header.length ||
-    (header.length <= 1 && !alignments[0] && !divider.includes("|"))
-  )
-    return null;
+  if (!alignments || alignments.length !== header.length) return null;
 
   const headerLength = header.length;
   let currentIndex = lineIndex + 2;
@@ -1051,7 +1044,7 @@ type TableBodyNode = {
 
 type TableNode = {
   type: "table";
-  children: [TableHeadNode, TableBodyNode];
+  children: [TableHeadNode] | [TableHeadNode, TableBodyNode];
 };
 
 type BlockAstNode =

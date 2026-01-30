@@ -1860,6 +1860,45 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
+    name: "table with no body rows",
+    input: "| a | b |\n| - | - |",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: "table supports inline in cells",
     input: "| a | b |\n| - | - |\n| **c** | d |",
     ast: [
@@ -2039,29 +2078,61 @@ export const TEST_CASES: readonly TestCase[] = [
     input: "a | b\n- | -\nc | d",
     ast: [
       {
-        type: "p",
+        type: "table",
         children: [
           {
-            type: "text",
-            value: "a | b",
-          },
-        ],
-      },
-      {
-        type: "list",
-        ordered: false,
-        tight: true,
-        children: [
-          {
-            type: "li",
+            type: "thead",
             children: [
               {
-                type: "text",
-                value: "| -",
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
               },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
               {
-                type: "text",
-                value: "\nc | d",
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "c",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "d",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
