@@ -2,7 +2,6 @@ import React from "react";
 
 import { type AstNode, buildAst, type ModifierConfig } from "./ast";
 
-/** Props for the Markdown component */
 type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** The Markdown source string to convert into a react component */
   children: string;
@@ -22,10 +21,6 @@ type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   inlineExtensions?: readonly InlineExtension[] | InlineExtension[];
 };
 
-/**
- * Defines a custom inline modifier.
- * The token must a unique repeated character (e.g. "=", "%%").
- */
 type InlineExtension = {
   /** The delimiter token to match (e.g. "==") */
   token: string;
@@ -82,18 +77,16 @@ function buildInlineExtensionMaps(
   for (const ext of inlineExtensions) {
     const { token } = ext;
     const char = token[0];
-    if (!char) continue;
-    if (!token.split("").every((c) => c === char)) continue;
-
-    inlineExtensionMap[token] = ext;
-
-    const existing = modifierConfigs[char];
-    const lengths = existing?.lengths || new Set();
-    lengths.add(token.length);
-    modifierConfigs[char] = {
-      intraword: ext.intraword,
-      lengths,
-    };
+    if (char) {
+      inlineExtensionMap[token] = ext;
+      const existing = modifierConfigs[char];
+      const lengths = existing?.lengths || new Set();
+      lengths.add(token.length);
+      modifierConfigs[char] = {
+        intraword: ext.intraword,
+        lengths,
+      };
+    }
   }
 
   return { modifierConfigs, inlineExtensionMap };
