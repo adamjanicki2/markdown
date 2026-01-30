@@ -10,7 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       src: path.resolve(__dirname, "src"),
-      "markdown": path.resolve(__dirname, "../lib/src"),
+      "@adamjanicki/markdown": path.resolve(__dirname, "../lib/src"),
     },
   },
   build: {

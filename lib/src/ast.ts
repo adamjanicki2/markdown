@@ -192,8 +192,7 @@ function splitTableRow(str: string): string[] {
 
 function parseTableAlignments(
   line: string,
-  minDashes: number,
-  allowColons: boolean
+  minDashes: number
 ): Array<TableAlign | undefined> | null {
   const cells = splitTableRow(line);
   if (cells.length <= 1) return null;
@@ -205,7 +204,6 @@ function parseTableAlignments(
   for (const cell of cells) {
     const trimmed = cell.replace(RE_WHITESPACE, "");
     if (trimmed.length === 0) return null;
-    if (!allowColons && trimmed.includes(":")) return null;
     const withoutColons = trimmed.replace(RE_COLON, "");
     const dashCount = (withoutColons.match(/-/g) || []).length;
     if (dashCount < minDashes) return null;
@@ -269,11 +267,7 @@ function parseTableNode(
   const trimmedLine = line.trim();
   const outerPipes = trimmedLine.startsWith("|") && trimmedLine.endsWith("|");
   const minDashes = outerPipes ? 1 : 3;
-  const alignments = parseTableAlignments(
-    lines[lineIndex + 1],
-    minDashes,
-    outerPipes
-  );
+  const alignments = parseTableAlignments(lines[lineIndex + 1], minDashes);
   if (!alignments || alignments.length !== header.length) return null;
 
   const headerLength = header.length;
