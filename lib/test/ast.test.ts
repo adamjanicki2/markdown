@@ -2318,6 +2318,55 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
+    name: "single column table with trailing pipe divider",
+    input: "a\n-|\nb",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: "heading with leading spaces",
     input: "  # not heading",
     ast: [

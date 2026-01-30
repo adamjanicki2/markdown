@@ -194,9 +194,10 @@ function splitTableRow(str: string): string[] {
 function parseTableAlignments(
   line: string
 ): Array<TableAlign | undefined> | null {
-  const minDashes = !line.trim().startsWith("|");
   const cells = splitTableRow(line);
   if (cells.length <= 0) return null;
+  const trimmedLine = line.trim();
+  const minDashes = !(trimmedLine.startsWith("|") || trimmedLine.endsWith("|"));
 
   const alignments: Array<TableAlign | undefined> = [];
 
@@ -206,8 +207,14 @@ function parseTableAlignments(
     if (trimmed.length === 0) return null;
     const withoutColons = trimmed.replace(RE_COLON, "");
     const dashCount = (withoutColons.match(RE_DASH) || []).length;
-    if (dashCount < 1 || (index === 0 && dashCount < 2 && minDashes))
-      return null;
+    if (dashCount < 1) return null;
+    if (index === 0 && dashCount < 2 && minDashes) {
+      const isAligned =
+        RE_TABLE_ALIGN_CENTER.test(trimmed) ||
+        RE_TABLE_ALIGN_LEFT.test(trimmed) ||
+        RE_TABLE_ALIGN_RIGHT.test(trimmed);
+      if (!isAligned) return null;
+    }
 
     if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
     else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
@@ -266,9 +273,13 @@ function parseTableNode(
   const header = splitTableRow(line);
   const divider = lines[lineIndex + 1];
   if (!divider) return null;
-  if (header.length <= 1 && !divider.includes("|")) return null;
   const alignments = parseTableAlignments(lines[lineIndex + 1]);
-  if (!alignments || alignments.length !== header.length) return null;
+  if (
+    !alignments ||
+    alignments.length !== header.length ||
+    (header.length <= 1 && !alignments[0] && !divider.includes("|"))
+  )
+    return null;
 
   const headerLength = header.length;
   let currentIndex = lineIndex + 2;
