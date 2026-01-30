@@ -51,6 +51,8 @@ export default function Nav() {
         style={{ display: open ? "flex" : undefined }}
       >
         <Navlink to="#installation">Installation</Navlink>
+        <Navlink to="#components">Components</Navlink>
+        <Navlink to="#playground">Playground</Navlink>
       </ui.ul>
     </ui.nav>
   );

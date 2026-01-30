@@ -1,23 +1,3 @@
-import {
-  appendNode,
-  insertNode,
-  type LinkedList,
-  type LinkedListNode,
-  mapWhile,
-  removeNode,
-} from "./list";
-
-export type ModifierConfig = {
-  intraword: boolean;
-  lengths: number[];
-};
-
-export type BuildAstOptions = {
-  modifierConfigs?: Partial<Record<string, ModifierConfig>>;
-};
-
-type ModifierConfigs = Record<string, ModifierConfig | undefined>;
-
 /**
  * Construct an AST given a markdown source string.
  * @param markdown the source to parse
@@ -29,114 +9,12 @@ export function buildAst(
 ): AstNode[] {
   const modifierConfigs: ModifierConfigs = {
     ...options.modifierConfigs,
-    // Don't override the defaults
-    "*": { intraword: true, lengths: [1, 2] },
-    _: { intraword: false, lengths: [1, 2] },
-    "~": { intraword: true, lengths: [2] },
+    ...MODIFIER_CONFIGS,
   };
   return walkAndBuildAst(markdown, modifierConfigs);
 }
 
-function walkAndBuildAst(
-  markdown: string,
-  modifierConfigs: ModifierConfigs
-): AstNode[] {
-  const lines = splitLines(markdown);
-  const nodes: AstNode[] = [];
-
-  let lineIndex = 0;
-  let paragraph: string[] = [];
-
-  const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    nodes.push({
-      type: "p",
-      children: parseInline(paragraph.join("\n"), modifierConfigs),
-    });
-    paragraph = [];
-  };
-
-  while (lineIndex < lines.length) {
-    const line = lines[lineIndex];
-
-    if (isBlank(line)) {
-      flushParagraph();
-      lineIndex++;
-      continue;
-    }
-
-    const fence = parseFenceStart(line);
-    if (fence) {
-      flushParagraph();
-      const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
-
-      lineIndex++;
-      const pre: string[] = [];
-      while (
-        lineIndex < lines.length &&
-        !isFenceEnd(lines[lineIndex], fence.fenceLen)
-      ) {
-        pre.push(lines[lineIndex]);
-        lineIndex++;
-      }
-      if (lineIndex < lines.length) lineIndex++;
-
-      nodes.push({ type: "pre", lang, value: pre.join("\n") });
-      continue;
-    }
-
-    const list = parseListNode(lines, lineIndex, modifierConfigs);
-    if (list) {
-      flushParagraph();
-      nodes.push(list.node);
-      lineIndex = list.nextIndex;
-      continue;
-    }
-
-    if (isHorizontalRule(line)) {
-      flushParagraph();
-      nodes.push({ type: "hr" });
-      lineIndex++;
-      continue;
-    }
-
-    const heading = parseHeading(line);
-    if (heading) {
-      flushParagraph();
-      nodes.push({
-        type: "h",
-        level: heading.level,
-        children: parseInline(heading.raw, modifierConfigs),
-      });
-      lineIndex++;
-      continue;
-    }
-
-    const table = parseTableNode(lines, lineIndex, modifierConfigs);
-    if (table) {
-      flushParagraph();
-      nodes.push(table.node);
-      lineIndex = table.nextIndex;
-      continue;
-    }
-
-    const blockquote = parseBlockquoteNode(lines, lineIndex, modifierConfigs);
-    if (blockquote) {
-      flushParagraph();
-      nodes.push(blockquote.node);
-      lineIndex = blockquote.nextIndex;
-      continue;
-    }
-
-    paragraph.push(line);
-    lineIndex++;
-  }
-
-  flushParagraph();
-  return nodes;
-}
-
-// Helper functions
+// helpers
 const splitLines = (str: string) => str.replace(RE_NEWLINES, "\n").split("\n");
 const isBlank = (str: string) => !str.trim();
 const getIndent = (line: string) =>
@@ -144,18 +22,10 @@ const getIndent = (line: string) =>
 const isSpace = (char?: string) =>
   char === undefined || char === " " || char === "\t" || char === "\n";
 const isAlphanum = (char?: string) => !!char && RE_ALPHANUM.test(char);
-const isTopLevelNodeStarter = (line: string) =>
-  Boolean(
-    isBlank(line) ||
-    parseFenceStart(line) ||
-    isHorizontalRule(line) ||
-    parseHeading(line) ||
-    stripBlockquoteMarker(line) !== null
-  );
-
-function isToken(node: IrNode): node is InlineToken {
-  return (TOKEN_TYPES as Set<string>).has(node.type);
-}
+const isToken = (node: IrNode): node is InlineToken =>
+  (TOKEN_TYPES as Set<string>).has(node.type);
+const isTextNode = (node: IrNode | InlineToken): node is TextNode =>
+  node.type === "text";
 
 function appendText(nodes: IrNode[], value: string) {
   if (!value) return;
@@ -164,8 +34,6 @@ function appendText(nodes: IrNode[], value: string) {
   else nodes.push({ type: "text", value });
 }
 
-const isTextNode = (node: IrNode | InlineToken): node is TextNode =>
-  node.type === "text";
 function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
   const merged: T[] = [];
   for (const node of nodes) {
@@ -186,62 +54,64 @@ function nodeToLiteral(node: IrNode): string {
   if (node.type === "backtick") return "`".repeat(node.len);
   if (node.type === "code") return "`" + node.value + "`";
   if (node.type === "br" || node.type === "newline") return "\n";
-  if (node.type === "modifier") return nodesToLiteral(node.children);
+  if (node.type === "modifier")
+    return node.children.reduce((acc, child) => acc + nodeToLiteral(child), "");
   return "";
 }
 
-function nodesToLiteral(nodes: IrNode[]): string {
-  return nodes.reduce((acc, node) => acc + nodeToLiteral(node), "");
-}
+const nodesToLiteral = (nodes: IrNode[]) =>
+  nodes.reduce((acc, node) => acc + nodeToLiteral(node), "");
 
 const isHorizontalRule = (str: string) => RE_HR.test(str);
 
 function parseHeading(line: string) {
-  const m = RE_HEADING.exec(line);
-  return m
+  const match = RE_HEADING.exec(line);
+  return match
     ? {
-        level: Math.min(m[1].length, 6) as Level,
-        raw: m[2].replace(RE_HEADING_TRAIL, ""),
+        level: Math.min(match[1].length, 6) as Level,
+        raw: match[2].replace(RE_HEADING_TRAIL, ""),
       }
     : null;
 }
 
-function parseFenceStart(line: string) {
-  const m = RE_FENCE_START.exec(line);
-  return m ? { fenceLen: m[1].length, info: (m[2] || "").trim() } : null;
+function parseFenceOpening(line: string) {
+  const match = RE_FENCE_START.exec(line);
+  return match
+    ? { fenceLen: match[1].length, info: (match[2] || "").trim() }
+    : null;
 }
 
-function isFenceEnd(str: string, fenceLen: number) {
-  const s = str.replace(RE_FENCE_LEADING_SPACES, "").trimEnd();
-  return RE_FENCE_TICKS.test(s) && s.length >= fenceLen;
+function isFenceClosing(line: string, fenceLen: number) {
+  const trimmed = line.replace(RE_FENCE_LEADING_SPACES, "").trimEnd();
+  return RE_FENCE_TICKS.test(trimmed) && trimmed.length >= fenceLen;
 }
 
 function parseListMarker(line: string): ListMarker | null {
   const indent = getIndent(line);
-  const rest = line.slice(indent);
+  const lineRemainder = line.slice(indent);
 
-  const uliMatches = RE_UL_MARKER.exec(rest);
-  if (uliMatches) {
-    const markerWidth = uliMatches[0].length;
+  const unorderedMarkerMatch = RE_UL_MARKER.exec(lineRemainder);
+  if (unorderedMarkerMatch) {
+    const markerWidth = unorderedMarkerMatch[0].length;
     return {
       ordered: false,
       indent,
       markerWidth,
       contentIndent: indent + markerWidth,
-      markerChar: uliMatches[1],
+      markerChar: unorderedMarkerMatch[1],
     };
   }
 
-  const oliMatches = RE_OL_MARKER.exec(rest);
-  if (oliMatches) {
-    const markerWidth = oliMatches[0].length;
+  const orderedMarkerMatch = RE_OL_MARKER.exec(lineRemainder);
+  if (orderedMarkerMatch) {
+    const markerWidth = orderedMarkerMatch[0].length;
     return {
       ordered: true,
-      start: parseInt(oliMatches[1], 10),
+      start: parseInt(orderedMarkerMatch[1], 10),
       indent,
       markerWidth,
       contentIndent: indent + markerWidth,
-      markerChar: oliMatches[2],
+      markerChar: orderedMarkerMatch[2],
     };
   }
 
@@ -254,8 +124,8 @@ function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
   const rest = line.slice(marker.contentIndent).replace(/[ \t]/g, "");
   return (
     rest.length >= 3 &&
-    new Set(rest).size === 1 &&
-    rest[0] === marker.markerChar
+    rest[0] === marker.markerChar &&
+    rest.split("").every((c) => c === rest[0])
   );
 }
 
@@ -267,7 +137,7 @@ function getBlockquoteInfo(str: string) {
   while (index < str.length && str[index] === ">") {
     depth++;
     index++;
-    if (str[index] === " ") index++;
+    if (str[index] === " " || str[index] === "\t") index++;
   }
 
   if (depth === 0) return null;
@@ -281,6 +151,16 @@ function stripBlockquoteMarker(str: string) {
     ? info.content
     : ">".repeat(info.depth - 1) + " " + info.content;
 }
+
+const isTopLevelNodeStarter = (line: string) =>
+  !!(
+    isBlank(line) ||
+    parseFenceOpening(line) ||
+    isHorizontalRule(line) ||
+    parseHeading(line) ||
+    parseListMarker(line) ||
+    stripBlockquoteMarker(line) !== null
+  );
 
 function splitTableRow(str: string): string[] {
   let text = str.trim();
@@ -312,28 +192,34 @@ function splitTableRow(str: string): string[] {
 }
 
 function parseTableAlignments(
-  line: string,
-  minDashes: number,
-  allowColons: boolean
+  line: string
 ): Array<TableAlign | undefined> | null {
   const cells = splitTableRow(line);
-  if (cells.length <= 1) return null;
+  if (cells.length <= 0) return null;
+  const trimmedLine = line.trim();
+  const minDashes = !(trimmedLine.startsWith("|") || trimmedLine.endsWith("|"));
 
-  const delimRegex = minDashes >= 3 ? RE_TABLE_DELIM_MIN3 : RE_TABLE_DELIM_MIN1;
   const alignments: Array<TableAlign | undefined> = [];
 
-  for (const cell of cells) {
+  for (let index = 0; index < cells.length; index++) {
+    const cell = cells[index];
     const trimmed = cell.replace(RE_WHITESPACE, "");
     if (trimmed.length === 0) return null;
-    if (!allowColons && trimmed.includes(":")) return null;
-    const nocolon = trimmed.replace(RE_COLON, "");
-    const dashCount = nocolon.split("-").length - 1;
-    if (dashCount < minDashes) return null;
+    const withoutColons = trimmed.replace(RE_COLON, "");
+    const dashCount = (withoutColons.match(RE_DASH) || []).length;
+    if (dashCount < 1) return null;
+    if (index === 0 && dashCount < 2 && minDashes) {
+      const isAligned =
+        RE_TABLE_ALIGN_CENTER.test(trimmed) ||
+        RE_TABLE_ALIGN_LEFT.test(trimmed) ||
+        RE_TABLE_ALIGN_RIGHT.test(trimmed);
+      if (!isAligned) return null;
+    }
 
     if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
     else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
     else if (RE_TABLE_ALIGN_RIGHT.test(trimmed)) alignments.push("right");
-    else if (delimRegex.test(trimmed)) alignments.push(undefined);
+    else if (RE_TABLE_DIVIDER.test(trimmed)) alignments.push(undefined);
     else return null;
   }
 
@@ -344,7 +230,7 @@ function buildTableNode(
   header: string[],
   rows: string[][],
   alignments: Array<TableAlign | undefined>,
-  modifierConfigs: ModifierConfigs
+  parseInlineValue: InlineParser
 ): TableNode {
   const thead: TableHeadNode = {
     type: "thead",
@@ -354,7 +240,7 @@ function buildTableNode(
         children: header.map((cellValue, cellIndex) => ({
           type: "th",
           align: alignments[cellIndex],
-          children: parseInline(cellValue, modifierConfigs),
+          children: parseInlineValue(cellValue),
         })),
       },
     ],
@@ -367,7 +253,7 @@ function buildTableNode(
       children: row.map((cellValue, cellIndex) => ({
         type: "td",
         align: alignments[cellIndex],
-        children: parseInline(cellValue, modifierConfigs),
+        children: parseInlineValue(cellValue),
       })),
     })),
   };
@@ -381,20 +267,19 @@ function buildTableNode(
 function parseTableNode(
   lines: string[],
   lineIndex: number,
-  modifierConfigs: ModifierConfigs
+  parseInlineValue: InlineParser
 ): NodeParseResult<TableNode> | null {
   const line = lines[lineIndex];
   const header = splitTableRow(line);
-  if (header.length <= 1 || lineIndex + 1 >= lines.length) return null;
-  const trimmed = line.trim();
-  const outerPipes = trimmed.startsWith("|") && trimmed.endsWith("|");
-  const minDashes = outerPipes ? 1 : 3;
-  const alignments = parseTableAlignments(
-    lines[lineIndex + 1],
-    minDashes,
-    outerPipes
-  );
-  if (!alignments || alignments.length !== header.length) return null;
+  const divider = lines[lineIndex + 1];
+  if (!divider) return null;
+  const alignments = parseTableAlignments(lines[lineIndex + 1]);
+  if (
+    !alignments ||
+    alignments.length !== header.length ||
+    (header.length <= 1 && !alignments[0] && !divider.includes("|"))
+  )
+    return null;
 
   const headerLength = header.length;
   let currentIndex = lineIndex + 2;
@@ -403,516 +288,20 @@ function parseTableNode(
   while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
     const rowLine = lines[currentIndex];
     const rowCells = rowLine.includes("|") ? splitTableRow(rowLine) : null;
-    const isCandidate = rowCells !== null && rowCells.length > 1;
-    if (!isCandidate && isTopLevelNodeStarter(rowLine)) break;
+    const isRowCandidate =
+      rowCells !== null && (rowCells.length > 1 || headerLength === 1);
+    if (!isRowCandidate && isTopLevelNodeStarter(rowLine)) break;
 
-    const row = isCandidate ? rowCells : [rowLine.trim()];
-    while (row.length < headerLength) row.push("");
-    rows.push(row.slice(0, headerLength));
+    const rowValues = isRowCandidate ? rowCells : [rowLine.trim()];
+    while (rowValues.length < headerLength) rowValues.push("");
+    rows.push(rowValues.slice(0, headerLength));
     currentIndex++;
   }
 
   return {
-    node: buildTableNode(header, rows, alignments, modifierConfigs),
+    node: buildTableNode(header, rows, alignments, parseInlineValue),
     nextIndex: currentIndex,
   };
-}
-
-function parseListNode(
-  lines: string[],
-  startIndex: number,
-  modifierConfigs: ModifierConfigs
-): NodeParseResult<ListNode> | null {
-  const firstLine = lines[startIndex];
-  const firstMarker = parseListMarker(firstLine);
-  if (!firstMarker) return null;
-  if (shouldDisallowListStart(firstLine, firstMarker)) return null;
-
-  const { ordered, start, indent } = firstMarker;
-  const children: ListItemNode[] = [];
-  let tight = true;
-
-  const getSameListMarker = (line: string): ListMarker | null => {
-    const marker = parseListMarker(line);
-    if (!marker) return null;
-    if (marker.ordered !== ordered) return null;
-    if (!ordered && marker.markerChar !== firstMarker.markerChar) return null;
-    if (!ordered && marker.indent !== indent) return null;
-    if (ordered && (marker.indent < indent || marker.indent > indent + 3))
-      return null;
-    if (shouldDisallowListStart(line, marker)) return null;
-    return marker;
-  };
-
-  let lineIndex = startIndex;
-  while (lineIndex < lines.length) {
-    const listMarker = getSameListMarker(lines[lineIndex]);
-    if (!listMarker) break;
-
-    const contentAfterMarker = lines[lineIndex].slice(listMarker.contentIndent);
-    lineIndex++;
-
-    const listItem: string[] = [contentAfterMarker];
-
-    while (lineIndex < lines.length) {
-      const currentLine = lines[lineIndex];
-
-      if (isBlank(currentLine)) {
-        let lookaheadIndex = lineIndex + 1;
-        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
-          lookaheadIndex++;
-
-        const nextLine =
-          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
-        if (!nextLine) break;
-
-        if (getSameListMarker(nextLine)) {
-          tight = false;
-          lineIndex = lookaheadIndex;
-          break;
-        }
-
-        const nextIndent = getIndent(nextLine);
-        if (nextIndent < listMarker.contentIndent) break;
-        if (nextIndent <= indent && isTopLevelNodeStarter(nextLine)) break;
-
-        tight = false;
-        listItem.push("");
-        lineIndex++;
-        continue;
-      }
-
-      const lineIndent = getIndent(currentLine);
-      const otherMarker = parseListMarker(currentLine);
-
-      if (getSameListMarker(currentLine)) break;
-
-      if (otherMarker && otherMarker.indent <= indent) break;
-      if (otherMarker && otherMarker.ordered && otherMarker.indent >= 4) {
-        const trimmedLine = currentLine.slice(lineIndent);
-        const lastIndex = listItem.length - 1;
-        listItem[lastIndex] = listItem[lastIndex] + trimmedLine;
-        lineIndex++;
-        continue;
-      }
-
-      if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
-
-      let sliceAt = 0;
-      if (lineIndent >= listMarker.contentIndent) {
-        sliceAt = listMarker.contentIndent;
-        if (
-          lineIndent > listMarker.contentIndent &&
-          !parseListMarker(currentLine.slice(listMarker.contentIndent))
-        )
-          sliceAt = lineIndent;
-      } else if (lineIndent > indent) {
-        sliceAt = Math.min(lineIndent, indent + 1);
-      }
-      listItem.push(currentLine.slice(sliceAt));
-      lineIndex++;
-    }
-
-    children.push({
-      type: "li",
-      children: walkAndBuildAst(listItem.join("\n"), modifierConfigs),
-    });
-    if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
-  }
-
-  if (tight) {
-    for (const child of children) {
-      child.children = child.children.flatMap((grandchild) =>
-        grandchild.type === "p" ? grandchild.children : grandchild
-      );
-    }
-  }
-
-  return {
-    node: { type: "list", ordered, start, tight, children },
-    nextIndex: lineIndex,
-  };
-}
-
-function parseBlockquoteNode(
-  lines: string[],
-  startIndex: number,
-  modifierConfigs: ModifierConfigs
-): NodeParseResult<BlockquoteNode> | null {
-  const firstLine = lines[startIndex];
-  const firstMarker = stripBlockquoteMarker(firstLine);
-  if (firstMarker === null) return null;
-
-  const blockquote: string[] = [];
-  let lineIndex = startIndex;
-
-  while (lineIndex < lines.length) {
-    const currentLine = lines[lineIndex];
-    const strippedLine = stripBlockquoteMarker(currentLine);
-
-    if (strippedLine !== null) {
-      if (strippedLine.trim() === "") {
-        let lookaheadIndex = lineIndex + 1;
-        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
-          lookaheadIndex++;
-        const nextLine =
-          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
-        if (!nextLine || stripBlockquoteMarker(nextLine) === null) {
-          lineIndex++;
-          break;
-        }
-      }
-      blockquote.push(strippedLine);
-      lineIndex++;
-    } else if (isBlank(currentLine)) break;
-    else {
-      const currentIndent = getIndent(currentLine);
-      if (currentIndent === 0 && parseListMarker(currentLine)) break;
-      if (isTopLevelNodeStarter(currentLine)) break;
-
-      blockquote.push(currentLine);
-      lineIndex++;
-    }
-  }
-
-  return {
-    node: {
-      type: "blockquote",
-      children: walkAndBuildAst(blockquote.join("\n"), modifierConfigs),
-    },
-    nextIndex: lineIndex,
-  };
-}
-
-function tokenize(
-  str: string,
-  modifierConfigs: ModifierConfigs
-): InlineToken[] {
-  const tokens: InlineToken[] = [];
-  let text = "";
-
-  const flushText = () => {
-    if (!text) return;
-    const last = tokens[tokens.length - 1];
-    if (last && last.type === "text") last.value += text;
-    else tokens.push({ type: "text", value: text });
-    text = "";
-  };
-
-  const pushToken = (token: InlineToken) => {
-    flushText();
-    tokens.push(token);
-  };
-
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i];
-
-    if (char === "\n") pushToken({ type: "newline" });
-    else if (char === "\\") {
-      const nextChar = str[i + 1];
-      if (nextChar && ESCAPABLE.has(nextChar)) {
-        text += nextChar;
-        i++;
-      } else {
-        text += "\\";
-      }
-    } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
-    else if (char === "`" || char in modifierConfigs) {
-      let runIndex = i + 1;
-      while (runIndex < str.length && str[runIndex] === char) runIndex++;
-
-      if (char === "`") {
-        pushToken({ type: "backtick", len: runIndex - i });
-      } else {
-        const intraword = modifierConfigs[char]?.intraword;
-        const prevChar = str[i - 1];
-        const nextChar = str[runIndex];
-
-        if (!intraword && isAlphanum(prevChar) && isAlphanum(nextChar)) {
-          text += char.repeat(runIndex - i);
-        } else {
-          pushToken({
-            type: "delimiter",
-            char,
-            len: runIndex - i,
-            canOpen: !isSpace(nextChar),
-            canClose: !isSpace(prevChar),
-          });
-        }
-      }
-      i = runIndex - 1;
-    } else text += char;
-  }
-
-  flushText();
-  return tokens;
-}
-
-function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
-  const nodes: IrNode[] = [];
-
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-
-    if (token.type !== "backtick") nodes.push(token);
-    else {
-      const openerLen = token.len;
-
-      let closingIndex = i + 1;
-      while (closingIndex < tokens.length) {
-        const candidateToken = tokens[closingIndex];
-        if (
-          candidateToken.type === "backtick" &&
-          candidateToken.len === openerLen
-        )
-          break;
-        closingIndex++;
-      }
-
-      if (closingIndex >= tokens.length)
-        appendText(nodes, "`".repeat(openerLen));
-      else {
-        let code = "";
-        for (let j = i + 1; j < closingIndex; j++) {
-          code += nodeToLiteral(tokens[j]);
-        }
-
-        nodes.push({ type: "code", value: code });
-        i = closingIndex;
-      }
-    }
-  }
-
-  return mergeAdjacentText(nodes);
-}
-
-function isPunctChar(node: IrNode, char: string): node is PunctToken {
-  return isToken(node) && node.type === "punct" && node.char === char;
-}
-
-function parseLinkOrImage(
-  nodes: IrNode[],
-  startIndex: number,
-  modifierConfigs: ModifierConfigs
-): { node: IrNode; nextIndex: number } | null {
-  const startNode = nodes[startIndex];
-  if (!isToken(startNode)) return null;
-
-  const isBang = isPunctChar(startNode, "!");
-  const leftBracketIndex = isBang ? startIndex + 1 : startIndex;
-  if (
-    leftBracketIndex >= nodes.length ||
-    !isPunctChar(nodes[leftBracketIndex], "[")
-  )
-    return null;
-
-  let rightBracketIndex = leftBracketIndex + 1;
-  let bracketDepth = 0;
-  while (rightBracketIndex < nodes.length) {
-    const candidate = nodes[rightBracketIndex];
-    if (isPunctChar(candidate, "[")) bracketDepth++;
-    else if (isPunctChar(candidate, "]")) {
-      if (bracketDepth === 0) break;
-      bracketDepth--;
-    }
-    rightBracketIndex++;
-  }
-  if (rightBracketIndex >= nodes.length) return null;
-
-  const leftParenNode = nodes[rightBracketIndex + 1];
-  if (!leftParenNode || !isPunctChar(leftParenNode, "(")) return null;
-
-  let rightParenIndex = rightBracketIndex + 2;
-  let parenDepth = 0;
-  while (rightParenIndex < nodes.length) {
-    const candidate = nodes[rightParenIndex];
-    if (isPunctChar(candidate, "(")) parenDepth++;
-    else if (isPunctChar(candidate, ")")) {
-      if (parenDepth === 0) break;
-      parenDepth--;
-    }
-    rightParenIndex++;
-  }
-  if (rightParenIndex >= nodes.length) return null;
-
-  const labelNodes = nodes.slice(leftBracketIndex + 1, rightBracketIndex);
-  const urlNodes = nodes.slice(rightBracketIndex + 2, rightParenIndex);
-
-  const url = nodesToLiteral(urlNodes).trim();
-  const label = nodesToLiteral(labelNodes);
-
-  if (isBang) {
-    return {
-      node: { type: "img", url, alt: label },
-      nextIndex: rightParenIndex,
-    };
-  }
-
-  const children = parseInline(label, modifierConfigs);
-  return {
-    node: { type: "a", url, children },
-    nextIndex: rightParenIndex,
-  };
-}
-
-function resolveLinksAndImages(
-  nodes: IrNode[],
-  modifierConfigs: ModifierConfigs
-): IrNode[] {
-  const nodesOut: IrNode[] = [];
-
-  for (let i = 0; i < nodes.length; i++) {
-    const parsed = parseLinkOrImage(nodes, i, modifierConfigs);
-    const node = nodes[i];
-    if (parsed) {
-      nodesOut.push(parsed.node);
-      i = parsed.nextIndex;
-    } else {
-      nodesOut.push(node);
-    }
-  }
-
-  return mergeAdjacentText(nodesOut);
-}
-
-function resolveDelimiters(
-  nodes: IrNode[],
-  modifierConfigs: ModifierConfigs
-): IrNode[] {
-  const list: LinkedList<IrNode> = {};
-  const delimiterList: LinkedList<Delimiter> = {};
-
-  for (const node of nodes) {
-    if (node.type === "delimiter") {
-      if (!node.canOpen && !node.canClose) {
-        appendNode(list, { type: "text", value: node.char.repeat(node.len) });
-      } else {
-        appendNode(delimiterList, {
-          char: node.char,
-          length: node.len,
-          canOpen: node.canOpen,
-          canClose: node.canClose,
-          node: appendNode(list, {
-            type: "text",
-            value: node.char.repeat(node.len),
-          }),
-        });
-      }
-    } else {
-      appendNode(list, node);
-    }
-  }
-
-  const canMatch = (opener: Delimiter, closer: Delimiter) => {
-    if (opener.char !== closer.char) return false;
-    if (opener.length === 0 || closer.length === 0) return false;
-
-    // Find the longest marker length that both support and has a config
-    const maxPossible = Math.min(opener.length, closer.length);
-    for (let len = maxPossible; len >= 1; len--) {
-      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  const getDelimiterLength = (opener: Delimiter, closer: Delimiter) => {
-    // Find the longest marker length that both support and has a config
-    const maxPossible = Math.min(opener.length, closer.length);
-    for (let len = maxPossible; len >= 1; len--) {
-      if (modifierConfigs[opener.char]?.lengths.includes(len)) {
-        return len;
-      }
-    }
-    return 1; // Fallback
-  };
-
-  const openersBottom = new Map<
-    string,
-    LinkedListNode<Delimiter> | undefined
-  >();
-
-  let closer = delimiterList.head;
-  while (closer) {
-    const nextCloser = closer.next;
-    if (!closer.value.canClose) {
-      closer = nextCloser;
-      continue;
-    }
-
-    const bottom = openersBottom.get(closer.value.char);
-    let opener = closer.prev;
-    while (opener && opener !== bottom) {
-      if (opener.value.canOpen && canMatch(opener.value, closer.value)) break;
-      opener = opener.prev;
-    }
-
-    if (!opener || opener === bottom) {
-      openersBottom.set(closer.value.char, closer.prev);
-      closer = nextCloser;
-      continue;
-    }
-
-    const used = getDelimiterLength(opener.value, closer.value);
-    const openerNode = opener.value.node;
-    const closerNode = closer.value.node;
-
-    const innerNodes = mapWhile(
-      openerNode.next,
-      (node) => node,
-      (node) => node !== closerNode
-    );
-
-    const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
-    const delimiter = closer.value.char.repeat(used);
-    const emphasisNode: IrNode = {
-      type: "modifier",
-      delimiter,
-      children,
-    };
-
-    for (const item of innerNodes) removeNode(list, item);
-
-    opener.value.length -= used;
-    if (opener.value.length === 0) {
-      const insertAfterNode = openerNode.prev;
-      removeNode(list, openerNode);
-      removeNode(delimiterList, opener);
-      insertNode(list, insertAfterNode, emphasisNode);
-    } else if (openerNode.value.type === "text") {
-      openerNode.value.value = opener.value.char.repeat(opener.value.length);
-      insertNode(list, openerNode, emphasisNode);
-    }
-
-    closer.value.length -= used;
-    if (closer.value.length === 0) {
-      removeNode(list, closerNode);
-      removeNode(delimiterList, closer);
-    } else if (closerNode.value.type === "text") {
-      closerNode.value.value = closer.value.char.repeat(closer.value.length);
-    }
-
-    let between = opener.next;
-    while (between && between !== closer) {
-      const nextBetween = between.next;
-      removeNode(delimiterList, between);
-      between = nextBetween;
-    }
-
-    if (closer.value.length > 0) {
-      continue;
-    }
-    closer = nextCloser;
-  }
-
-  return mergeAdjacentText(
-    mapWhile(
-      list.head,
-      (node) => node.value,
-      () => true
-    )
-  );
 }
 
 function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
@@ -944,50 +333,639 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
   return inlineNodes;
 }
 
+function tokenize(
+  str: string,
+  modifierConfigs: ModifierConfigs
+): InlineToken[] {
+  const tokens: InlineToken[] = [];
+  let textBuffer = "";
+
+  const flushText = () => {
+    if (!textBuffer) return;
+    const last = tokens[tokens.length - 1];
+    if (last && last.type === "text") last.value += textBuffer;
+    else tokens.push({ type: "text", value: textBuffer });
+    textBuffer = "";
+  };
+
+  const pushToken = (token: InlineToken) => {
+    flushText();
+    tokens.push(token);
+  };
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+
+    if (char === "\n") pushToken({ type: "newline" });
+    else if (char === "\\") {
+      const nextChar = str[i + 1];
+      if (nextChar && ESCAPABLE.has(nextChar)) {
+        textBuffer += nextChar;
+        i++;
+      } else {
+        textBuffer += "\\";
+      }
+    } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
+    else if (char === "`" || char in modifierConfigs) {
+      let runIndex = i + 1;
+      while (runIndex < str.length && str[runIndex] === char) runIndex++;
+
+      if (char === "`") {
+        pushToken({ type: "backtick", len: runIndex - i });
+      } else {
+        const intraword = modifierConfigs[char]?.intraword;
+        const prevChar = str[i - 1];
+        const nextChar = str[runIndex];
+
+        if (!intraword && isAlphanum(prevChar) && isAlphanum(nextChar)) {
+          textBuffer += char.repeat(runIndex - i);
+        } else {
+          pushToken({
+            type: "delimiter",
+            char,
+            len: runIndex - i,
+            canOpen: !isSpace(nextChar),
+            canClose: !isSpace(prevChar),
+          });
+        }
+      }
+      i = runIndex - 1;
+    } else textBuffer += char;
+  }
+
+  flushText();
+  return tokens;
+}
+
+function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
+  const nodes: IrNode[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    if (token.type !== "backtick") nodes.push(token);
+    else {
+      const openerLen = token.len;
+
+      let closingIndex = i + 1;
+      while (closingIndex < tokens.length) {
+        const candidateToken = tokens[closingIndex];
+        if (
+          candidateToken.type === "backtick" &&
+          candidateToken.len === openerLen
+        )
+          break;
+        closingIndex++;
+      }
+
+      if (closingIndex >= tokens.length)
+        appendText(nodes, "`".repeat(openerLen));
+      else {
+        const code = tokens
+          .slice(i + 1, closingIndex)
+          .map(nodeToLiteral)
+          .join("");
+
+        nodes.push({ type: "code", value: code });
+        i = closingIndex;
+      }
+    }
+  }
+
+  return mergeAdjacentText(nodes);
+}
+
+const isPunctChar = (node: IrNode, char: string): node is PunctToken =>
+  isToken(node) && node.type === "punct" && node.char === char;
+
+function findMatchingCloser(
+  nodes: IrNode[],
+  startIndex: number,
+  open: string,
+  close: string
+): number {
+  let index = startIndex;
+  let depth = 0;
+  while (index < nodes.length) {
+    const candidate = nodes[index];
+    if (isPunctChar(candidate, open)) depth++;
+    else if (isPunctChar(candidate, close)) {
+      if (depth === 0) return index;
+      depth--;
+    }
+    index++;
+  }
+  return index;
+}
+
+function parseLinkOrImage(
+  nodes: IrNode[],
+  startIndex: number,
+  parseInlineValue: InlineParser
+): { node: IrNode; nextIndex: number } | null {
+  const startNode = nodes[startIndex];
+  if (!isToken(startNode)) return null;
+
+  const isBang = isPunctChar(startNode, "!");
+  const leftBracketIndex = isBang ? startIndex + 1 : startIndex;
+  if (
+    leftBracketIndex >= nodes.length ||
+    !isPunctChar(nodes[leftBracketIndex], "[")
+  )
+    return null;
+
+  const rightBracketIndex = findMatchingCloser(
+    nodes,
+    leftBracketIndex + 1,
+    "[",
+    "]"
+  );
+  if (rightBracketIndex >= nodes.length) return null;
+
+  const leftParenNode = nodes[rightBracketIndex + 1];
+  if (!leftParenNode || !isPunctChar(leftParenNode, "(")) return null;
+
+  const rightParenIndex = findMatchingCloser(
+    nodes,
+    rightBracketIndex + 2,
+    "(",
+    ")"
+  );
+  if (rightParenIndex >= nodes.length) return null;
+
+  const labelNodes = nodes.slice(leftBracketIndex + 1, rightBracketIndex);
+  const urlNodes = nodes.slice(rightBracketIndex + 2, rightParenIndex);
+
+  const url = nodesToLiteral(urlNodes).trim();
+  const label = nodesToLiteral(labelNodes);
+
+  if (isBang) {
+    return {
+      node: { type: "img", url, alt: label },
+      nextIndex: rightParenIndex,
+    };
+  }
+
+  const children = parseInlineValue(label);
+  return {
+    node: { type: "a", url, children },
+    nextIndex: rightParenIndex,
+  };
+}
+
+function resolveLinksAndImages(
+  nodes: IrNode[],
+  parseInlineValue: InlineParser
+): IrNode[] {
+  const nodesOut: IrNode[] = [];
+
+  for (let i = 0; i < nodes.length; i++) {
+    const linkOrImageMatch = parseLinkOrImage(nodes, i, parseInlineValue);
+    const node = nodes[i];
+    if (linkOrImageMatch) {
+      nodesOut.push(linkOrImageMatch.node);
+      i = linkOrImageMatch.nextIndex;
+    } else {
+      nodesOut.push(node);
+    }
+  }
+
+  return mergeAdjacentText(nodesOut);
+}
+
+function getMaxSupportedDelimiterLength(
+  opener: DelimiterRun,
+  closer: DelimiterRun,
+  modifierConfigs: ModifierConfigs
+): number {
+  if (opener.char !== closer.char) return 0;
+  if (opener.length === 0 || closer.length === 0) return 0;
+
+  const supported = modifierConfigs[opener.char]?.lengths;
+  if (!supported) return 0;
+
+  const maxPossible = Math.min(opener.length, closer.length);
+  for (let length = maxPossible; length >= 1; length--) {
+    if (supported.has(length)) return length;
+  }
+  return 0;
+}
+
+function resolveDelimiters(
+  nodes: IrNode[],
+  modifierConfigs: ModifierConfigs
+): IrNode[] {
+  const nodeList: LinkedList<IrNode> = {};
+  const delimiterRunList: LinkedList<DelimiterRun> = {};
+  const pushText = (value: string) =>
+    appendNode(nodeList, { type: "text", value });
+
+  for (const node of nodes) {
+    if (node.type === "delimiter") {
+      if (!node.canOpen && !node.canClose) {
+        pushText(node.char.repeat(node.len));
+      } else {
+        appendNode(delimiterRunList, {
+          char: node.char,
+          length: node.len,
+          canOpen: node.canOpen,
+          canClose: node.canClose,
+          node: pushText(node.char.repeat(node.len)),
+        });
+      }
+    } else {
+      appendNode(nodeList, node);
+    }
+  }
+
+  const canMatch = (opener: DelimiterRun, closer: DelimiterRun) =>
+    getMaxSupportedDelimiterLength(opener, closer, modifierConfigs) > 0;
+
+  const getDelimiterLength = (opener: DelimiterRun, closer: DelimiterRun) =>
+    getMaxSupportedDelimiterLength(opener, closer, modifierConfigs);
+
+  const lastOpenerByChar = new Map<
+    string,
+    LinkedListNode<DelimiterRun> | null
+  >();
+
+  let closer = delimiterRunList.head;
+  while (closer) {
+    const nextCloser = closer.next;
+    if (!closer.value.canClose) {
+      closer = nextCloser;
+      continue;
+    }
+
+    const bottom = lastOpenerByChar.get(closer.value.char) ?? null;
+    let opener = closer.prev;
+    while (opener && opener !== bottom) {
+      if (opener.value.canOpen && canMatch(opener.value, closer.value)) break;
+      opener = opener.prev;
+    }
+
+    if (!opener || opener === bottom) {
+      lastOpenerByChar.set(closer.value.char, closer.prev ?? null);
+      closer = nextCloser;
+      continue;
+    }
+
+    const used = getDelimiterLength(opener.value, closer.value);
+    const openerNode = opener.value.node;
+    const closerNode = closer.value.node;
+
+    const innerNodes = mapWhile(
+      openerNode.next,
+      (node) => node,
+      (node) => node !== closerNode
+    );
+
+    const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
+    const delimiter = closer.value.char.repeat(used);
+    const emphasisNode: IrNode = {
+      type: "modifier",
+      delimiter,
+      children,
+    };
+
+    for (const item of innerNodes) removeNode(nodeList, item);
+
+    opener.value.length -= used;
+    if (opener.value.length === 0) {
+      const insertAfterNode = openerNode.prev;
+      removeNode(nodeList, openerNode);
+      removeNode(delimiterRunList, opener);
+      insertNode(nodeList, insertAfterNode, emphasisNode);
+    } else if (openerNode.value.type === "text") {
+      openerNode.value.value = opener.value.char.repeat(opener.value.length);
+      insertNode(nodeList, openerNode, emphasisNode);
+    }
+
+    closer.value.length -= used;
+    if (closer.value.length === 0) {
+      removeNode(nodeList, closerNode);
+      removeNode(delimiterRunList, closer);
+    } else if (closerNode.value.type === "text") {
+      closerNode.value.value = closer.value.char.repeat(closer.value.length);
+    }
+
+    let betweenRun = opener.next;
+    while (betweenRun && betweenRun !== closer) {
+      const nextBetween = betweenRun.next;
+      removeNode(delimiterRunList, betweenRun);
+      betweenRun = nextBetween;
+    }
+
+    if (closer.value.length > 0) {
+      continue;
+    }
+    closer = nextCloser;
+  }
+
+  return mergeAdjacentText(
+    mapWhile(
+      nodeList.head,
+      (node) => node.value,
+      () => true
+    )
+  );
+}
+
 function parseInline(
   str: string,
   modifierConfigs: ModifierConfigs
 ): InlineAstNode[] {
   const tokens = tokenize(str, modifierConfigs);
+  const parseInlineValue: InlineParser = (value) =>
+    parseInline(value, modifierConfigs);
 
   let nodes: IrNode[] = resolveCodeSpans(tokens);
-  nodes = resolveLinksAndImages(nodes, modifierConfigs);
+  nodes = resolveLinksAndImages(nodes, parseInlineValue);
   nodes = resolveDelimiters(nodes, modifierConfigs);
 
   return finalizeInlineNodes(nodes);
 }
 
-const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
-const RE_NEWLINES = /\r\n?/g;
-const RE_LEADING_SPACES = /^ */;
-const RE_HEADING = /^[ ]{0,3}(#{1,6})[ \t]+(.*)$/;
-const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
-const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
-const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
-const RE_FENCE_TICKS = /^`{3,}$/;
-const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
-const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
-const RE_WHITESPACE = /\s+/g;
-const RE_TABLE_DELIM_MIN1 = /^-+$/;
-const RE_TABLE_DELIM_MIN3 = /^-{3,}$/;
-const RE_TABLE_ALIGN_LEFT = /^:-+$/;
-const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
-const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
-const RE_COLON = /:/g;
-const RE_ALPHANUM = /[A-Za-z0-9]/;
-const RE_SPLIT_LANG = /\s+/;
+function parseListNode(
+  lines: string[],
+  startIndex: number,
+  parseBlocks: BlockParser
+): NodeParseResult<ListNode> | null {
+  const firstLine = lines[startIndex];
+  const firstMarker = parseListMarker(firstLine);
+  if (!firstMarker) return null;
+  if (shouldDisallowListStart(firstLine, firstMarker)) return null;
 
-const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
+  const { ordered, start, indent } = firstMarker;
+  const children: ListItemNode[] = [];
+  let tight = true;
 
-const TOKEN_TYPES = new Set<InlineToken["type"]>([
-  "text",
-  "newline",
-  "backtick",
-  "delimiter",
-  "punct",
-]);
+  const getSameListMarker = (line: string): ListMarker | null => {
+    const marker = parseListMarker(line);
+    if (!marker) return null;
+    if (marker.ordered !== ordered) return null;
+    if (!ordered && marker.markerChar !== firstMarker.markerChar) return null;
+    if (!ordered && marker.indent !== indent) return null;
+    if (ordered && (marker.indent < indent || marker.indent > indent + 3))
+      return null;
+    if (shouldDisallowListStart(line, marker)) return null;
+    return marker;
+  };
 
-// Types
+  let lineIndex = startIndex;
+  while (lineIndex < lines.length) {
+    const listMarker = getSameListMarker(lines[lineIndex]);
+    if (!listMarker) break;
+
+    const markerContent = lines[lineIndex].slice(listMarker.contentIndent);
+    lineIndex++;
+
+    const listItemLines: string[] = [markerContent];
+
+    while (lineIndex < lines.length) {
+      const currentLine = lines[lineIndex];
+
+      if (isBlank(currentLine)) {
+        let lookaheadIndex = lineIndex + 1;
+        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
+          lookaheadIndex++;
+
+        const nextLine =
+          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
+        if (!nextLine) break;
+
+        if (getSameListMarker(nextLine)) {
+          tight = false;
+          lineIndex = lookaheadIndex;
+          break;
+        }
+
+        const nextIndent = getIndent(nextLine);
+        if (nextIndent < listMarker.contentIndent) break;
+        if (nextIndent <= indent && isTopLevelNodeStarter(nextLine)) break;
+
+        tight = false;
+        listItemLines.push("");
+        lineIndex++;
+        continue;
+      }
+
+      const lineIndent = getIndent(currentLine);
+      const otherMarker = parseListMarker(currentLine);
+
+      if (getSameListMarker(currentLine)) break;
+
+      if (otherMarker && otherMarker.indent <= indent) break;
+      if (otherMarker && otherMarker.ordered && otherMarker.indent >= 4) {
+        const trimmedLine = currentLine.slice(lineIndent);
+        const lastIndex = listItemLines.length - 1;
+        listItemLines[lastIndex] = listItemLines[lastIndex] + trimmedLine;
+        lineIndex++;
+        continue;
+      }
+
+      if (lineIndent <= indent && isTopLevelNodeStarter(currentLine)) break;
+
+      let sliceAt = 0;
+      if (lineIndent >= listMarker.contentIndent) {
+        sliceAt = listMarker.contentIndent;
+        if (
+          lineIndent > listMarker.contentIndent &&
+          !parseListMarker(currentLine.slice(listMarker.contentIndent))
+        )
+          sliceAt = lineIndent;
+      } else if (lineIndent > indent) {
+        sliceAt = Math.min(lineIndent, indent + 1);
+      }
+      listItemLines.push(currentLine.slice(sliceAt));
+      lineIndex++;
+    }
+
+    children.push({
+      type: "li",
+      children: parseBlocks(listItemLines.join("\n")),
+    });
+    if (lineIndex < lines.length && isBlank(lines[lineIndex])) break;
+  }
+
+  if (tight) {
+    for (const child of children) {
+      child.children = child.children.flatMap((grandchild) =>
+        grandchild.type === "p" ? grandchild.children : grandchild
+      );
+    }
+  }
+
+  return {
+    node: { type: "list", ordered, start, tight, children },
+    nextIndex: lineIndex,
+  };
+}
+
+function parseBlockquoteNode(
+  lines: string[],
+  startIndex: number,
+  parseBlocks: BlockParser
+): NodeParseResult<BlockquoteNode> | null {
+  const firstLine = lines[startIndex];
+  const firstMarker = stripBlockquoteMarker(firstLine);
+  if (firstMarker === null) return null;
+
+  const blockquoteLines: string[] = [];
+  let lineIndex = startIndex;
+
+  while (lineIndex < lines.length) {
+    const currentLine = lines[lineIndex];
+    const strippedLine = stripBlockquoteMarker(currentLine);
+
+    if (strippedLine !== null) {
+      if (strippedLine.trim() === "") {
+        let lookaheadIndex = lineIndex + 1;
+        while (lookaheadIndex < lines.length && isBlank(lines[lookaheadIndex]))
+          lookaheadIndex++;
+        const nextLine =
+          lookaheadIndex < lines.length ? lines[lookaheadIndex] : null;
+        if (!nextLine || stripBlockquoteMarker(nextLine) === null) {
+          lineIndex++;
+          break;
+        }
+      }
+      blockquoteLines.push(strippedLine);
+      lineIndex++;
+    } else if (isBlank(currentLine)) break;
+    else {
+      const currentIndent = getIndent(currentLine);
+      if (currentIndent === 0 && parseListMarker(currentLine)) break;
+      if (isTopLevelNodeStarter(currentLine)) break;
+
+      blockquoteLines.push(currentLine);
+      lineIndex++;
+    }
+  }
+
+  return {
+    node: {
+      type: "blockquote",
+      children: parseBlocks(blockquoteLines.join("\n")),
+    },
+    nextIndex: lineIndex,
+  };
+}
+
+function walkAndBuildAst(
+  markdown: string,
+  modifierConfigs: ModifierConfigs
+): AstNode[] {
+  const parseInlineWithConfigs: InlineParser = (value) =>
+    parseInline(value, modifierConfigs);
+  const parseBlocks: BlockParser = (value) =>
+    walkAndBuildAst(value, modifierConfigs);
+  const lines = splitLines(markdown);
+  const nodes: AstNode[] = [];
+
+  let lineIndex = 0;
+  let paragraph: string[] = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    nodes.push({
+      type: "p",
+      children: parseInlineWithConfigs(paragraph.join("\n")),
+    });
+    paragraph = [];
+  };
+
+  while (lineIndex < lines.length) {
+    const line = lines[lineIndex];
+
+    if (isBlank(line)) {
+      flushParagraph();
+      lineIndex++;
+      continue;
+    }
+
+    const fence = parseFenceOpening(line);
+    if (fence) {
+      flushParagraph();
+      const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
+
+      lineIndex++;
+      const pre: string[] = [];
+      while (
+        lineIndex < lines.length &&
+        !isFenceClosing(lines[lineIndex], fence.fenceLen)
+      ) {
+        pre.push(lines[lineIndex]);
+        lineIndex++;
+      }
+      if (lineIndex < lines.length) lineIndex++;
+
+      nodes.push({ type: "pre", lang, value: pre.join("\n") });
+      continue;
+    }
+
+    const list = parseListNode(lines, lineIndex, parseBlocks);
+    if (list) {
+      flushParagraph();
+      nodes.push(list.node);
+      lineIndex = list.nextIndex;
+      continue;
+    }
+
+    if (isHorizontalRule(line)) {
+      flushParagraph();
+      nodes.push({ type: "hr" });
+      lineIndex++;
+      continue;
+    }
+
+    const heading = parseHeading(line);
+    if (heading) {
+      flushParagraph();
+      nodes.push({
+        type: "h",
+        level: heading.level,
+        children: parseInlineWithConfigs(heading.raw),
+      });
+      lineIndex++;
+      continue;
+    }
+
+    const table = parseTableNode(lines, lineIndex, parseInlineWithConfigs);
+    if (table) {
+      flushParagraph();
+      nodes.push(table.node);
+      lineIndex = table.nextIndex;
+      continue;
+    }
+
+    const blockquote = parseBlockquoteNode(lines, lineIndex, parseBlocks);
+    if (blockquote) {
+      flushParagraph();
+      nodes.push(blockquote.node);
+      lineIndex = blockquote.nextIndex;
+      continue;
+    }
+
+    paragraph.push(line);
+    lineIndex++;
+  }
+
+  flushParagraph();
+  return nodes;
+}
+
+// types
+export type ModifierConfig = {
+  intraword: boolean;
+  lengths: Set<number>;
+};
+
+export type BuildAstOptions = {
+  modifierConfigs?: Partial<Record<string, ModifierConfig>>;
+};
+
+type ModifierConfigs = Record<string, ModifierConfig | undefined>;
 type Level = 1 | 2 | 3 | 4 | 5 | 6;
 type TableAlign = "left" | "right" | "center";
 
@@ -1010,7 +988,7 @@ type InlineAstNode =
   | InlineModifierNode
   | BrNode;
 
-type DelimiterToken = {
+type DelimiterRunToken = {
   type: "delimiter";
   char: string;
   len: number;
@@ -1022,7 +1000,7 @@ type PunctToken = { type: "punct"; char: string };
 
 type InlineToken =
   | TextNode
-  | DelimiterToken
+  | DelimiterRunToken
   | PunctToken
   | { type: "newline" }
   | { type: "backtick"; len: number };
@@ -1098,6 +1076,9 @@ type NodeParseResult<NodeType extends AstNode> = {
   nextIndex: number;
 };
 
+type InlineParser = (value: string) => InlineAstNode[];
+type BlockParser = (value: string) => AstNode[];
+
 type ListMarker = {
   ordered: boolean;
   indent: number;
@@ -1107,10 +1088,112 @@ type ListMarker = {
   start?: number;
 };
 
-type Delimiter = {
+type DelimiterRun = {
   char: string;
   length: number;
   canOpen: boolean;
   canClose: boolean;
   node: LinkedListNode<IrNode>;
 };
+
+// constants
+const MODIFIER_CONFIGS: ModifierConfigs = {
+  "*": { intraword: true, lengths: new Set([1, 2]) },
+  _: { intraword: false, lengths: new Set([1, 2]) },
+  "~": { intraword: true, lengths: new Set([2]) },
+};
+
+const RE_HR = /^[ ]{0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
+const RE_NEWLINES = /\r\n?/g;
+const RE_LEADING_SPACES = /^ */;
+const RE_HEADING = /^[ ]{0,3}(#{1,6})[ \t]+(.*)$/;
+const RE_HEADING_TRAIL = /[ \t]+#+[ \t]*$/;
+const RE_FENCE_START = /^[ ]{0,3}(`{3,})(.*)$/;
+const RE_FENCE_LEADING_SPACES = /^[ ]{0,3}/;
+const RE_FENCE_TICKS = /^`{3,}$/;
+const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
+const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
+const RE_WHITESPACE = /\s+/g;
+const RE_DASH = /-/g;
+const RE_TABLE_DIVIDER = /^-+$/;
+const RE_TABLE_ALIGN_LEFT = /^:-+$/;
+const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
+const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
+const RE_COLON = /:/g;
+const RE_ALPHANUM = /[A-Za-z0-9]/;
+const RE_SPLIT_LANG = /\s+/;
+
+const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
+
+const TOKEN_TYPES = new Set<InlineToken["type"]>([
+  "text",
+  "newline",
+  "backtick",
+  "delimiter",
+  "punct",
+]);
+
+// Linked List utilities
+type LinkedList<T> = {
+  head?: LinkedListNode<T>;
+  tail?: LinkedListNode<T>;
+};
+
+type LinkedListNode<T> = {
+  prev?: LinkedListNode<T>;
+  next?: LinkedListNode<T>;
+  value: T;
+};
+
+function appendNode<T>(list: LinkedList<T>, value: T): LinkedListNode<T> {
+  return insertNode(list, list.tail, value);
+}
+
+function insertNode<T>(
+  list: LinkedList<T>,
+  after: LinkedListNode<T> | undefined,
+  value: T
+): LinkedListNode<T> {
+  const head = list.head;
+  if (!after) {
+    const node = { value, next: head };
+
+    if (head) head.prev = node;
+    else list.tail = node;
+
+    list.head = node;
+    return node;
+  }
+
+  const next = after.next;
+  const node = { value, prev: after, next };
+
+  if (next) next.prev = node;
+  else list.tail = node;
+
+  after.next = node;
+  return node;
+}
+
+function removeNode<T>(list: LinkedList<T>, node: LinkedListNode<T>) {
+  const { prev, next } = node;
+  if (prev) prev.next = next;
+  else list.head = next;
+
+  if (next) next.prev = prev;
+  else list.tail = prev;
+}
+
+function mapWhile<T, V>(
+  start: LinkedListNode<T> | undefined,
+  transform: (node: LinkedListNode<T>) => V,
+  predicate: (node: LinkedListNode<T>) => boolean
+): V[] {
+  const arr: V[] = [];
+  let node = start;
+  while (node && predicate(node)) {
+    arr.push(transform(node));
+    node = node.next;
+  }
+  return arr;
+}

@@ -9,7 +9,11 @@ body {
 }
 
 code {
-  color: #b71c1c;
+  color: #c80e0e;
+}
+
+tbody tr:nth-last-child(1) {
+  border-bottom: none;
 }
 
 .bordering {

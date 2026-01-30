@@ -1,41 +1,45 @@
 import React from "react";
 
-import { type AstNode, buildAst, ModifierConfig } from "./ast";
+import { type AstNode, buildAst, type ModifierConfig } from "./ast";
 
 type Props = Omit<React.ComponentPropsWithoutRef<"div">, "children"> & {
   /** The Markdown source string to convert into a react component */
   children: string;
-  /** Custom renderers to use for each DOM Element */
+  /** Custom renderers to use for each supported DOM element */
   renderers?: Partial<Renderers>;
   /**
-   * HTML elements to unwrap from output. Elements in this list will have their wrapper removed but children preserved.
-   * Elements without children (img, br, hr) will be completely removed.
-   * @example ["img", "a"] // images removed entirely, link text preserved without <a> wrapper
+   * HTML elements to hide from output JSX.
+   * - `'unwrap'`: Remove wrapper element but preserve children.
+   * - `'drop'`: Fully remove subtree rooted at the element.
+   * @example { img: 'drop', a: 'unwrap' } // images removed entirely, link text preserved without anchor
    */
-  unwrapTags?: readonly Tag[] | Tag[];
+  hideTags?: Partial<Record<Tag, "unwrap" | "drop">>;
   /**
-   * Add custom inline expressions to augment the markdown experience.
-   * Here's an example of how to add a highlighter extension:
-   * @example [{ token: "==", intraword: true, renderer: (props) => <mark {...props} /> }]
+   * Custom inline expressions to add to your markdown.
+   * @example [{ token: "==", intraword: true, renderer: (props) => <mark {...props} /> }] // can use "==highlight==" in the source!
    */
   inlineExtensions?: readonly InlineExtension[] | InlineExtension[];
 };
 
 type InlineExtension = {
+  /** The delimiter token to match (e.g. "==") */
   token: string;
+  /**
+   * Whether the token is allowed to open/close within words.
+   * If false, instances of this token between words will be treated as literals.
+   */
   intraword: boolean;
+  /** Renderer used for this custom modifier */
   renderer: (props: ChildrenProps) => React.ReactNode;
 };
 
 type InlineExtensionMap = Record<string, InlineExtension>;
 type ModifierConfigs = Record<string, ModifierConfig | undefined>;
+type ModifierTag = "em" | "strong" | "del";
 
 /** Component to render a Markdown source string into React */
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
-  (
-    { children, renderers, unwrapTags = [], inlineExtensions = [], ...props },
-    ref
-  ) => {
+  ({ children, renderers, hideTags, inlineExtensions, ...props }, ref) => {
     const { modifierConfigs, inlineExtensionMap } = React.useMemo(
       () => buildInlineExtensionMaps(inlineExtensions),
       [inlineExtensions]
@@ -44,26 +48,25 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
       () => buildAst(children, { modifierConfigs }),
       [children, modifierConfigs]
     );
-    const unwrapTagsSet = React.useMemo(
-      () => new Set(unwrapTags),
-      [unwrapTags]
+    const hideTagsMap = React.useMemo(
+      () => new Map(Object.entries(hideTags || [])),
+      [hideTags]
+    );
+    const mergedRenderers = React.useMemo(
+      () => ({ ...DEFAULT_RENDERERS, ...renderers }),
+      [renderers]
     );
 
     return (
       <div {...props} ref={ref}>
-        {render(
-          ast,
-          { ...DEFAULT_RENDERERS, ...renderers },
-          unwrapTagsSet,
-          inlineExtensionMap
-        )}
+        {render(ast, mergedRenderers, hideTagsMap, inlineExtensionMap)}
       </div>
     );
   }
 );
 
 function buildInlineExtensionMaps(
-  inlineExtensions: readonly InlineExtension[]
+  inlineExtensions: readonly InlineExtension[] = []
 ): {
   modifierConfigs: ModifierConfigs;
   inlineExtensionMap: InlineExtensionMap;
@@ -74,21 +77,16 @@ function buildInlineExtensionMaps(
   for (const ext of inlineExtensions) {
     const { token } = ext;
     const char = token[0];
-    if (!char) continue;
-    if (!token.split("").every((c) => c === char)) continue;
-
-    inlineExtensionMap[token] = ext;
-
-    const existing = modifierConfigs[char];
-    const lengths = existing
-      ? Array.from(new Set([...existing.lengths, token.length])).sort(
-          (a, b) => a - b
-        )
-      : [token.length];
-    modifierConfigs[char] = {
-      intraword: existing ? existing.intraword || ext.intraword : ext.intraword,
-      lengths,
-    };
+    if (char) {
+      inlineExtensionMap[token] = ext;
+      const existing = modifierConfigs[char];
+      const lengths = existing?.lengths || new Set();
+      lengths.add(token.length);
+      modifierConfigs[char] = {
+        intraword: ext.intraword,
+        lengths,
+      };
+    }
   }
 
   return { modifierConfigs, inlineExtensionMap };
@@ -102,32 +100,25 @@ function getNodeKey(node: AstNode) {
   return type;
 }
 
-function getTagFromNode(
-  node: Exclude<AstNode, { type: "text" }>,
-  inlineExtensionMap: InlineExtensionMap
-): Tag {
+function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag | null {
   const type = node.type;
   if (type === "list") return node.ordered ? "ol" : "ul";
   if (type === "h") return `h${node.level}`;
-  if (type === "modifier") {
-    if (inlineExtensionMap[node.delimiter]) return "em";
-    const config = MARKER_CONFIG[node.delimiter];
-    return (config?.renderer as Tag) ?? "em"; // fallback
-  }
+  if (type === "modifier") return BUILTIN_MODIFIERS[node.delimiter] ?? null;
   return type;
 }
 
 function render(
   nodes: AstNode | AstNode[],
   renderers: Renderers,
-  unwrapTags: Set<Tag>,
+  hideTags: Map<string, "unwrap" | "drop">,
   inlineExtensionMap: InlineExtensionMap
 ): React.ReactNode {
   if (Array.isArray(nodes)) {
     return (
       <>
         {nodes.map((node, index) => {
-          const child = render(node, renderers, unwrapTags, inlineExtensionMap);
+          const child = render(node, renderers, hideTags, inlineExtensionMap);
           return child ? (
             <React.Fragment key={`${getNodeKey(node)}-${index}`}>
               {child}
@@ -143,14 +134,17 @@ function render(
 
   if (type === "text") return node.value;
 
-  // unwrap nodes in unwrapTags (render children without wrapper)
-  if (unwrapTags.has(getTagFromNode(node, inlineExtensionMap))) {
+  const tag = getTagFromNode(node);
+  const hideBehavior = tag ? hideTags.get(tag) : undefined;
+  if (hideBehavior) {
+    // drop entire subtree
+    if (hideBehavior === "drop") return null;
     // unwrap and return children
     if ("children" in node)
-      return render(node.children, renderers, unwrapTags, inlineExtensionMap);
+      return render(node.children, renderers, hideTags, inlineExtensionMap);
     // return raw code strings
     if (node.type === "code" || node.type === "pre") return node.value;
-    // fully drop remaining nodes without meaningful children (img, hr, etc)
+    // elements without children (img, hr, br) return null
     return null;
   }
 
@@ -162,63 +156,37 @@ function render(
         children: render(
           node.children,
           renderers,
-          unwrapTags,
+          hideTags,
           inlineExtensionMap
         ),
       });
     }
 
-    const config = MARKER_CONFIG[node.delimiter];
-    if (!config) {
-      return render(node.children, renderers, unwrapTags, inlineExtensionMap);
+    const builtinTag = BUILTIN_MODIFIERS[node.delimiter];
+    const renderer = builtinTag ? renderers[builtinTag] : null;
+    if (!renderer) {
+      return render(node.children, renderers, hideTags, inlineExtensionMap);
     }
 
-    const rendererKey = config.renderer as keyof Renderers;
-    const rendererFn = renderers[rendererKey];
-
-    if (!rendererFn) {
-      return render(node.children, renderers, unwrapTags, inlineExtensionMap);
-    }
-
-    return (rendererFn as (props: ChildrenProps) => React.ReactNode)({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+    return renderer({
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   }
   if (type === "a")
     return renderers.a({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
       href: node.url,
     });
   if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
   if (type === "br") return renderers.br();
   if (type === "p")
     return renderers.p({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "h") {
     const Heading = renderers[`h${node.level}`];
     return Heading({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   }
   if (type === "hr") return renderers.hr();
@@ -228,7 +196,7 @@ function render(
     const children = render(
       node.children,
       renderers,
-      unwrapTags,
+      hideTags,
       inlineExtensionMap
     );
     if (node.ordered) {
@@ -240,71 +208,36 @@ function render(
   }
   if (type === "li")
     return renderers.li({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "thead")
     return renderers.thead({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "tbody")
     return renderers.tbody({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "tr")
     return renderers.tr({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   if (type === "th")
     return renderers.th({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
       align: node.align,
     });
   if (type === "td")
     return renderers.td({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
       align: node.align,
     });
   if (type === "table")
     return renderers.table({
-      children: render(
-        node.children,
-        renderers,
-        unwrapTags,
-        inlineExtensionMap
-      ),
+      children: render(node.children, renderers, hideTags, inlineExtensionMap),
     });
   return renderers.blockquote({
-    children: render(node.children, renderers, unwrapTags, inlineExtensionMap),
+    children: render(node.children, renderers, hideTags, inlineExtensionMap),
   });
 }
 
@@ -383,17 +316,12 @@ const DEFAULT_RENDERERS: Renderers = {
   td: ({ children, align }) => <td align={align}>{children}</td>,
 };
 
-type MarkerConfig = {
-  tag: string;
-  renderer: string;
-};
-
-const MARKER_CONFIG: Record<string, MarkerConfig> = {
-  "**": { tag: "strong", renderer: "strong" },
-  __: { tag: "strong", renderer: "strong" },
-  "*": { tag: "em", renderer: "em" },
-  _: { tag: "em", renderer: "em" },
-  "~~": { tag: "del", renderer: "del" },
+const BUILTIN_MODIFIERS: Record<string, ModifierTag> = {
+  "**": "strong",
+  __: "strong",
+  "*": "em",
+  _: "em",
+  "~~": "del",
 };
 
 export default Markdown;
