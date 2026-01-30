@@ -76,9 +76,7 @@ function parseHeading(line: string) {
 
 function parseFenceOpening(line: string) {
   const match = RE_FENCE_START.exec(line);
-  return match
-    ? { fenceLen: match[1].length, info: (match[2] || "").trim() }
-    : null;
+  return match ? { fenceLen: match[1].length, lang: match[2]?.trim() } : null;
 }
 
 function isFenceClosing(line: string, fenceLen: number) {
@@ -118,7 +116,7 @@ function parseListMarker(line: string): ListMarker | null {
   return null;
 }
 
-function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
+function shouldDisallowListStart(line: string, marker: ListMarker) {
   if (marker.ordered) return false;
   if (isHorizontalRule(line)) return true;
   const rest = line.slice(marker.contentIndent).replace(/[ \t]/g, "");
@@ -202,10 +200,6 @@ function parseTableAlignments(
   for (let index = 0; index < cells.length; index++) {
     const cell = cells[index];
     const trimmed = cell.replace(RE_WHITESPACE, "");
-    if (trimmed.length === 0) return null;
-    const withoutColons = trimmed.replace(RE_COLON, "");
-    const dashCount = (withoutColons.match(RE_DASH) || []).length;
-    if (dashCount < 1) return null;
 
     if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
     else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
@@ -272,7 +266,7 @@ function parseTableNode(
   const divider = lines[lineIndex + 1];
   if (!divider) return null;
   const alignments = parseTableAlignments(lines[lineIndex + 1]);
-  if (!alignments || alignments.length !== header.length) return null;
+  if (alignments?.length !== header.length) return null;
 
   const headerLength = header.length;
   let currentIndex = lineIndex + 2;
@@ -880,7 +874,7 @@ function walkAndBuildAst(
     const fence = parseFenceOpening(line);
     if (fence) {
       flushParagraph();
-      const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
+      const lang: string | undefined = fence.lang;
 
       lineIndex++;
       const pre: string[] = [];
@@ -1107,14 +1101,11 @@ const RE_FENCE_TICKS = /^`{3,}$/;
 const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
-const RE_DASH = /-/g;
 const RE_TABLE_DIVIDER = /^-+$/;
 const RE_TABLE_ALIGN_LEFT = /^:-+$/;
 const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
 const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
-const RE_COLON = /:/g;
 const RE_ALPHANUM = /[A-Za-z0-9]/;
-const RE_SPLIT_LANG = /\s+/;
 
 const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
 
