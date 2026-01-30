@@ -44,10 +44,7 @@ type ModifierTag = "em" | "strong" | "del";
 
 /** Component to render a Markdown source string into React */
 const Markdown = React.forwardRef<HTMLDivElement, Props>(
-  (
-    { children, renderers, hideTags = {}, inlineExtensions = [], ...props },
-    ref
-  ) => {
+  ({ children, renderers, hideTags, inlineExtensions, ...props }, ref) => {
     const { modifierConfigs, inlineExtensionMap } = React.useMemo(
       () => buildInlineExtensionMaps(inlineExtensions),
       [inlineExtensions]
@@ -57,25 +54,24 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
       [children, modifierConfigs]
     );
     const hideTagsMap = React.useMemo(
-      () => new Map(Object.entries(hideTags)),
+      () => new Map(Object.entries(hideTags || [])),
       [hideTags]
+    );
+    const mergedRenderers = React.useMemo(
+      () => ({ ...DEFAULT_RENDERERS, ...renderers }),
+      [renderers]
     );
 
     return (
       <div {...props} ref={ref}>
-        {render(
-          ast,
-          { ...DEFAULT_RENDERERS, ...renderers },
-          hideTagsMap,
-          inlineExtensionMap
-        )}
+        {render(ast, mergedRenderers, hideTagsMap, inlineExtensionMap)}
       </div>
     );
   }
 );
 
 function buildInlineExtensionMaps(
-  inlineExtensions: readonly InlineExtension[]
+  inlineExtensions: readonly InlineExtension[] = []
 ): {
   modifierConfigs: ModifierConfigs;
   inlineExtensionMap: InlineExtensionMap;
