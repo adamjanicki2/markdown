@@ -103,7 +103,6 @@ function parseListMarker(line: string): ListMarker | null {
 
 function shouldDisallowListStart(line: string, marker: ListMarker) {
   if (marker.ordered) return false;
-  if (isHorizontalRule(line)) return true;
   const rest = line.slice(marker.contentIndent).replace(/[ \t]/g, "");
   return (
     rest.length >= 3 &&
@@ -203,7 +202,7 @@ function parseTableNode(
   let currentIndex = lineIndex + 2;
 
   const rows: string[][] = [];
-  while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
+  while (currentIndex < lines.length) {
     const line = lines[currentIndex];
     if (isTopLevelNodeStarter(line)) break;
     const cells = splitTableRow(line);
@@ -767,10 +766,7 @@ function parseBlockquoteNode(
       lineIndex++;
     } else if (isBlank(currentLine)) break;
     else {
-      const currentIndent = getIndent(currentLine);
-      if (currentIndent === 0 && parseListMarker(currentLine)) break;
       if (isTopLevelNodeStarter(currentLine)) break;
-
       blockquoteLines.push(currentLine);
       lineIndex++;
     }
@@ -837,18 +833,18 @@ function walkAndBuildAst(
       continue;
     }
 
+    if (isHorizontalRule(line)) {
+      flushParagraph();
+      nodes.push({ type: "hr" });
+      lineIndex++;
+      continue;
+    }
+
     const list = parseListNode(lines, lineIndex, parseBlocks);
     if (list) {
       flushParagraph();
       nodes.push(list.node);
       lineIndex = list.nextIndex;
-      continue;
-    }
-
-    if (isHorizontalRule(line)) {
-      flushParagraph();
-      nodes.push({ type: "hr" });
-      lineIndex++;
       continue;
     }
 
