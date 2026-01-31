@@ -24,13 +24,13 @@ export default function Main() {
       >
         A component for converting Markdown into React
         <ui.br />
-        Checkout the docs and examples below to see what's available.
+        Check out the docs and examples below to see what's available.
       </ui.p>
       <Snippet lang="bash">npm install --save @adamjanicki/markdown</Snippet>
 
       <Heading level={1}>Setup</Heading>
       <Para>
-        After installing the package and getting setup, usage is simple: simply
+        After installing the package and getting set up, usage is simple: simply
         import the component and pass in the Markdown source to have it rendered
         as React! For further customization, you can supply custom render
         functions for each DOM element; hide or fully drop any unwanted Markdown
@@ -136,7 +136,7 @@ const starterMarkdown = [
   "",
   "Here are some text modifiers: **bold**, _italic_, `code`, and ~~strikethrough~~",
   "",
-  "And here are some custom extensions: , ==highlight==, %%subscript%%, and ^^superscript^^!",
+  "And here are some custom extensions: ==highlight==, %%subscript%%, and ^^superscript^^!",
   "",
   "> Blockquotes are great for citing lines from movies",
   "",
