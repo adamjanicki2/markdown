@@ -92,20 +92,18 @@ function buildInlineExtensionMaps(
   return { modifierConfigs, inlineExtensionMap };
 }
 
-function getNodeKey(node: AstNode) {
+function getNodeMeta(node: AstNode): { key: string; tag: Tag | null } {
   const type = node.type;
-  if (type === "list") return node.ordered ? "ol" : "ul";
-  if (type === "h") return `h${node.level}`;
-  if (type === "modifier") return `modifier-${node.delimiter}`;
-  return type;
-}
-
-function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag | null {
-  const type = node.type;
-  if (type === "list") return node.ordered ? "ol" : "ul";
-  if (type === "h") return `h${node.level}`;
-  if (type === "modifier") return BUILTIN_MODIFIERS[node.delimiter] ?? null;
-  return type;
+  if (type === "list")
+    return { key: node.ordered ? "ol" : "ul", tag: node.ordered ? "ol" : "ul" };
+  if (type === "h") return { key: `h${node.level}`, tag: `h${node.level}` };
+  if (type === "modifier")
+    return {
+      key: `modifier-${node.delimiter}`,
+      tag: BUILTIN_MODIFIERS[node.delimiter] ?? null,
+    };
+  if (type === "text") return { key: type, tag: null };
+  return { key: type, tag: type };
 }
 
 function render(
@@ -120,7 +118,7 @@ function render(
         {nodes.map((node, index) => {
           const child = render(node, renderers, hideTags, inlineExtensionMap);
           return child ? (
-            <React.Fragment key={`${getNodeKey(node)}-${index}`}>
+            <React.Fragment key={`${getNodeMeta(node).key}-${index}`}>
               {child}
             </React.Fragment>
           ) : null;
@@ -134,17 +132,19 @@ function render(
 
   if (type === "text") return node.value;
 
-  const tag = getTagFromNode(node);
+  const renderChildren = (node: { children: AstNode[] }) =>
+    render(node.children, renderers, hideTags, inlineExtensionMap);
+
+  const tag = getNodeMeta(node).tag;
   const hideBehavior = tag ? hideTags.get(tag) : undefined;
   if (hideBehavior) {
     // drop entire subtree
     if (hideBehavior === "drop") return null;
     // unwrap and return children
-    if ("children" in node)
-      return render(node.children, renderers, hideTags, inlineExtensionMap);
+    if ("children" in node) return renderChildren(node);
     // return raw code strings
     if (node.type === "code" || node.type === "pre") return node.value;
-    // elements without children (img, hr, br) return null
+    // elements without children (img, hr, br) don't have meaningful children
     return null;
   }
 
@@ -153,52 +153,42 @@ function render(
     const inlineExtension = inlineExtensionMap[node.delimiter];
     if (inlineExtension) {
       return inlineExtension.renderer({
-        children: render(
-          node.children,
-          renderers,
-          hideTags,
-          inlineExtensionMap
-        ),
+        children: renderChildren(node),
       });
     }
 
     const builtinTag = BUILTIN_MODIFIERS[node.delimiter];
     const renderer = builtinTag ? renderers[builtinTag] : null;
     if (!renderer) {
-      return render(node.children, renderers, hideTags, inlineExtensionMap);
+      return renderChildren(node);
     }
 
     return renderer({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   }
   if (type === "a")
     return renderers.a({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
       href: node.url,
     });
   if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
   if (type === "br") return renderers.br();
   if (type === "p")
     return renderers.p({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "h") {
     const Heading = renderers[`h${node.level}`];
     return Heading({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   }
   if (type === "hr") return renderers.hr();
   if (type === "pre")
     return renderers.pre({ children: node.value, lang: node.lang });
   if (type === "list") {
-    const children = render(
-      node.children,
-      renderers,
-      hideTags,
-      inlineExtensionMap
-    );
+    const children = renderChildren(node);
     if (node.ordered) {
       const start =
         node.start !== undefined && node.start !== 1 ? node.start : undefined;
@@ -208,36 +198,36 @@ function render(
   }
   if (type === "li")
     return renderers.li({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "thead")
     return renderers.thead({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "tbody")
     return renderers.tbody({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "tr")
     return renderers.tr({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "th")
     return renderers.th({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
       align: node.align,
     });
   if (type === "td")
     return renderers.td({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
       align: node.align,
     });
   if (type === "table")
     return renderers.table({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   return renderers.blockquote({
-    children: render(node.children, renderers, hideTags, inlineExtensionMap),
+    children: renderChildren(node),
   });
 }
 
