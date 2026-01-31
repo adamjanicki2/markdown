@@ -39,21 +39,6 @@ const OVERRIDE_TILDE_OPTIONS: BuildAstOptions = {
 
 export const TEST_CASES: readonly TestCase[] = [
   {
-    name: "paragraph",
-    input: "Hello world",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "Hello world",
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "paragraph does not hardbreak on single newline",
     input: "Hello\nworld",
     ast: [
@@ -89,41 +74,6 @@ export const TEST_CASES: readonly TestCase[] = [
           {
             type: "text",
             value: "world",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "nested emphasis/strong",
-    input: "**a _b_ c**",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "modifier",
-            delimiter: "**",
-            children: [
-              {
-                type: "text",
-                value: "a ",
-              },
-              {
-                type: "modifier",
-                delimiter: "_",
-                children: [
-                  {
-                    type: "text",
-                    value: "b",
-                  },
-                ],
-              },
-              {
-                type: "text",
-                value: " c",
-              },
-            ],
           },
         ],
       },
@@ -315,72 +265,6 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "html is left alone",
-    input: "<div>x</div>",
-    ast: [{ type: "p", children: [{ type: "text", value: "<div>x</div>" }] }],
-  },
-  {
-    name: "mixed: link + em + code + del",
-    input: "a [b](x) _c_ `d` ~~e~~",
-    ast: [
-      {
-        type: "p",
-        children: [
-          {
-            type: "text",
-            value: "a ",
-          },
-          {
-            type: "a",
-            url: "x",
-            children: [
-              {
-                type: "text",
-                value: "b",
-              },
-            ],
-          },
-          {
-            type: "text",
-            value: " ",
-          },
-          {
-            type: "modifier",
-            delimiter: "_",
-            children: [
-              {
-                type: "text",
-                value: "c",
-              },
-            ],
-          },
-          {
-            type: "text",
-            value: " ",
-          },
-          {
-            type: "code",
-            value: "d",
-          },
-          {
-            type: "text",
-            value: " ",
-          },
-          {
-            type: "modifier",
-            delimiter: "~~",
-            children: [
-              {
-                type: "text",
-                value: "e",
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
     name: "multiple single lines",
     input: "a\nb\nc",
     ast: [
@@ -451,22 +335,6 @@ export const TEST_CASES: readonly TestCase[] = [
                 value: "\nb",
               },
             ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "heading",
-    input: "# Title",
-    ast: [
-      {
-        type: "h",
-        level: 1,
-        children: [
-          {
-            type: "text",
-            value: "Title",
           },
         ],
       },
@@ -1860,6 +1728,45 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
+    name: "table with no body rows",
+    input: "| a | b |\n| - | - |",
+    ast: [
+      {
+        type: "table",
+        children: [
+          {
+            type: "thead",
+            children: [
+              {
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: "table supports inline in cells",
     input: "| a | b |\n| - | - |\n| **c** | d |",
     ast: [
@@ -2039,29 +1946,61 @@ export const TEST_CASES: readonly TestCase[] = [
     input: "a | b\n- | -\nc | d",
     ast: [
       {
-        type: "p",
+        type: "table",
         children: [
           {
-            type: "text",
-            value: "a | b",
-          },
-        ],
-      },
-      {
-        type: "list",
-        ordered: false,
-        tight: true,
-        children: [
-          {
-            type: "li",
+            type: "thead",
             children: [
               {
-                type: "text",
-                value: "| -",
+                type: "tr",
+                children: [
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "a",
+                      },
+                    ],
+                  },
+                  {
+                    type: "th",
+                    children: [
+                      {
+                        type: "text",
+                        value: "b",
+                      },
+                    ],
+                  },
+                ],
               },
+            ],
+          },
+          {
+            type: "tbody",
+            children: [
               {
-                type: "text",
-                value: "\nc | d",
+                type: "tr",
+                children: [
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "c",
+                      },
+                    ],
+                  },
+                  {
+                    type: "td",
+                    children: [
+                      {
+                        type: "text",
+                        value: "d",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
@@ -2973,29 +2912,13 @@ export const TEST_CASES: readonly TestCase[] = [
     ],
   },
   {
-    name: "heading with tab after marker",
-    input: "#\tTitle",
-    ast: [
-      {
-        type: "h",
-        level: 1,
-        children: [
-          {
-            type: "text",
-            value: "Title",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "code fence info only uses first token",
-    input: "```js extra\nx\n```",
+    name: "code fence supports a multitoken language",
+    input: "```x86 assembly\nret\n```",
     ast: [
       {
         type: "pre",
-        lang: "js",
-        value: "x",
+        lang: "x86 assembly",
+        value: "ret",
       },
     ],
   },

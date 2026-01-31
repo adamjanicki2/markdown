@@ -67,10 +67,7 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
 
 function buildInlineExtensionMaps(
   inlineExtensions: readonly InlineExtension[] = []
-): {
-  modifierConfigs: ModifierConfigs;
-  inlineExtensionMap: InlineExtensionMap;
-} {
+) {
   const modifierConfigs: ModifierConfigs = {};
   const inlineExtensionMap: InlineExtensionMap = {};
 
@@ -92,20 +89,18 @@ function buildInlineExtensionMaps(
   return { modifierConfigs, inlineExtensionMap };
 }
 
-function getNodeKey(node: AstNode) {
+function getNodeMetadata(node: AstNode): { key: string; tag: Tag | null } {
   const type = node.type;
-  if (type === "list") return node.ordered ? "ol" : "ul";
-  if (type === "h") return `h${node.level}`;
-  if (type === "modifier") return `modifier-${node.delimiter}`;
-  return type;
-}
-
-function getTagFromNode(node: Exclude<AstNode, { type: "text" }>): Tag | null {
-  const type = node.type;
-  if (type === "list") return node.ordered ? "ol" : "ul";
-  if (type === "h") return `h${node.level}`;
-  if (type === "modifier") return BUILTIN_MODIFIERS[node.delimiter] ?? null;
-  return type;
+  if (type === "list")
+    return { key: node.ordered ? "ol" : "ul", tag: node.ordered ? "ol" : "ul" };
+  if (type === "h") return { key: `h${node.level}`, tag: `h${node.level}` };
+  if (type === "modifier")
+    return {
+      key: `modifier-${node.delimiter}`,
+      tag: BUILTIN_MODIFIERS[node.delimiter] ?? null,
+    };
+  if (type === "text") return { key: type, tag: null };
+  return { key: type, tag: type };
 }
 
 function render(
@@ -120,7 +115,7 @@ function render(
         {nodes.map((node, index) => {
           const child = render(node, renderers, hideTags, inlineExtensionMap);
           return child ? (
-            <React.Fragment key={`${getNodeKey(node)}-${index}`}>
+            <React.Fragment key={`${getNodeMetadata(node).key}-${index}`}>
               {child}
             </React.Fragment>
           ) : null;
@@ -134,110 +129,103 @@ function render(
 
   if (type === "text") return node.value;
 
-  const tag = getTagFromNode(node);
+  const renderChildren = (node: { children: AstNode[] }) =>
+    render(node.children, renderers, hideTags, inlineExtensionMap);
+
+  const tag = getNodeMetadata(node).tag;
   const hideBehavior = tag ? hideTags.get(tag) : undefined;
   if (hideBehavior) {
     // drop entire subtree
     if (hideBehavior === "drop") return null;
     // unwrap and return children
-    if ("children" in node)
-      return render(node.children, renderers, hideTags, inlineExtensionMap);
+    if ("children" in node) return renderChildren(node);
     // return raw code strings
     if (node.type === "code" || node.type === "pre") return node.value;
-    // elements without children (img, hr, br) return null
+    // elements without children (img, hr, br) don't have meaningful children
     return null;
   }
 
-  if (type === "code") return renderers.code({ children: node.value });
+  if (type === "p")
+    return renderers.p({
+      children: renderChildren(node),
+    });
+  if (type === "h")
+    return renderers[`h${node.level}`]({
+      children: renderChildren(node),
+    });
+  if (type === "a")
+    return renderers.a({
+      children: renderChildren(node),
+      href: node.url,
+    });
   if (type === "modifier") {
     const inlineExtension = inlineExtensionMap[node.delimiter];
     if (inlineExtension) {
       return inlineExtension.renderer({
-        children: render(
-          node.children,
-          renderers,
-          hideTags,
-          inlineExtensionMap
-        ),
+        children: renderChildren(node),
       });
     }
 
     const builtinTag = BUILTIN_MODIFIERS[node.delimiter];
     const renderer = builtinTag ? renderers[builtinTag] : null;
     if (!renderer) {
-      return render(node.children, renderers, hideTags, inlineExtensionMap);
+      return renderChildren(node);
     }
 
     return renderer({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
-    });
-  }
-  if (type === "a")
-    return renderers.a({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
-      href: node.url,
-    });
-  if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
-  if (type === "br") return renderers.br();
-  if (type === "p")
-    return renderers.p({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
-    });
-  if (type === "h") {
-    const Heading = renderers[`h${node.level}`];
-    return Heading({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   }
   if (type === "hr") return renderers.hr();
-  if (type === "pre")
-    return renderers.pre({ children: node.value, lang: node.lang });
+  if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
+  if (type === "br") return renderers.br();
   if (type === "list") {
-    const children = render(
-      node.children,
-      renderers,
-      hideTags,
-      inlineExtensionMap
-    );
-    if (node.ordered) {
-      const start =
-        node.start !== undefined && node.start !== 1 ? node.start : undefined;
-      return renderers.ol({ children, start });
-    }
-    return renderers.ul({ children });
+    const children = renderChildren(node);
+    return node.ordered
+      ? renderers.ol({
+          children,
+          start:
+            node.start !== undefined && node.start !== 1
+              ? node.start
+              : undefined,
+        })
+      : renderers.ul({ children });
   }
   if (type === "li")
     return renderers.li({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
+  if (type === "code") return renderers.code({ children: node.value });
+  if (type === "pre")
+    return renderers.pre({ children: node.value, lang: node.lang });
   if (type === "thead")
     return renderers.thead({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "tbody")
     return renderers.tbody({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "tr")
     return renderers.tr({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   if (type === "th")
     return renderers.th({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
       align: node.align,
     });
   if (type === "td")
     return renderers.td({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
       align: node.align,
     });
   if (type === "table")
     return renderers.table({
-      children: render(node.children, renderers, hideTags, inlineExtensionMap),
+      children: renderChildren(node),
     });
   return renderers.blockquote({
-    children: render(node.children, renderers, hideTags, inlineExtensionMap),
+    children: renderChildren(node),
   });
 }
 
@@ -284,36 +272,36 @@ type Renderers = {
 type Tag = keyof Renderers;
 
 const DEFAULT_RENDERERS: Renderers = {
-  code: ({ children }) => <code>{children}</code>,
-  em: ({ children }) => <em>{children}</em>,
-  strong: ({ children }) => <strong>{children}</strong>,
-  del: ({ children }) => <del>{children}</del>,
-  a: ({ children, href }) => <a href={href}>{children}</a>,
-  img: ({ alt, src }) => <img src={src} alt={alt} />,
+  code: (props) => <code {...props} />,
+  em: (props) => <em {...props} />,
+  strong: (props) => <strong {...props} />,
+  del: (props) => <del {...props} />,
+  a: (props) => <a {...props} />,
+  img: (props) => <img {...props} />,
   br: () => <br />,
-  p: ({ children }) => <p>{children}</p>,
-  h1: ({ children }) => <h1>{children}</h1>,
-  h2: ({ children }) => <h2>{children}</h2>,
-  h3: ({ children }) => <h3>{children}</h3>,
-  h4: ({ children }) => <h4>{children}</h4>,
-  h5: ({ children }) => <h5>{children}</h5>,
-  h6: ({ children }) => <h6>{children}</h6>,
+  p: (props) => <p {...props} />,
+  h1: (props) => <h1 {...props} />,
+  h2: (props) => <h2 {...props} />,
+  h3: (props) => <h3 {...props} />,
+  h4: (props) => <h4 {...props} />,
+  h5: (props) => <h5 {...props} />,
+  h6: (props) => <h6 {...props} />,
   hr: () => <hr />,
   pre: ({ children }) => (
     <pre>
       <code>{children}</code>
     </pre>
   ),
-  blockquote: ({ children }) => <blockquote>{children}</blockquote>,
-  ol: ({ children, start }) => <ol start={start}>{children}</ol>,
-  ul: ({ children }) => <ul>{children}</ul>,
-  li: ({ children }) => <li>{children}</li>,
-  table: ({ children }) => <table>{children}</table>,
-  thead: ({ children }) => <thead>{children}</thead>,
-  tbody: ({ children }) => <tbody>{children}</tbody>,
-  tr: ({ children }) => <tr>{children}</tr>,
-  th: ({ children, align }) => <th align={align}>{children}</th>,
-  td: ({ children, align }) => <td align={align}>{children}</td>,
+  blockquote: (props) => <blockquote {...props} />,
+  ol: (props) => <ol {...props} />,
+  ul: (props) => <ul {...props} />,
+  li: (props) => <li {...props} />,
+  table: (props) => <table {...props} />,
+  thead: (props) => <thead {...props} />,
+  tbody: (props) => <tbody {...props} />,
+  tr: (props) => <tr {...props} />,
+  th: (props) => <th {...props} />,
+  td: (props) => <td {...props} />,
 };
 
 const BUILTIN_MODIFIERS: Record<string, ModifierTag> = {

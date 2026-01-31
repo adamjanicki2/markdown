@@ -138,14 +138,14 @@ export default function DemoMarkdown({ markdown }: { markdown: string }) {
             {...{ children }}
           />
         ),
-        th: ({ children }) => (
+        th: (props) => (
           <ui.td
             vfx={{ fontWeight: 7, stretch: "even", padding: "s" }}
-            {...{ children }}
+            {...props}
           />
         ),
-        td: ({ children }) => (
-          <ui.td vfx={{ stretch: "even", padding: "s" }} {...{ children }} />
+        td: (props) => (
+          <ui.td vfx={{ stretch: "even", padding: "s" }} {...props} />
         ),
       }}
       inlineExtensions={[

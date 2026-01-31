@@ -24,27 +24,12 @@ const isSpace = (char?: string) =>
 const isAlphanum = (char?: string) => !!char && RE_ALPHANUM.test(char);
 const isToken = (node: IrNode): node is InlineToken =>
   (TOKEN_TYPES as Set<string>).has(node.type);
-const isTextNode = (node: IrNode | InlineToken): node is TextNode =>
-  node.type === "text";
 
 function appendText(nodes: IrNode[], value: string) {
   if (!value) return;
   const last = nodes[nodes.length - 1];
   if (last && last.type === "text") last.value += value;
   else nodes.push({ type: "text", value });
-}
-
-function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
-  const merged: T[] = [];
-  for (const node of nodes) {
-    const last = merged[merged.length - 1];
-    if (last && isTextNode(node) && isTextNode(last)) {
-      last.value += node.value;
-    } else {
-      merged.push(node);
-    }
-  }
-  return merged;
 }
 
 function nodeToLiteral(node: IrNode): string {
@@ -76,9 +61,7 @@ function parseHeading(line: string) {
 
 function parseFenceOpening(line: string) {
   const match = RE_FENCE_START.exec(line);
-  return match
-    ? { fenceLen: match[1].length, info: (match[2] || "").trim() }
-    : null;
+  return match ? { fenceLen: match[1].length, lang: match[2]?.trim() } : null;
 }
 
 function isFenceClosing(line: string, fenceLen: number) {
@@ -118,9 +101,8 @@ function parseListMarker(line: string): ListMarker | null {
   return null;
 }
 
-function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
+function shouldDisallowListStart(line: string, marker: ListMarker) {
   if (marker.ordered) return false;
-  if (isHorizontalRule(line)) return true;
   const rest = line.slice(marker.contentIndent).replace(/[ \t]/g, "");
   return (
     rest.length >= 3 &&
@@ -129,7 +111,7 @@ function shouldDisallowListStart(line: string, marker: ListMarker): boolean {
   );
 }
 
-function getBlockquoteInfo(str: string) {
+function stripBlockquoteMarker(str: string) {
   let index = 0;
   while (index < str.length && index < 3 && str[index] === " ") index++;
 
@@ -141,15 +123,9 @@ function getBlockquoteInfo(str: string) {
   }
 
   if (depth === 0) return null;
-  return { depth, content: str.slice(index) };
-}
-
-function stripBlockquoteMarker(str: string) {
-  const info = getBlockquoteInfo(str);
-  if (!info) return null;
-  return info.depth === 1
-    ? info.content
-    : ">".repeat(info.depth - 1) + " " + info.content;
+  return depth === 1
+    ? str.slice(index)
+    : ">".repeat(depth - 1) + " " + str.slice(index);
 }
 
 const isTopLevelNodeStarter = (line: string) =>
@@ -162,32 +138,30 @@ const isTopLevelNodeStarter = (line: string) =>
     stripBlockquoteMarker(line) !== null
   );
 
-function splitTableRow(str: string): string[] {
-  let text = str.trim();
-  if (text.startsWith("|")) text = text.slice(1);
-  if (text.endsWith("|")) text = text.slice(0, -1);
+function splitTableRow(row: string) {
+  row = row.trim();
+  if (row.startsWith("|")) row = row.slice(1);
+  if (row.endsWith("|")) row = row.slice(0, -1);
 
   const cells: string[] = [];
-  let current = "";
+  let cellBuf = "";
   let index = 0;
-  while (index < text.length) {
-    const char = text[index];
-    const nextChar = text[index + 1];
+  while (index < row.length) {
+    const char = row[index];
+    const nextChar = row[index + 1];
     if (char === "\\" && nextChar === "|") {
-      current += "|";
+      cellBuf += "|";
       index += 2;
-      continue;
-    }
-    if (char === "|") {
-      cells.push(current.trim());
-      current = "";
+    } else if (char === "|") {
+      cells.push(cellBuf.trim());
+      cellBuf = "";
       index++;
-      continue;
+    } else {
+      cellBuf += char;
+      index++;
     }
-    current += char;
-    index++;
   }
-  cells.push(current.trim());
+  cells.push(cellBuf.trim());
   return cells;
 }
 
@@ -196,42 +170,47 @@ function parseTableAlignments(
 ): Array<TableAlign | undefined> | null {
   const cells = splitTableRow(line);
   if (cells.length <= 0) return null;
-  const trimmedLine = line.trim();
-  const minDashes = !(trimmedLine.startsWith("|") || trimmedLine.endsWith("|"));
 
   const alignments: Array<TableAlign | undefined> = [];
 
-  for (let index = 0; index < cells.length; index++) {
-    const cell = cells[index];
-    const trimmed = cell.replace(RE_WHITESPACE, "");
-    if (trimmed.length === 0) return null;
-    const withoutColons = trimmed.replace(RE_COLON, "");
-    const dashCount = (withoutColons.match(RE_DASH) || []).length;
-    if (dashCount < 1) return null;
-    if (index === 0 && dashCount < 2 && minDashes) {
-      const isAligned =
-        RE_TABLE_ALIGN_CENTER.test(trimmed) ||
-        RE_TABLE_ALIGN_LEFT.test(trimmed) ||
-        RE_TABLE_ALIGN_RIGHT.test(trimmed);
-      if (!isAligned) return null;
-    }
+  for (let cell of cells) {
+    cell = cell.replace(RE_WHITESPACE, "");
 
-    if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
-    else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
-    else if (RE_TABLE_ALIGN_RIGHT.test(trimmed)) alignments.push("right");
-    else if (RE_TABLE_DIVIDER.test(trimmed)) alignments.push(undefined);
+    if (RE_TABLE_ALIGN_NONE.test(cell)) alignments.push(undefined);
+    else if (RE_TABLE_ALIGN_CENTER.test(cell)) alignments.push("center");
+    else if (RE_TABLE_ALIGN_LEFT.test(cell)) alignments.push("left");
+    else if (RE_TABLE_ALIGN_RIGHT.test(cell)) alignments.push("right");
     else return null;
   }
 
   return alignments;
 }
 
-function buildTableNode(
-  header: string[],
-  rows: string[][],
-  alignments: Array<TableAlign | undefined>,
+function parseTableNode(
+  lines: string[],
+  lineIndex: number,
   parseInlineValue: InlineParser
-): TableNode {
+): NodeParseResult<TableNode> | null {
+  const line = lines[lineIndex];
+  const header = splitTableRow(line);
+  const divider = lines[lineIndex + 1];
+  if (!divider) return null;
+  const alignments = parseTableAlignments(lines[lineIndex + 1]);
+  if (alignments?.length !== header.length) return null;
+
+  const headerLength = header.length;
+  let currentIndex = lineIndex + 2;
+
+  const rows: string[][] = [];
+  while (currentIndex < lines.length) {
+    const rowLine = lines[currentIndex];
+    if (isTopLevelNodeStarter(rowLine)) break;
+    const cells = splitTableRow(rowLine);
+    while (cells.length < headerLength) cells.push("");
+    rows.push(cells.slice(0, headerLength));
+    currentIndex++;
+  }
+
   const thead: TableHeadNode = {
     type: "thead",
     children: [
@@ -246,83 +225,48 @@ function buildTableNode(
     ],
   };
 
-  const tbody: TableBodyNode = {
-    type: "tbody",
-    children: rows.map((row) => ({
-      type: "tr",
-      children: row.map((cellValue, cellIndex) => ({
-        type: "td",
-        align: alignments[cellIndex],
-        children: parseInlineValue(cellValue),
-      })),
-    })),
-  };
+  const children: TableNode["children"] =
+    rows.length > 0
+      ? [
+          thead,
+          {
+            type: "tbody",
+            children: rows.map((row) => ({
+              type: "tr",
+              children: row.map((cellValue, cellIndex) => ({
+                type: "td",
+                align: alignments[cellIndex],
+                children: parseInlineValue(cellValue),
+              })),
+            })),
+          },
+        ]
+      : [thead];
 
   return {
-    type: "table",
-    children: [thead, tbody],
-  };
-}
-
-function parseTableNode(
-  lines: string[],
-  lineIndex: number,
-  parseInlineValue: InlineParser
-): NodeParseResult<TableNode> | null {
-  const line = lines[lineIndex];
-  const header = splitTableRow(line);
-  const divider = lines[lineIndex + 1];
-  if (!divider) return null;
-  const alignments = parseTableAlignments(lines[lineIndex + 1]);
-  if (
-    !alignments ||
-    alignments.length !== header.length ||
-    (header.length <= 1 && !alignments[0] && !divider.includes("|"))
-  )
-    return null;
-
-  const headerLength = header.length;
-  let currentIndex = lineIndex + 2;
-
-  const rows: string[][] = [];
-  while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
-    const rowLine = lines[currentIndex];
-    const rowCells = rowLine.includes("|") ? splitTableRow(rowLine) : null;
-    const isRowCandidate =
-      rowCells !== null && (rowCells.length > 1 || headerLength === 1);
-    if (!isRowCandidate && isTopLevelNodeStarter(rowLine)) break;
-
-    const rowValues = isRowCandidate ? rowCells : [rowLine.trim()];
-    while (rowValues.length < headerLength) rowValues.push("");
-    rows.push(rowValues.slice(0, headerLength));
-    currentIndex++;
-  }
-
-  return {
-    node: buildTableNode(header, rows, alignments, parseInlineValue),
+    node: {
+      type: "table",
+      children,
+    },
     nextIndex: currentIndex,
   };
 }
 
-function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
-  const last = inlineNodes[inlineNodes.length - 1];
-  let hard = false;
-  if (last && last.type === "text" && last.value.endsWith("  ")) {
-    last.value = last.value.slice(0, -2);
-    hard = true;
-    if (!last.value) inlineNodes.pop();
-  }
-  inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
-}
-
-function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
+function irToInlineNodes(irNodes: IrNode[]) {
   const inlineNodes: InlineAstNode[] = [];
 
-  for (const node of nodesList) {
+  for (const node of irNodes) {
     if (node.type === "text") {
       appendText(inlineNodes, node.value);
     } else if (node.type === "newline") {
-      handleInlineNewline(inlineNodes);
+      const last = inlineNodes[inlineNodes.length - 1];
+      let hard = false;
+      if (last && last.type === "text" && last.value.endsWith("  ")) {
+        last.value = last.value.slice(0, -2);
+        hard = true;
+        if (!last.value) inlineNodes.pop();
+      }
+      inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
     } else if (isToken(node)) {
       appendText(inlineNodes, nodeToLiteral(node));
     } else {
@@ -333,23 +277,25 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
   return inlineNodes;
 }
 
-function tokenize(
+function tokenizeLine(
   str: string,
   modifierConfigs: ModifierConfigs
-): InlineToken[] {
+): [InlineToken[], boolean] {
   const tokens: InlineToken[] = [];
-  let textBuffer = "";
+  let textBuf = "";
+  let hasBacktick = false;
 
-  const flushText = () => {
-    if (!textBuffer) return;
-    const last = tokens[tokens.length - 1];
-    if (last && last.type === "text") last.value += textBuffer;
-    else tokens.push({ type: "text", value: textBuffer });
-    textBuffer = "";
+  const pushText = () => {
+    if (textBuf) {
+      const last = tokens[tokens.length - 1];
+      if (last && last.type === "text") last.value += textBuf;
+      else tokens.push({ type: "text", value: textBuf });
+      textBuf = "";
+    }
   };
 
   const pushToken = (token: InlineToken) => {
-    flushText();
+    pushText();
     tokens.push(token);
   };
 
@@ -359,11 +305,11 @@ function tokenize(
     if (char === "\n") pushToken({ type: "newline" });
     else if (char === "\\") {
       const nextChar = str[i + 1];
-      if (nextChar && ESCAPABLE.has(nextChar)) {
-        textBuffer += nextChar;
+      if (ESCAPABLE.has(nextChar)) {
+        textBuf += nextChar;
         i++;
       } else {
-        textBuffer += "\\";
+        textBuf += "\\";
       }
     } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
     else if (char === "`" || char in modifierConfigs) {
@@ -372,13 +318,14 @@ function tokenize(
 
       if (char === "`") {
         pushToken({ type: "backtick", len: runIndex - i });
+        hasBacktick = true;
       } else {
         const intraword = modifierConfigs[char]?.intraword;
         const prevChar = str[i - 1];
         const nextChar = str[runIndex];
 
         if (!intraword && isAlphanum(prevChar) && isAlphanum(nextChar)) {
-          textBuffer += char.repeat(runIndex - i);
+          textBuf += char.repeat(runIndex - i);
         } else {
           pushToken({
             type: "delimiter",
@@ -390,14 +337,14 @@ function tokenize(
         }
       }
       i = runIndex - 1;
-    } else textBuffer += char;
+    } else textBuf += char;
   }
 
-  flushText();
-  return tokens;
+  pushText();
+  return [tokens, hasBacktick];
 }
 
-function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
+function resolveCodeSpans(tokens: InlineToken[]) {
   const nodes: IrNode[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -432,37 +379,25 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
     }
   }
 
-  return mergeAdjacentText(nodes);
+  return nodes;
 }
 
 const isPunctChar = (node: IrNode, char: string): node is PunctToken =>
   isToken(node) && node.type === "punct" && node.char === char;
 
-function findMatchingCloser(
-  nodes: IrNode[],
-  startIndex: number,
-  open: string,
-  close: string
-): number {
-  let index = startIndex;
-  let depth = 0;
-  while (index < nodes.length) {
-    const candidate = nodes[index];
-    if (isPunctChar(candidate, open)) depth++;
-    else if (isPunctChar(candidate, close)) {
-      if (depth === 0) return index;
-      depth--;
-    }
-    index++;
-  }
-  return index;
-}
+const inlineFromIr = (nodes: IrNode[], modifierConfigs: ModifierConfigs) =>
+  irToInlineNodes(
+    resolveDelimiters(
+      resolveLinksAndImages(nodes, modifierConfigs),
+      modifierConfigs
+    )
+  );
 
 function parseLinkOrImage(
   nodes: IrNode[],
   startIndex: number,
-  parseInlineValue: InlineParser
-): { node: IrNode; nextIndex: number } | null {
+  modifierConfigs: ModifierConfigs
+): { node: LinkNode | ImageNode; nextIndex: number } | null {
   const startNode = nodes[startIndex];
   if (!isToken(startNode)) return null;
 
@@ -474,70 +409,82 @@ function parseLinkOrImage(
   )
     return null;
 
-  const rightBracketIndex = findMatchingCloser(
-    nodes,
-    leftBracketIndex + 1,
-    "[",
-    "]"
-  );
+  const findMatchingCloser = (
+    startIndex: number,
+    open: string,
+    close: string
+  ) => {
+    let index = startIndex;
+    let depth = 0;
+    while (index < nodes.length) {
+      const candidate = nodes[index];
+      if (isPunctChar(candidate, open)) depth++;
+      else if (isPunctChar(candidate, close)) {
+        if (depth === 0) return index;
+        depth--;
+      }
+      index++;
+    }
+    return index;
+  };
+
+  const rightBracketIndex = findMatchingCloser(leftBracketIndex + 1, "[", "]");
   if (rightBracketIndex >= nodes.length) return null;
 
   const leftParenNode = nodes[rightBracketIndex + 1];
   if (!leftParenNode || !isPunctChar(leftParenNode, "(")) return null;
 
-  const rightParenIndex = findMatchingCloser(
-    nodes,
-    rightBracketIndex + 2,
-    "(",
-    ")"
-  );
+  const rightParenIndex = findMatchingCloser(rightBracketIndex + 2, "(", ")");
   if (rightParenIndex >= nodes.length) return null;
 
   const labelNodes = nodes.slice(leftBracketIndex + 1, rightBracketIndex);
-  const urlNodes = nodes.slice(rightBracketIndex + 2, rightParenIndex);
-
-  const url = nodesToLiteral(urlNodes).trim();
-  const label = nodesToLiteral(labelNodes);
+  const url = nodesToLiteral(
+    nodes.slice(rightBracketIndex + 2, rightParenIndex)
+  ).trim();
 
   if (isBang) {
     return {
-      node: { type: "img", url, alt: label },
+      node: { type: "img", url, alt: nodesToLiteral(labelNodes) },
       nextIndex: rightParenIndex,
     };
   }
 
-  const children = parseInlineValue(label);
   return {
-    node: { type: "a", url, children },
+    node: {
+      type: "a",
+      url,
+      children: inlineFromIr(labelNodes, modifierConfigs),
+    },
     nextIndex: rightParenIndex,
   };
 }
 
 function resolveLinksAndImages(
   nodes: IrNode[],
-  parseInlineValue: InlineParser
+  modifierConfigs: ModifierConfigs
 ): IrNode[] {
-  const nodesOut: IrNode[] = [];
+  const irNodes: IrNode[] = [];
 
-  for (let i = 0; i < nodes.length; i++) {
-    const linkOrImageMatch = parseLinkOrImage(nodes, i, parseInlineValue);
+  for (let i = 0; i < nodes.length; ) {
+    const linkOrImageMatch = parseLinkOrImage(nodes, i, modifierConfigs);
     const node = nodes[i];
     if (linkOrImageMatch) {
-      nodesOut.push(linkOrImageMatch.node);
-      i = linkOrImageMatch.nextIndex;
+      irNodes.push(linkOrImageMatch.node);
+      i = linkOrImageMatch.nextIndex + 1;
     } else {
-      nodesOut.push(node);
+      irNodes.push(node);
+      i++;
     }
   }
 
-  return mergeAdjacentText(nodesOut);
+  return irNodes;
 }
 
 function getMaxSupportedDelimiterLength(
   opener: DelimiterRun,
   closer: DelimiterRun,
   modifierConfigs: ModifierConfigs
-): number {
+) {
   if (opener.char !== closer.char) return 0;
   if (opener.length === 0 || closer.length === 0) return 0;
 
@@ -551,10 +498,7 @@ function getMaxSupportedDelimiterLength(
   return 0;
 }
 
-function resolveDelimiters(
-  nodes: IrNode[],
-  modifierConfigs: ModifierConfigs
-): IrNode[] {
+function resolveDelimiters(nodes: IrNode[], modifierConfigs: ModifierConfigs) {
   const nodeList: LinkedList<IrNode> = {};
   const delimiterRunList: LinkedList<DelimiterRun> = {};
   const pushText = (value: string) =>
@@ -620,7 +564,7 @@ function resolveDelimiters(
       (node) => node !== closerNode
     );
 
-    const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
+    const children = irToInlineNodes(innerNodes.map((item) => item.value));
     const delimiter = closer.value.char.repeat(used);
     const emphasisNode: IrNode = {
       type: "modifier",
@@ -662,12 +606,10 @@ function resolveDelimiters(
     closer = nextCloser;
   }
 
-  return mergeAdjacentText(
-    mapWhile(
-      nodeList.head,
-      (node) => node.value,
-      () => true
-    )
+  return mapWhile(
+    nodeList.head,
+    (node) => node.value,
+    () => true
   );
 }
 
@@ -675,15 +617,10 @@ function parseInline(
   str: string,
   modifierConfigs: ModifierConfigs
 ): InlineAstNode[] {
-  const tokens = tokenize(str, modifierConfigs);
-  const parseInlineValue: InlineParser = (value) =>
-    parseInline(value, modifierConfigs);
+  const [tokens, hasBacktick] = tokenizeLine(str, modifierConfigs);
+  const nodes: IrNode[] = hasBacktick ? resolveCodeSpans(tokens) : tokens;
 
-  let nodes: IrNode[] = resolveCodeSpans(tokens);
-  nodes = resolveLinksAndImages(nodes, parseInlineValue);
-  nodes = resolveDelimiters(nodes, modifierConfigs);
-
-  return finalizeInlineNodes(nodes);
+  return inlineFromIr(nodes, modifierConfigs);
 }
 
 function parseListNode(
@@ -768,12 +705,11 @@ function parseListNode(
 
       let sliceAt = 0;
       if (lineIndent >= listMarker.contentIndent) {
-        sliceAt = listMarker.contentIndent;
-        if (
+        sliceAt =
           lineIndent > listMarker.contentIndent &&
           !parseListMarker(currentLine.slice(listMarker.contentIndent))
-        )
-          sliceAt = lineIndent;
+            ? lineIndent
+            : listMarker.contentIndent;
       } else if (lineIndent > indent) {
         sliceAt = Math.min(lineIndent, indent + 1);
       }
@@ -834,10 +770,7 @@ function parseBlockquoteNode(
       lineIndex++;
     } else if (isBlank(currentLine)) break;
     else {
-      const currentIndent = getIndent(currentLine);
-      if (currentIndent === 0 && parseListMarker(currentLine)) break;
       if (isTopLevelNodeStarter(currentLine)) break;
-
       blockquoteLines.push(currentLine);
       lineIndex++;
     }
@@ -887,7 +820,7 @@ function walkAndBuildAst(
     const fence = parseFenceOpening(line);
     if (fence) {
       flushParagraph();
-      const lang: string | undefined = fence.info.split(RE_SPLIT_LANG)[0];
+      const lang: string | undefined = fence.lang;
 
       lineIndex++;
       const pre: string[] = [];
@@ -904,18 +837,18 @@ function walkAndBuildAst(
       continue;
     }
 
+    if (isHorizontalRule(line)) {
+      flushParagraph();
+      nodes.push({ type: "hr" });
+      lineIndex++;
+      continue;
+    }
+
     const list = parseListNode(lines, lineIndex, parseBlocks);
     if (list) {
       flushParagraph();
       nodes.push(list.node);
       lineIndex = list.nextIndex;
-      continue;
-    }
-
-    if (isHorizontalRule(line)) {
-      flushParagraph();
-      nodes.push({ type: "hr" });
-      lineIndex++;
       continue;
     }
 
@@ -1051,7 +984,7 @@ type TableBodyNode = {
 
 type TableNode = {
   type: "table";
-  children: [TableHeadNode, TableBodyNode];
+  children: [TableHeadNode] | [TableHeadNode, TableBodyNode];
 };
 
 type BlockAstNode =
@@ -1114,14 +1047,11 @@ const RE_FENCE_TICKS = /^`{3,}$/;
 const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
-const RE_DASH = /-/g;
-const RE_TABLE_DIVIDER = /^-+$/;
+const RE_TABLE_ALIGN_NONE = /^-+$/;
 const RE_TABLE_ALIGN_LEFT = /^:-+$/;
 const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
 const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
-const RE_COLON = /:/g;
 const RE_ALPHANUM = /[A-Za-z0-9]/;
-const RE_SPLIT_LANG = /\s+/;
 
 const ESCAPABLE = new Set("\\`*_~{}[]()#+-.!|>".split(""));
 
