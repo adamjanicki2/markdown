@@ -55,7 +55,7 @@ Notable omissions by design:
 
 ## Security
 
-On the plus side, I intentionally did not support raw HTML, so you're safe from anything like that, meaning the remaining two XSS vulnerabilities come from URLs of image `src`s and anchor `href`. **I do not do any sanitization or filtering out of the box; you will have to implement that yourself using a custom renderer, or you can choose to drop/unwrap links.**
+On the plus side, I intentionally did not support raw HTML, so you're safe from anything like that, meaning the only two XSS vulnerabilities come from URLs of image `src`s and anchor `href`. **I do not do any sanitization or filtering out of the box; you will have to implement that yourself using a custom renderer, or you can choose to drop/unwrap links.**
 
 ## Examples
 
