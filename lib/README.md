@@ -4,15 +4,7 @@ A lightweight and customizable Markdown to React renderer.
 
 ## Overview
 
-This library is **not a strict CommonMark implementation**. It supports a **subset of GitHub Flavored Markdown (GFM)** with some intentional omissions for security and simplicity.
-
-### Important Disclaimers
-
-- **Not a full CommonMark implementation**: Some edge cases and advanced features are not supported
-- **Subset of GFM**: Supports tables, strikethrough, and fenced code blocks, but not all GFM extensions
-- **No raw HTML**: HTML is not parsed or rendered for security's sake
-- **Prioritizes safety and customization**: Built for controlled environments where you need precise rendering control
-- **I built this for fun**: There are probably bugs, so use caution!
+This library is not a strict CommonMark implementation; it supports the majority of it with an added subset of GitHub Flavored Markdown (GFM) with some intentional omissions for security and simplicity. It's unique in its own way; it's _Adamarkdown_ syntax. I built this for fun, so use with caution, there are likely small bugs, and slight mismatches between outputs of this and a true commonmark parser.
 
 ## Installation
 
@@ -30,7 +22,7 @@ function App() {
 }
 ```
 
-## Supported Markdown Syntax
+## Supported Features
 
 | Feature              | Syntax                             |
 | -------------------- | ---------------------------------- |
@@ -57,25 +49,21 @@ Notable omissions by design:
 - Reference-style links
 - Indented code blocks (use fenced ` ``` ` instead)
 - Setext headings (use `#` instead)
-- Task lists, footnotes, emoji shortcodes
+- Task lists
+- Footnotes
 - Autolinks
 
 ## Examples
 
-### Renderers
-
-**Syntax Highlighting:**
+### Custom Code Block
 
 ```tsx
 import Markdown from "@adamjanicki/markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 
 <Markdown
   renderers={{
     pre: ({ children, lang }) => (
-      <SyntaxHighlighter language={lang || "text"}>
-        {children}
-      </SyntaxHighlighter>
+      <CodeBlock language={lang}>{children}</CodeBlock>
     ),
   }}
 >
@@ -83,7 +71,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 </Markdown>;
 ```
 
-**Link Sanitization:**
+### Link Sanitization
 
 ```tsx
 <Markdown
@@ -102,9 +90,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 </Markdown>
 ```
 
-### Extensions
-
-**Custom Syntax (Highlight, Superscript, Small):**
+### Custom Syntax Extensions
 
 ```tsx
 <Markdown
