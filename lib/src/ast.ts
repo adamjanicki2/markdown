@@ -203,9 +203,9 @@ function parseTableNode(
 
   const rows: string[][] = [];
   while (currentIndex < lines.length) {
-    const line = lines[currentIndex];
-    if (isTopLevelNodeStarter(line)) break;
-    const cells = splitTableRow(line);
+    const rowLine = lines[currentIndex];
+    if (isTopLevelNodeStarter(rowLine)) break;
+    const cells = splitTableRow(rowLine);
     while (cells.length < headerLength) cells.push("");
     rows.push(cells.slice(0, headerLength));
     currentIndex++;
@@ -277,9 +277,13 @@ function irToInlineNodes(irNodes: IrNode[]) {
   return inlineNodes;
 }
 
-function tokenizeLine(str: string, modifierConfigs: ModifierConfigs) {
+function tokenizeLine(
+  str: string,
+  modifierConfigs: ModifierConfigs
+): [InlineToken[], boolean] {
   const tokens: InlineToken[] = [];
   let textBuf = "";
+  let hasBacktick = false;
 
   const pushText = () => {
     if (textBuf) {
@@ -314,6 +318,7 @@ function tokenizeLine(str: string, modifierConfigs: ModifierConfigs) {
 
       if (char === "`") {
         pushToken({ type: "backtick", len: runIndex - i });
+        hasBacktick = true;
       } else {
         const intraword = modifierConfigs[char]?.intraword;
         const prevChar = str[i - 1];
@@ -336,7 +341,7 @@ function tokenizeLine(str: string, modifierConfigs: ModifierConfigs) {
   }
 
   pushText();
-  return tokens;
+  return [tokens, hasBacktick];
 }
 
 function resolveCodeSpans(tokens: InlineToken[]) {
@@ -380,14 +385,13 @@ function resolveCodeSpans(tokens: InlineToken[]) {
 const isPunctChar = (node: IrNode, char: string): node is PunctToken =>
   isToken(node) && node.type === "punct" && node.char === char;
 
-function inlineFromIr(nodes: IrNode[], modifierConfigs: ModifierConfigs) {
-  return irToInlineNodes(
+const inlineFromIr = (nodes: IrNode[], modifierConfigs: ModifierConfigs) =>
+  irToInlineNodes(
     resolveDelimiters(
       resolveLinksAndImages(nodes, modifierConfigs),
       modifierConfigs
     )
   );
-}
 
 function parseLinkOrImage(
   nodes: IrNode[],
@@ -434,9 +438,9 @@ function parseLinkOrImage(
   if (rightParenIndex >= nodes.length) return null;
 
   const labelNodes = nodes.slice(leftBracketIndex + 1, rightBracketIndex);
-  const urlNodes = nodes.slice(rightBracketIndex + 2, rightParenIndex);
-
-  const url = nodesToLiteral(urlNodes).trim();
+  const url = nodesToLiteral(
+    nodes.slice(rightBracketIndex + 2, rightParenIndex)
+  ).trim();
 
   if (isBang) {
     return {
@@ -461,14 +465,15 @@ function resolveLinksAndImages(
 ): IrNode[] {
   const irNodes: IrNode[] = [];
 
-  for (let i = 0; i < nodes.length; i++) {
+  for (let i = 0; i < nodes.length; ) {
     const linkOrImageMatch = parseLinkOrImage(nodes, i, modifierConfigs);
     const node = nodes[i];
     if (linkOrImageMatch) {
       irNodes.push(linkOrImageMatch.node);
-      i = linkOrImageMatch.nextIndex;
+      i = linkOrImageMatch.nextIndex + 1;
     } else {
       irNodes.push(node);
+      i++;
     }
   }
 
@@ -612,8 +617,8 @@ function parseInline(
   str: string,
   modifierConfigs: ModifierConfigs
 ): InlineAstNode[] {
-  const tokens = tokenizeLine(str, modifierConfigs);
-  const nodes = resolveCodeSpans(tokens);
+  const [tokens, hasBacktick] = tokenizeLine(str, modifierConfigs);
+  const nodes: IrNode[] = hasBacktick ? resolveCodeSpans(tokens) : tokens;
 
   return inlineFromIr(nodes, modifierConfigs);
 }
@@ -700,12 +705,11 @@ function parseListNode(
 
       let sliceAt = 0;
       if (lineIndent >= listMarker.contentIndent) {
-        sliceAt = listMarker.contentIndent;
-        if (
+        sliceAt =
           lineIndent > listMarker.contentIndent &&
           !parseListMarker(currentLine.slice(listMarker.contentIndent))
-        )
-          sliceAt = lineIndent;
+            ? lineIndent
+            : listMarker.contentIndent;
       } else if (lineIndent > indent) {
         sliceAt = Math.min(lineIndent, indent + 1);
       }
