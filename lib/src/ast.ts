@@ -160,32 +160,30 @@ const isTopLevelNodeStarter = (line: string) =>
     stripBlockquoteMarker(line) !== null
   );
 
-function splitTableRow(str: string): string[] {
-  let text = str.trim();
-  if (text.startsWith("|")) text = text.slice(1);
-  if (text.endsWith("|")) text = text.slice(0, -1);
+function splitTableRow(row: string) {
+  row = row.trim();
+  if (row.startsWith("|")) row = row.slice(1);
+  if (row.endsWith("|")) row = row.slice(0, -1);
 
   const cells: string[] = [];
-  let current = "";
+  let cellBuf = "";
   let index = 0;
-  while (index < text.length) {
-    const char = text[index];
-    const nextChar = text[index + 1];
+  while (index < row.length) {
+    const char = row[index];
+    const nextChar = row[index + 1];
     if (char === "\\" && nextChar === "|") {
-      current += "|";
+      cellBuf += "|";
       index += 2;
-      continue;
-    }
-    if (char === "|") {
-      cells.push(current.trim());
-      current = "";
+    } else if (char === "|") {
+      cells.push(cellBuf.trim());
+      cellBuf = "";
       index++;
-      continue;
+    } else {
+      cellBuf += char;
+      index++;
     }
-    current += char;
-    index++;
   }
-  cells.push(current.trim());
+  cells.push(cellBuf.trim());
   return cells;
 }
 
@@ -197,14 +195,13 @@ function parseTableAlignments(
 
   const alignments: Array<TableAlign | undefined> = [];
 
-  for (let index = 0; index < cells.length; index++) {
-    const cell = cells[index];
-    const trimmed = cell.replace(RE_WHITESPACE, "");
+  for (let cell of cells) {
+    cell = cell.replace(RE_WHITESPACE, "");
 
-    if (RE_TABLE_ALIGN_CENTER.test(trimmed)) alignments.push("center");
-    else if (RE_TABLE_ALIGN_LEFT.test(trimmed)) alignments.push("left");
-    else if (RE_TABLE_ALIGN_RIGHT.test(trimmed)) alignments.push("right");
-    else if (RE_TABLE_DIVIDER.test(trimmed)) alignments.push(undefined);
+    if (RE_TABLE_ALIGN_NONE.test(cell)) alignments.push(undefined);
+    else if (RE_TABLE_ALIGN_CENTER.test(cell)) alignments.push("center");
+    else if (RE_TABLE_ALIGN_LEFT.test(cell)) alignments.push("left");
+    else if (RE_TABLE_ALIGN_RIGHT.test(cell)) alignments.push("right");
     else return null;
   }
 
@@ -231,7 +228,7 @@ function buildTableNode(
     ],
   };
 
-  if (rows.length === 0) {
+  if (rows.length <= 0) {
     return {
       type: "table",
       children: [thead],
@@ -273,15 +270,11 @@ function parseTableNode(
 
   const rows: string[][] = [];
   while (currentIndex < lines.length && !isBlank(lines[currentIndex])) {
-    const rowLine = lines[currentIndex];
-    const rowCells = rowLine.includes("|") ? splitTableRow(rowLine) : null;
-    const isRowCandidate =
-      rowCells !== null && (rowCells.length > 1 || headerLength === 1);
-    if (!isRowCandidate && isTopLevelNodeStarter(rowLine)) break;
-
-    const rowValues = isRowCandidate ? rowCells : [rowLine.trim()];
-    while (rowValues.length < headerLength) rowValues.push("");
-    rows.push(rowValues.slice(0, headerLength));
+    const line = lines[currentIndex];
+    if (isTopLevelNodeStarter(line)) break;
+    const cells = splitTableRow(line);
+    while (cells.length < headerLength) cells.push("");
+    rows.push(cells.slice(0, headerLength));
     currentIndex++;
   }
 
@@ -291,7 +284,7 @@ function parseTableNode(
   };
 }
 
-function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
+function pushNewline(inlineNodes: InlineAstNode[]) {
   const last = inlineNodes[inlineNodes.length - 1];
   let hard = false;
   if (last && last.type === "text" && last.value.endsWith("  ")) {
@@ -302,14 +295,14 @@ function handleInlineNewline(inlineNodes: InlineAstNode[]): void {
   inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
 }
 
-function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
+function irToInlineNodes(irNodes: IrNode[]) {
   const inlineNodes: InlineAstNode[] = [];
 
-  for (const node of nodesList) {
+  for (const node of irNodes) {
     if (node.type === "text") {
       appendText(inlineNodes, node.value);
     } else if (node.type === "newline") {
-      handleInlineNewline(inlineNodes);
+      pushNewline(inlineNodes);
     } else if (isToken(node)) {
       appendText(inlineNodes, nodeToLiteral(node));
     } else {
@@ -320,23 +313,21 @@ function finalizeInlineNodes(nodesList: IrNode[]): InlineAstNode[] {
   return inlineNodes;
 }
 
-function tokenize(
-  str: string,
-  modifierConfigs: ModifierConfigs
-): InlineToken[] {
+function tokenizeLine(str: string, modifierConfigs: ModifierConfigs) {
   const tokens: InlineToken[] = [];
-  let textBuffer = "";
+  let textBuf = "";
 
-  const flushText = () => {
-    if (!textBuffer) return;
-    const last = tokens[tokens.length - 1];
-    if (last && last.type === "text") last.value += textBuffer;
-    else tokens.push({ type: "text", value: textBuffer });
-    textBuffer = "";
+  const pushText = () => {
+    if (textBuf) {
+      const last = tokens[tokens.length - 1];
+      if (last && last.type === "text") last.value += textBuf;
+      else tokens.push({ type: "text", value: textBuf });
+      textBuf = "";
+    }
   };
 
   const pushToken = (token: InlineToken) => {
-    flushText();
+    pushText();
     tokens.push(token);
   };
 
@@ -346,11 +337,11 @@ function tokenize(
     if (char === "\n") pushToken({ type: "newline" });
     else if (char === "\\") {
       const nextChar = str[i + 1];
-      if (nextChar && ESCAPABLE.has(nextChar)) {
-        textBuffer += nextChar;
+      if (ESCAPABLE.has(nextChar)) {
+        textBuf += nextChar;
         i++;
       } else {
-        textBuffer += "\\";
+        textBuf += "\\";
       }
     } else if ("[]()!".includes(char)) pushToken({ type: "punct", char });
     else if (char === "`" || char in modifierConfigs) {
@@ -365,7 +356,7 @@ function tokenize(
         const nextChar = str[runIndex];
 
         if (!intraword && isAlphanum(prevChar) && isAlphanum(nextChar)) {
-          textBuffer += char.repeat(runIndex - i);
+          textBuf += char.repeat(runIndex - i);
         } else {
           pushToken({
             type: "delimiter",
@@ -377,10 +368,10 @@ function tokenize(
         }
       }
       i = runIndex - 1;
-    } else textBuffer += char;
+    } else textBuf += char;
   }
 
-  flushText();
+  pushText();
   return tokens;
 }
 
@@ -607,7 +598,7 @@ function resolveDelimiters(
       (node) => node !== closerNode
     );
 
-    const children = finalizeInlineNodes(innerNodes.map((item) => item.value));
+    const children = irToInlineNodes(innerNodes.map((item) => item.value));
     const delimiter = closer.value.char.repeat(used);
     const emphasisNode: IrNode = {
       type: "modifier",
@@ -662,7 +653,7 @@ function parseInline(
   str: string,
   modifierConfigs: ModifierConfigs
 ): InlineAstNode[] {
-  const tokens = tokenize(str, modifierConfigs);
+  const tokens = tokenizeLine(str, modifierConfigs);
   const parseInlineValue: InlineParser = (value) =>
     parseInline(value, modifierConfigs);
 
@@ -670,7 +661,7 @@ function parseInline(
   nodes = resolveLinksAndImages(nodes, parseInlineValue);
   nodes = resolveDelimiters(nodes, modifierConfigs);
 
-  return finalizeInlineNodes(nodes);
+  return irToInlineNodes(nodes);
 }
 
 function parseListNode(
@@ -1101,7 +1092,7 @@ const RE_FENCE_TICKS = /^`{3,}$/;
 const RE_UL_MARKER = /^([-+*])(?:[ \t]+|$)/;
 const RE_OL_MARKER = /^(\d{1,9})([.)])[ \t]+/;
 const RE_WHITESPACE = /\s+/g;
-const RE_TABLE_DIVIDER = /^-+$/;
+const RE_TABLE_ALIGN_NONE = /^-+$/;
 const RE_TABLE_ALIGN_LEFT = /^:-+$/;
 const RE_TABLE_ALIGN_RIGHT = /^-+:$/;
 const RE_TABLE_ALIGN_CENTER = /^:-+:$/;
