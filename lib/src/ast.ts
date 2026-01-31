@@ -24,27 +24,12 @@ const isSpace = (char?: string) =>
 const isAlphanum = (char?: string) => !!char && RE_ALPHANUM.test(char);
 const isToken = (node: IrNode): node is InlineToken =>
   (TOKEN_TYPES as Set<string>).has(node.type);
-const isTextNode = (node: IrNode | InlineToken): node is TextNode =>
-  node.type === "text";
 
 function appendText(nodes: IrNode[], value: string) {
   if (!value) return;
   const last = nodes[nodes.length - 1];
   if (last && last.type === "text") last.value += value;
   else nodes.push({ type: "text", value });
-}
-
-function mergeAdjacentText<T extends IrNode | InlineToken>(nodes: T[]): T[] {
-  const merged: T[] = [];
-  for (const node of nodes) {
-    const last = merged[merged.length - 1];
-    if (last && isTextNode(node) && isTextNode(last)) {
-      last.value += node.value;
-    } else {
-      merged.push(node);
-    }
-  }
-  return merged;
 }
 
 function nodeToLiteral(node: IrNode): string {
@@ -375,7 +360,7 @@ function tokenizeLine(str: string, modifierConfigs: ModifierConfigs) {
   return tokens;
 }
 
-function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
+function resolveCodeSpans(tokens: InlineToken[]) {
   const nodes: IrNode[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -410,7 +395,7 @@ function resolveCodeSpans(tokens: InlineToken[]): IrNode[] {
     }
   }
 
-  return mergeAdjacentText(nodes);
+  return nodes;
 }
 
 const isPunctChar = (node: IrNode, char: string): node is PunctToken =>
@@ -421,7 +406,7 @@ function findMatchingCloser(
   startIndex: number,
   open: string,
   close: string
-): number {
+) {
   let index = startIndex;
   let depth = 0;
   while (index < nodes.length) {
@@ -440,7 +425,7 @@ function parseLinkOrImage(
   nodes: IrNode[],
   startIndex: number,
   parseInlineValue: InlineParser
-): { node: IrNode; nextIndex: number } | null {
+): { node: LinkNode | ImageNode; nextIndex: number } | null {
   const startNode = nodes[startIndex];
   if (!isToken(startNode)) return null;
 
@@ -495,27 +480,27 @@ function resolveLinksAndImages(
   nodes: IrNode[],
   parseInlineValue: InlineParser
 ): IrNode[] {
-  const nodesOut: IrNode[] = [];
+  const irNodes: IrNode[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
     const linkOrImageMatch = parseLinkOrImage(nodes, i, parseInlineValue);
     const node = nodes[i];
     if (linkOrImageMatch) {
-      nodesOut.push(linkOrImageMatch.node);
+      irNodes.push(linkOrImageMatch.node);
       i = linkOrImageMatch.nextIndex;
     } else {
-      nodesOut.push(node);
+      irNodes.push(node);
     }
   }
 
-  return mergeAdjacentText(nodesOut);
+  return irNodes;
 }
 
 function getMaxSupportedDelimiterLength(
   opener: DelimiterRun,
   closer: DelimiterRun,
   modifierConfigs: ModifierConfigs
-): number {
+) {
   if (opener.char !== closer.char) return 0;
   if (opener.length === 0 || closer.length === 0) return 0;
 
@@ -529,10 +514,7 @@ function getMaxSupportedDelimiterLength(
   return 0;
 }
 
-function resolveDelimiters(
-  nodes: IrNode[],
-  modifierConfigs: ModifierConfigs
-): IrNode[] {
+function resolveDelimiters(nodes: IrNode[], modifierConfigs: ModifierConfigs) {
   const nodeList: LinkedList<IrNode> = {};
   const delimiterRunList: LinkedList<DelimiterRun> = {};
   const pushText = (value: string) =>
@@ -640,12 +622,10 @@ function resolveDelimiters(
     closer = nextCloser;
   }
 
-  return mergeAdjacentText(
-    mapWhile(
-      nodeList.head,
-      (node) => node.value,
-      () => true
-    )
+  return mapWhile(
+    nodeList.head,
+    (node) => node.value,
+    () => true
   );
 }
 
@@ -654,11 +634,11 @@ function parseInline(
   modifierConfigs: ModifierConfigs
 ): InlineAstNode[] {
   const tokens = tokenizeLine(str, modifierConfigs);
-  const parseInlineValue: InlineParser = (value) =>
-    parseInline(value, modifierConfigs);
 
   let nodes: IrNode[] = resolveCodeSpans(tokens);
-  nodes = resolveLinksAndImages(nodes, parseInlineValue);
+  nodes = resolveLinksAndImages(nodes, (value) =>
+    parseInline(value, modifierConfigs)
+  );
   nodes = resolveDelimiters(nodes, modifierConfigs);
 
   return irToInlineNodes(nodes);
