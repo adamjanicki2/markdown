@@ -112,7 +112,7 @@ function shouldDisallowListStart(line: string, marker: ListMarker) {
   );
 }
 
-function getBlockquoteInfo(str: string) {
+function stripBlockquoteMarker(str: string) {
   let index = 0;
   while (index < str.length && index < 3 && str[index] === " ") index++;
 
@@ -124,15 +124,9 @@ function getBlockquoteInfo(str: string) {
   }
 
   if (depth === 0) return null;
-  return { depth, content: str.slice(index) };
-}
-
-function stripBlockquoteMarker(str: string) {
-  const info = getBlockquoteInfo(str);
-  if (!info) return null;
-  return info.depth === 1
-    ? info.content
-    : ">".repeat(info.depth - 1) + " " + info.content;
+  return depth === 1
+    ? str.slice(index)
+    : ">".repeat(depth - 1) + " " + str.slice(index);
 }
 
 const isTopLevelNodeStarter = (line: string) =>
@@ -193,51 +187,6 @@ function parseTableAlignments(
   return alignments;
 }
 
-function buildTableNode(
-  header: string[],
-  rows: string[][],
-  alignments: Array<TableAlign | undefined>,
-  parseInlineValue: InlineParser
-): TableNode {
-  const thead: TableHeadNode = {
-    type: "thead",
-    children: [
-      {
-        type: "tr",
-        children: header.map((cellValue, cellIndex) => ({
-          type: "th",
-          align: alignments[cellIndex],
-          children: parseInlineValue(cellValue),
-        })),
-      },
-    ],
-  };
-
-  if (rows.length <= 0) {
-    return {
-      type: "table",
-      children: [thead],
-    };
-  }
-
-  const tbody: TableBodyNode = {
-    type: "tbody",
-    children: rows.map((row) => ({
-      type: "tr",
-      children: row.map((cellValue, cellIndex) => ({
-        type: "td",
-        align: alignments[cellIndex],
-        children: parseInlineValue(cellValue),
-      })),
-    })),
-  };
-
-  return {
-    type: "table",
-    children: [thead, tbody],
-  };
-}
-
 function parseTableNode(
   lines: string[],
   lineIndex: number,
@@ -263,21 +212,45 @@ function parseTableNode(
     currentIndex++;
   }
 
+  const thead: TableHeadNode = {
+    type: "thead",
+    children: [
+      {
+        type: "tr",
+        children: header.map((cellValue, cellIndex) => ({
+          type: "th",
+          align: alignments[cellIndex],
+          children: parseInlineValue(cellValue),
+        })),
+      },
+    ],
+  };
+
+  const children: TableNode["children"] =
+    rows.length > 0
+      ? [
+          thead,
+          {
+            type: "tbody",
+            children: rows.map((row) => ({
+              type: "tr",
+              children: row.map((cellValue, cellIndex) => ({
+                type: "td",
+                align: alignments[cellIndex],
+                children: parseInlineValue(cellValue),
+              })),
+            })),
+          },
+        ]
+      : [thead];
+
   return {
-    node: buildTableNode(header, rows, alignments, parseInlineValue),
+    node: {
+      type: "table",
+      children,
+    },
     nextIndex: currentIndex,
   };
-}
-
-function pushNewline(inlineNodes: InlineAstNode[]) {
-  const last = inlineNodes[inlineNodes.length - 1];
-  let hard = false;
-  if (last && last.type === "text" && last.value.endsWith("  ")) {
-    last.value = last.value.slice(0, -2);
-    hard = true;
-    if (!last.value) inlineNodes.pop();
-  }
-  inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
 }
 
 function irToInlineNodes(irNodes: IrNode[]) {
@@ -287,7 +260,14 @@ function irToInlineNodes(irNodes: IrNode[]) {
     if (node.type === "text") {
       appendText(inlineNodes, node.value);
     } else if (node.type === "newline") {
-      pushNewline(inlineNodes);
+      const last = inlineNodes[inlineNodes.length - 1];
+      let hard = false;
+      if (last && last.type === "text" && last.value.endsWith("  ")) {
+        last.value = last.value.slice(0, -2);
+        hard = true;
+        if (!last.value) inlineNodes.pop();
+      }
+      inlineNodes.push(hard ? { type: "br" } : { type: "text", value: "\n" });
     } else if (isToken(node)) {
       appendText(inlineNodes, nodeToLiteral(node));
     } else {
@@ -401,24 +381,13 @@ function resolveCodeSpans(tokens: InlineToken[]) {
 const isPunctChar = (node: IrNode, char: string): node is PunctToken =>
   isToken(node) && node.type === "punct" && node.char === char;
 
-function findMatchingCloser(
-  nodes: IrNode[],
-  startIndex: number,
-  open: string,
-  close: string
-) {
-  let index = startIndex;
-  let depth = 0;
-  while (index < nodes.length) {
-    const candidate = nodes[index];
-    if (isPunctChar(candidate, open)) depth++;
-    else if (isPunctChar(candidate, close)) {
-      if (depth === 0) return index;
-      depth--;
-    }
-    index++;
-  }
-  return index;
+function inlineFromIr(nodes: IrNode[], modifierConfigs: ModifierConfigs) {
+  return irToInlineNodes(
+    resolveDelimiters(
+      resolveLinksAndImages(nodes, modifierConfigs),
+      modifierConfigs
+    )
+  );
 }
 
 function parseLinkOrImage(
@@ -437,23 +406,32 @@ function parseLinkOrImage(
   )
     return null;
 
-  const rightBracketIndex = findMatchingCloser(
-    nodes,
-    leftBracketIndex + 1,
-    "[",
-    "]"
-  );
+  const findMatchingCloser = (
+    startIndex: number,
+    open: string,
+    close: string
+  ) => {
+    let index = startIndex;
+    let depth = 0;
+    while (index < nodes.length) {
+      const candidate = nodes[index];
+      if (isPunctChar(candidate, open)) depth++;
+      else if (isPunctChar(candidate, close)) {
+        if (depth === 0) return index;
+        depth--;
+      }
+      index++;
+    }
+    return index;
+  };
+
+  const rightBracketIndex = findMatchingCloser(leftBracketIndex + 1, "[", "]");
   if (rightBracketIndex >= nodes.length) return null;
 
   const leftParenNode = nodes[rightBracketIndex + 1];
   if (!leftParenNode || !isPunctChar(leftParenNode, "(")) return null;
 
-  const rightParenIndex = findMatchingCloser(
-    nodes,
-    rightBracketIndex + 2,
-    "(",
-    ")"
-  );
+  const rightParenIndex = findMatchingCloser(rightBracketIndex + 2, "(", ")");
   if (rightParenIndex >= nodes.length) return null;
 
   const labelNodes = nodes.slice(leftBracketIndex + 1, rightBracketIndex);
@@ -472,12 +450,7 @@ function parseLinkOrImage(
     node: {
       type: "a",
       url,
-      children: irToInlineNodes(
-        resolveDelimiters(
-          resolveLinksAndImages(labelNodes, modifierConfigs),
-          modifierConfigs
-        )
-      ),
+      children: inlineFromIr(labelNodes, modifierConfigs),
     },
     nextIndex: rightParenIndex,
   };
@@ -643,12 +616,7 @@ function parseInline(
   const tokens = tokenizeLine(str, modifierConfigs);
   const nodes = resolveCodeSpans(tokens);
 
-  return irToInlineNodes(
-    resolveDelimiters(
-      resolveLinksAndImages(nodes, modifierConfigs),
-      modifierConfigs
-    )
-  );
+  return inlineFromIr(nodes, modifierConfigs);
 }
 
 function parseListNode(
