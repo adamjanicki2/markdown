@@ -67,10 +67,7 @@ const Markdown = React.forwardRef<HTMLDivElement, Props>(
 
 function buildInlineExtensionMaps(
   inlineExtensions: readonly InlineExtension[] = []
-): {
-  modifierConfigs: ModifierConfigs;
-  inlineExtensionMap: InlineExtensionMap;
-} {
+) {
   const modifierConfigs: ModifierConfigs = {};
   const inlineExtensionMap: InlineExtensionMap = {};
 
@@ -92,7 +89,7 @@ function buildInlineExtensionMaps(
   return { modifierConfigs, inlineExtensionMap };
 }
 
-function getNodeMeta(node: AstNode): { key: string; tag: Tag | null } {
+function getNodeMetadata(node: AstNode): { key: string; tag: Tag | null } {
   const type = node.type;
   if (type === "list")
     return { key: node.ordered ? "ol" : "ul", tag: node.ordered ? "ol" : "ul" };
@@ -118,7 +115,7 @@ function render(
         {nodes.map((node, index) => {
           const child = render(node, renderers, hideTags, inlineExtensionMap);
           return child ? (
-            <React.Fragment key={`${getNodeMeta(node).key}-${index}`}>
+            <React.Fragment key={`${getNodeMetadata(node).key}-${index}`}>
               {child}
             </React.Fragment>
           ) : null;
@@ -135,7 +132,7 @@ function render(
   const renderChildren = (node: { children: AstNode[] }) =>
     render(node.children, renderers, hideTags, inlineExtensionMap);
 
-  const tag = getNodeMeta(node).tag;
+  const tag = getNodeMetadata(node).tag;
   const hideBehavior = tag ? hideTags.get(tag) : undefined;
   if (hideBehavior) {
     // drop entire subtree
