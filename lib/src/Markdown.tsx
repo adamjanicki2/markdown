@@ -145,7 +145,19 @@ function render(
     return null;
   }
 
-  if (type === "code") return renderers.code({ children: node.value });
+  if (type === "p")
+    return renderers.p({
+      children: renderChildren(node),
+    });
+  if (type === "h")
+    return renderers[`h${node.level}`]({
+      children: renderChildren(node),
+    });
+  if (type === "a")
+    return renderers.a({
+      children: renderChildren(node),
+      href: node.url,
+    });
   if (type === "modifier") {
     const inlineExtension = inlineExtensionMap[node.delimiter];
     if (inlineExtension) {
@@ -164,39 +176,28 @@ function render(
       children: renderChildren(node),
     });
   }
-  if (type === "a")
-    return renderers.a({
-      children: renderChildren(node),
-      href: node.url,
-    });
+  if (type === "hr") return renderers.hr();
   if (type === "img") return renderers.img({ src: node.url, alt: node.alt });
   if (type === "br") return renderers.br();
-  if (type === "p")
-    return renderers.p({
-      children: renderChildren(node),
-    });
-  if (type === "h") {
-    const Heading = renderers[`h${node.level}`];
-    return Heading({
-      children: renderChildren(node),
-    });
-  }
-  if (type === "hr") return renderers.hr();
-  if (type === "pre")
-    return renderers.pre({ children: node.value, lang: node.lang });
   if (type === "list") {
     const children = renderChildren(node);
-    if (node.ordered) {
-      const start =
-        node.start !== undefined && node.start !== 1 ? node.start : undefined;
-      return renderers.ol({ children, start });
-    }
-    return renderers.ul({ children });
+    return node.ordered
+      ? renderers.ol({
+          children,
+          start:
+            node.start !== undefined && node.start !== 1
+              ? node.start
+              : undefined,
+        })
+      : renderers.ul({ children });
   }
   if (type === "li")
     return renderers.li({
       children: renderChildren(node),
     });
+  if (type === "code") return renderers.code({ children: node.value });
+  if (type === "pre")
+    return renderers.pre({ children: node.value, lang: node.lang });
   if (type === "thead")
     return renderers.thead({
       children: renderChildren(node),
