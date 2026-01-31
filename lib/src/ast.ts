@@ -424,7 +424,7 @@ function findMatchingCloser(
 function parseLinkOrImage(
   nodes: IrNode[],
   startIndex: number,
-  parseInlineValue: InlineParser
+  modifierConfigs: ModifierConfigs
 ): { node: LinkNode | ImageNode; nextIndex: number } | null {
   const startNode = nodes[startIndex];
   if (!isToken(startNode)) return null;
@@ -460,30 +460,37 @@ function parseLinkOrImage(
   const urlNodes = nodes.slice(rightBracketIndex + 2, rightParenIndex);
 
   const url = nodesToLiteral(urlNodes).trim();
-  const label = nodesToLiteral(labelNodes);
 
   if (isBang) {
     return {
-      node: { type: "img", url, alt: label },
+      node: { type: "img", url, alt: nodesToLiteral(labelNodes) },
       nextIndex: rightParenIndex,
     };
   }
 
-  const children = parseInlineValue(label);
   return {
-    node: { type: "a", url, children },
+    node: {
+      type: "a",
+      url,
+      children: irToInlineNodes(
+        resolveDelimiters(
+          resolveLinksAndImages(labelNodes, modifierConfigs),
+          modifierConfigs
+        )
+      ),
+    },
     nextIndex: rightParenIndex,
   };
 }
 
 function resolveLinksAndImages(
   nodes: IrNode[],
-  parseInlineValue: InlineParser
+  modifierConfigs: ModifierConfigs
 ): IrNode[] {
   const irNodes: IrNode[] = [];
 
   for (let i = 0; i < nodes.length; i++) {
-    const linkOrImageMatch = parseLinkOrImage(nodes, i, parseInlineValue);
+    const linkOrImageMatch = parseLinkOrImage(nodes, i, modifierConfigs);
     const node = nodes[i];
     if (linkOrImageMatch) {
       irNodes.push(linkOrImageMatch.node);
@@ -634,14 +641,14 @@ function parseInline(
   modifierConfigs: ModifierConfigs
 ): InlineAstNode[] {
   const tokens = tokenizeLine(str, modifierConfigs);
+  const nodes = resolveCodeSpans(tokens);
 
-  let nodes: IrNode[] = resolveCodeSpans(tokens);
-  nodes = resolveLinksAndImages(nodes, (value) =>
-    parseInline(value, modifierConfigs)
+  return irToInlineNodes(
+    resolveDelimiters(
+      resolveLinksAndImages(nodes, modifierConfigs),
+      modifierConfigs
+    )
   );
-  nodes = resolveDelimiters(nodes, modifierConfigs);
-
-  return irToInlineNodes(nodes);
 }
 
 function parseListNode(
